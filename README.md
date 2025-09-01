@@ -82,7 +82,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Frontend (React Native)
-cd ../frontend
+cd ../fisiovet-app
 npm install
 
 # Configure variáveis de ambiente
