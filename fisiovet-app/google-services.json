@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "629108942932",
+    "project_id": "fisiovet-41089",
+    "storage_bucket": "fisiovet-41089.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:629108942932:android:cd63d963fb15106123e5c1",
+        "android_client_info": {
+          "package_name": "com.fisiovet.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD17xahKFmzrncdfmCO4Isw_MIzmHdfvfU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
