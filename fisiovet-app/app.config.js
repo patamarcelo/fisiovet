@@ -60,7 +60,7 @@ export default {
 				"expo-build-properties",
 				{
 					ios: {
-						useModularHeaders: true
+						useFrameworks: "static"
 					}
 				}
 			]

@@ -9,6 +9,7 @@ import {
 import auth from "@react-native-firebase/auth";
 import { useDispatch } from "react-redux";
 import { setUser } from "../../store/slices/userSlice";
+import { mapFirebaseUserToDTO } from "@/firebase/authUserDTO";
 
 export default function Login() {
 	const [email, setEmail] = useState("");
@@ -18,11 +19,11 @@ export default function Login() {
 
 	const handleLogin = async () => {
 		try {
-			const userCredential = await auth().signInWithEmailAndPassword(
+			const { user } = await auth().signInWithEmailAndPassword(
 				email,
 				password
 			);
-			dispatch(setUser(userCredential.user));
+			dispatch(setUser(mapFirebaseUserToDTO(user)));
 		} catch (err) {
 			setError(err.message);
 		}
@@ -69,7 +70,8 @@ const styles = StyleSheet.create({
 		borderColor: "#ccc",
 		padding: 12,
 		borderRadius: 8,
-		marginBottom: 10
+		marginBottom: 10,
+		color: "whitesmoke"
 	},
 	button: { backgroundColor: "#007AFF", padding: 15, borderRadius: 8 },
 	buttonText: { color: "#fff", fontWeight: "bold", textAlign: "center" },

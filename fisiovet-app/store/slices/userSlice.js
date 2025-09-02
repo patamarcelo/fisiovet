@@ -1,19 +1,17 @@
+// userSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 
-const initialState = {
-	user: null, // dados do Firebase Auth
-	loading: false,
-	error: null
-};
+const initialState = { user: null };
 
 const userSlice = createSlice({
 	name: "user",
 	initialState,
 	reducers: {
-		setUser: (state, action) => {
+		setUser(state, action) {
+			// action.payload = DTO ou null
 			state.user = action.payload;
 		},
-		clearUser: (state) => {
+		clearUser(state) {
 			state.user = null;
 		}
 	}

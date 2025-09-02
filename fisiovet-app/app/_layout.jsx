@@ -1,53 +1,93 @@
+// app/_layout.jsx
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 // Redux
-import { Provider, useSelector } from 'react-redux';
+import { Provider, useSelector, useDispatch } from 'react-redux';
 import { store } from '../store';
+import { useEffect, useState } from 'react';
+
+// Firebase
+import auth from '@react-native-firebase/auth';
+import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
+import { setUser } from '@/store/slices/userSlice';
+
+function useAuthBinding() {
+  const dispatch = useDispatch();
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    const unsub = auth().onAuthStateChanged((u) => {
+      dispatch(setUser(mapFirebaseUserToDTO(u)));
+      setAuthReady(true);
+    });
+    return unsub;
+  }, [dispatch]);
+
+  return authReady;
+}
+
+function AuthBootstrap({ children }) {
+  const ready = useAuthBinding();
+  if (!ready) return null; // espera o primeiro snapshot do Firebase
+  return children;
+}
+
+function AuthGate({ children }) {
+  const user = useSelector((state) => state.user.user);
+  const router = useRouter();
+  const segments = useSegments();
+
+  useEffect(() => {
+    const atRoot = segments.length === 0;
+    const inTabs = segments[0] === '(tabs)';
+    const inAuth = segments[0] === '(auth)' || segments[0] === 'firebaseCheck';
+
+    if (!user && (inTabs || atRoot)) {
+      router.replace('/(auth)/login');
+    } else if (user && inAuth) {
+      router.replace('/(tabs)');
+    }
+  }, [user, segments, router]);
+
+  return children;
+}
 
 function RootNavigator() {
   const colorScheme = useColorScheme();
-  const user = useSelector((state) => state.user.user); // pega do Redux
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack screenOptions={{ headerShown: false }}>
-        {user ? (
-          // Usuário logado → leva para tabs (home)
-
+      <AuthGate>
+        <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
-
-        ) : (
-          // Usuário não logado → leva para telas de auth
-          <>
-            <Stack.Screen name="firebaseCheck" options={{ title: 'Firebase Check' }} />
-            <Stack.Screen name="(auth)" />
-          </>
-        )}
-        <Stack.Screen name="+not-found" />
-      </Stack>
+          <Stack.Screen name="firebaseCheck" options={{ title: 'Firebase Check' }} />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="+not-found" />
+        </Stack>
+      </AuthGate>
       <StatusBar style="auto" />
     </ThemeProvider>
   );
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [fontsReady] = useFonts({
     SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
   });
 
-  if (!loaded) {
-    return null;
-  }
+  if (!fontsReady) return null;
 
   return (
     <Provider store={store}>
-      <RootNavigator />
+      <AuthBootstrap>
+        <RootNavigator />
+      </AuthBootstrap>
     </Provider>
   );
 }

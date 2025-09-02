@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Button, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ensureFirebase } from '@/firebase/firebase';
+import { useDispatch } from 'react-redux';
+import { setUser } from '@/store/slices/userSlice';
 
 export default function FirebaseCheckScreen() {
     const router = useRouter();
@@ -11,6 +13,7 @@ export default function FirebaseCheckScreen() {
     const [uid, setUid] = useState(null);
     const [pingDoc, setPingDoc] = useState(null);
     const [busy, setBusy] = useState(false);
+    const dispatch = useDispatch()
 
     useEffect(() => {
         setStatus('Firebase carregado. Pronto para testar.');
@@ -64,6 +67,10 @@ export default function FirebaseCheckScreen() {
         }
     };
 
+    const handleLougout = () => {
+        dispatch(setUser(null));
+    }
+
     return (
         <View style={s.container}>
             <Text style={s.title}>Firebase Check</Text>
@@ -79,6 +86,9 @@ export default function FirebaseCheckScreen() {
             </View>
             <View style={s.row}>
                 <Button title="3) Ler ping" onPress={readPing} />
+            </View>
+            <View style={s.row}>
+                <Button title="4) Sair" onPress={handleLougout} />
             </View>
 
             {busy && <ActivityIndicator style={{ marginTop: 16 }} />}
