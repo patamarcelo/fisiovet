@@ -4,6 +4,15 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 
 
 
+/**
+ * @param {{
+ *   style?: import('react-native').StyleProp<import('react-native').TextStyle>,
+ *   lightColor?: string,
+ *   darkColor?: string,
+ *   type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link'
+ * } & import('react-native').TextProps} props
+ */
+
 export function ThemedText({
   style,
   lightColor,

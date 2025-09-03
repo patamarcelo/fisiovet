@@ -7,6 +7,8 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useRouter } from 'expo-router';
 
+import { Images } from '../../assets/assets'
+
 export default function HomeScreen() {
   const router = useRouter()
   return (
@@ -14,7 +16,7 @@ export default function HomeScreen() {
       headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
       headerImage={
         <Image
-          source={require('@/assets/images/partial-react-logo.png')}
+          source={Images.logo}
           style={styles.reactLogo}
         />
       }>
@@ -23,7 +25,7 @@ export default function HomeScreen() {
         <HelloWave />
       </ThemedView>
       <TouchableOpacity
-        onPress={() => router.push('/firebaseCheck')}
+        onPress={() => router.push('/testeRota')}
         style={{ padding: 12, backgroundColor: '#4a90e2', borderRadius: 8 }}
       >
         <Text style={{ color: '#fff', fontWeight: '600' }}>Testar Firebase</Text>

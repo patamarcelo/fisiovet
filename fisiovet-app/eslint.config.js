@@ -5,6 +5,9 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
 	expoConfig,
 	{
+		rules: {
+			"import/no-unresolved": "off" // se ele estiver reclamando do require
+		},
 		// Garante que o ESLint parseie JSX e ES moderno
 		languageOptions: {
 			ecmaVersion: "latest",

@@ -9,13 +9,16 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 // Redux
 import { Provider, useSelector, useDispatch } from 'react-redux';
-import { store } from '../store';
+import { PersistGate } from 'redux-persist/integration/react';
+import { store, persistor } from '../store';
 import { useEffect, useState } from 'react';
 
 // Firebase
 import auth from '@react-native-firebase/auth';
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
 import { setUser } from '@/store/slices/userSlice';
+
+import { Fonts } from '@/assets/assets';
 
 function useAuthBinding() {
   const dispatch = useDispatch();
@@ -66,8 +69,7 @@ function RootNavigator() {
       <AuthGate>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="firebaseCheck" options={{ title: 'Firebase Check' }} />
-          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="testeRota" />
           <Stack.Screen name="+not-found" />
         </Stack>
       </AuthGate>
@@ -78,16 +80,18 @@ function RootNavigator() {
 
 export default function RootLayout() {
   const [fontsReady] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
+    SpaceMono: Fonts.SpaceMono,
   });
 
   if (!fontsReady) return null;
 
   return (
     <Provider store={store}>
-      <AuthBootstrap>
-        <RootNavigator />
-      </AuthBootstrap>
+      <PersistGate loading={null} persistor={persistor}>
+        <AuthBootstrap>
+          <RootNavigator />
+        </AuthBootstrap>
+      </PersistGate>
     </Provider>
   );
 }

@@ -1,19 +1,22 @@
 // firebase.js
-import firebase from "@react-native-firebase/app";
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
+import { getApp } from "@react-native-firebase/app";
+import { getAuth } from "@react-native-firebase/auth";
+import { getFirestore } from "@react-native-firebase/firestore";
 
-// Em RNFirebase, a presença do GoogleService-Info.plist / google-services.json
-// já inicializa a default app. Este check evita warnings em dev.
 export function ensureFirebase() {
+	let app;
 	try {
-		firebase.app(); // throws se não estiver inicializado
+		app = getApp(); // pega a default app inicializada pelos arquivos google-services
 	} catch (e) {
-		// Se cair aqui, normalmente é falta/posição errada dos arquivos de serviço
 		console.warn(
 			"Firebase app não inicializada. Verifique google services files.",
 			e
 		);
+		return null;
 	}
-	return { firebase, auth, firestore };
+
+	const auth = getAuth(app);
+	const firestore = getFirestore(app);
+
+	return { app, auth, firestore };
 }
