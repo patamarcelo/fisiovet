@@ -28,7 +28,7 @@ export default function HomeScreen() {
         onPress={() => router.push('/testeRota')}
         style={{ padding: 12, backgroundColor: '#4a90e2', borderRadius: 8 }}
       >
-        <Text style={{ color: '#fff', fontWeight: '600' }}>Testar Firebase</Text>
+        <Text style={{ color: '#fff', fontWeight: '600' }}>Teste de Rota </Text>
       </TouchableOpacity>
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
