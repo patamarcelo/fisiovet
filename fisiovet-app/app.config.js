@@ -1,6 +1,4 @@
 // app.config.js
-
-// Carrega as variáveis do arquivo .env para process.env
 require("dotenv").config();
 
 export default {
@@ -8,22 +6,38 @@ export default {
 		name: "fisiovet-app",
 		slug: "fisiovet-app",
 		version: "1.0.0",
-		orientation: "portrait",
+		orientation: "portrait", // iPhone em portrait por padrão
 		icon: "./assets/images/icon.png",
 		scheme: "fisiovetapp",
 		userInterfaceStyle: "automatic",
 		newArchEnabled: true,
 
 		extra: {
-			eas: {
-				projectId: "b5d74ed0-b6e2-497e-a9e7-b66665675e59"
-			}
+			eas: { projectId: "b5d74ed0-b6e2-497e-a9e7-b66665675e59" }
+		},
+
+		// 🔹 Splash: inclua um tabletImage se tiver
+		splash: {
+			image: "./assets/images/splash-icon.png",
+			// opcional: use uma arte maior/mais larga para iPad
+			// tabletImage: "./assets/images/splash-icon-tablet.png",
+			resizeMode: "contain",
+			backgroundColor: "#ffffff"
 		},
 
 		ios: {
 			supportsTablet: true,
+			requireFullScreen: false,               // ✅ permite multitarefa no iPad
 			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER,
-			googleServicesFile: "./GoogleService-Info.plist" // <-- ADIÇÃO EXPLÍCITA
+			googleServicesFile: "./GoogleService-Info.plist",
+			infoPlist: {
+				// ✅ habilita portrait + landscape no iPad
+				"UISupportedInterfaceOrientations~ipad": [
+					"UIInterfaceOrientationPortrait",
+					"UIInterfaceOrientationLandscapeLeft",
+					"UIInterfaceOrientationLandscapeRight"
+				]
+			}
 		},
 
 		android: {
@@ -33,7 +47,7 @@ export default {
 			},
 			edgeToEdgeEnabled: true,
 			package: process.env.ANDROID_PACKAGE_NAME,
-			googleServicesFile: "./google-services.json" // <-- ADIÇÃO EXPLÍCITA
+			googleServicesFile: "./google-services.json"
 		},
 
 		web: {
@@ -51,6 +65,7 @@ export default {
 				"expo-splash-screen",
 				{
 					image: "./assets/images/splash-icon.png",
+					tabletImage: "./assets/images/splash-icon-tablet.png", // ✅
 					imageWidth: 200,
 					resizeMode: "contain",
 					backgroundColor: "#ffffff"
@@ -60,14 +75,14 @@ export default {
 				"expo-build-properties",
 				{
 					ios: {
-						useFrameworks: "static"
+						useFrameworks: "static",
+						// opcional: fixe o alvo mínimo se quiser
+						// deploymentTarget: "13.4"
 					}
 				}
 			]
 		],
 
-		experiments: {
-			typedRoutes: true
-		}
+		experiments: { typedRoutes: true }
 	}
 };

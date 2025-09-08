@@ -17,6 +17,9 @@
     "development-device": {
       "developmentClient": true,
       "distribution": "internal",
+      "ios": {
+        "simulator": false
+      },
       "env": {
         "APP_ENV": "development"
       }
