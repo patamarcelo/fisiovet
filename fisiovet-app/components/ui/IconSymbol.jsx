@@ -19,8 +19,8 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 export function IconSymbol({
   name,
   size = 24,
-  color,
-  style,
+  color= "whitesmoke",
+  style = {},
 }) {
   return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
 }

@@ -9,7 +9,7 @@ export default function BlurTabBarBackground() {
       // and matches the native tab bar appearance on iOS.
       tint="systemChromeMaterial"
       intensity={100}
-      style={StyleSheet.absoluteFill}
+      style={[StyleSheet.absoluteFill,{backgroundColor: '#0c0c0c'}]}
     />
   );
 }
