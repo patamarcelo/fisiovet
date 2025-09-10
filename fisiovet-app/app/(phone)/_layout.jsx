@@ -11,62 +11,115 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 
 export default function PhoneTabsLayout() {
     const colorScheme = useColorScheme();
+    const colors = Colors[colorScheme ?? 'light'];
 
     return (
         <Tabs
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+                tabBarActiveTintColor: colors.tint,
+                tabBarInactiveTintColor: colorScheme === 'dark' ? '#A0A0A0' : '#6B7280',
                 tabBarButton: HapticTab,
                 tabBarBackground: TabBarBackground,
+                tabBarHideOnKeyboard: true,
+                tabBarLabelStyle: {
+                    fontSize: 10,
+                    fontWeight: '600',
+                    marginBottom: Platform.OS === 'ios' ? 0 : 2,
+                },
+                tabBarIconStyle: { marginTop: 2 },
+                tabBarItemStyle: { paddingVertical: 2 },
                 tabBarStyle: Platform.select({
-                    ios: { position: 'absolute' },
-                    default: {},
+                    ios: {
+                        position: 'absolute',       // mostra o blur
+                        borderTopWidth: 0,
+                        paddingBottom: 6,
+                        paddingTop: 2,
+                        height: 58,
+                    },
+                    default: {
+                        borderTopWidth: 0,
+                        height: 58,
+                    },
                 }),
             }}
         >
+            {/* Dashboard / Home */}
             <Tabs.Screen
                 name="index"
                 options={{
                     title: 'Home',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="house.fill" color={color} />
+                    ),
                 }}
             />
+
+            {/* Tutores (pasta com index/novo/[id]) */}
             <Tabs.Screen
                 name="tutores"
                 options={{
                     title: 'Tutores',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.2.fill" color={color} />,
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="person.2.fill" color={color} />
+                    ),
                 }}
             />
+
+            {/* Pacientes (se você já renomeou de 'animais' para 'pacientes', troque o name abaixo) */}
             <Tabs.Screen
-                name="animais"
+                name="pacientes"
                 options={{
-                    title: 'Animais',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="pawprint.fill" color={color} />,
+                    title: 'Pets',
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="pawprint.fill" color={color} />
+                    ),
                 }}
             />
+
+            {/* Agenda (index/novo/[id]/mapa/rotas) */}
             <Tabs.Screen
                 name="agenda"
                 options={{
                     title: 'Agenda',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="calendar" color={color} />,
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="calendar" color={color} />
+                    ),
                 }}
             />
+            <Tabs.Screen
+                name="financeiro"
+                options={{
+                    title: 'Financeiro',
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="banknote.fill" color={color} />
+                    ),
+                }}
+            />
+
+            Financeiro (index, faturas, recebimentos)
             <Tabs.Screen
                 name="faturas"
                 options={{
                     title: 'Faturas',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="doc.richtext" color={color} />,
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="doc.richtext" color={color} />
+                    ),
                 }}
             />
+
             <Tabs.Screen
                 name="pagamentos"
                 options={{
                     title: 'Pagamentos',
-                    tabBarIcon: ({ color }) => <IconSymbol size={28} name="creditcard.fill" color={color} />,
+                    tabBarIcon: ({ color, size }) => (
+                        <IconSymbol size={size ?? 26} name="creditcard.fill" color={color} />
+                    ),
                 }}
             />
+            <Tabs.Screen name="configuracoes" options={{ href: null }} />
+            {/* <Tabs.Screen name="financeiro" options={{ href: null }} /> */}
+            <Tabs.Screen name="biblioteca" options={{ href: null }} />
         </Tabs>
     );
 }

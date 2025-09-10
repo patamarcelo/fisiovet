@@ -94,7 +94,7 @@ function RootNavigator() {
           <Stack.Screen name="+not-found" />
         </Stack>
       </AuthGate>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
     </ThemeProvider>
   );
 }
