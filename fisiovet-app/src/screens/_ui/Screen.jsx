@@ -1,16 +1,34 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { ScrollView, StyleSheet, View, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-export default function Screen({ children, padded = true }) {
+
+/**
+ * Container base de tela.
+ * - Usa SafeArea nas bordas laterais/inf. (top é do Header nativo)
+ * - Ajusta insets de conteúdo automaticamente (iOS)
+ */
+export default function Screen({ children, padded = true, style={} }) {
     return (
-        <ScrollView contentContainerStyle={[styles.container, padded && styles.padded]}>
-            <View style={styles.inner}>{children}</View>
-        </ScrollView>
+        <SafeAreaView
+            style={styles.safe}
+            edges={['left', 'right', 'bottom']} // top é do header do Stack
+        >
+            <ScrollView
+                contentInsetAdjustmentBehavior={Platform.OS === 'ios' ? 'automatic' : 'never'}
+                automaticallyAdjustsScrollIndicatorInsets={true}
+                keyboardShouldPersistTaps="handled"
+                contentContainerStyle={[styles.container, padded && styles.padded, style]}
+            >
+                <View style={styles.inner}>{children}</View>
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'white' },
+    safe: { flex: 1 },
+    container: { flexGrow: 1 },
     padded: { padding: 16 },
     inner: { gap: 12 },
 });

@@ -8,6 +8,8 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import AnimatedTabBar from '@/components/AnimatedTabBar';
+
 
 export default function PhoneTabsLayout() {
     const colorScheme = useColorScheme();
@@ -15,6 +17,7 @@ export default function PhoneTabsLayout() {
 
     return (
         <Tabs
+            // tabBar={(props) => <AnimatedTabBar {...props} />}
             screenOptions={{
                 headerShown: false,
                 tabBarActiveTintColor: colors.tint,
@@ -34,10 +37,11 @@ export default function PhoneTabsLayout() {
                         position: 'absolute',       // mostra o blur
                         borderTopWidth: 0,
                         paddingBottom: 6,
-                        paddingTop: 2,
-                        height: 58,
+                        paddingTop: 0,
+                        height: 70,
                     },
                     default: {
+                        position: "absolute",
                         borderTopWidth: 0,
                         height: 58,
                     },

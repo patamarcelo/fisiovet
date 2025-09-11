@@ -1,11 +1,20 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
+
 
 export default function Home() {
+    const router = useRouter()
     return (
         <View style={styles.container}>
             <Text style={styles.title}>FisioVet — Home</Text>
             <Text>Bem-vindo(a) 👋</Text>
+            <TouchableOpacity
+                onPress={() => router.push('/configuracoes')}
+                style={{ padding: 12, backgroundColor: '#4a90e2', borderRadius: 8 }}
+            >
+                <Text style={{ color: '#fff', fontWeight: '600' }}>Configuracoes </Text>
+            </TouchableOpacity>
         </View>
     );
 }

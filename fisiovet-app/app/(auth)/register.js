@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import { useDispatch } from "react-redux";
-import { setUser } from "../../store/slices/userSlice";
+import { setUser } from "../../src/store/slices/userSlice";
 
 export default function Register() {
 	const [email, setEmail] = useState("");

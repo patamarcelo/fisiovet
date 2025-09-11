@@ -6,7 +6,7 @@ import { useDispatch } from 'react-redux';
 
 import { ensureFirebase } from '@/firebase/firebase'; // <- sua função modular
 import { FieldValue } from '@react-native-firebase/firestore'; // <- p/ serverTimestamp
-import { clearUser } from '@/store/slices/userSlice';
+import { clearUser } from '@/src/store/slices/userSlice';
 
 export default function FirebaseCheckScreen() {
     const router = useRouter();

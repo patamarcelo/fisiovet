@@ -12,13 +12,19 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import userReducer from "./slices/userSlice";
+import tutoresReduce from './slices/tutoresSlice'
 
-const rootReducer = combineReducers({ user: userReducer });
+const rootReducer = combineReducers(
+	{ 
+		user: userReducer,
+		tutores: tutoresReduce
+	}
+);
 
 const persistConfig = {
 	key: "root",
 	storage: AsyncStorage,
-	whitelist: ["user"] // persista o que fizer sentido
+	whitelist: ["user", "tutores"] // persista o que fizer sentido
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

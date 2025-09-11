@@ -29,6 +29,9 @@ export default {
 			supportsTablet: true,
 			requireFullScreen: false,               // ✅ permite multitarefa no iPad
 			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER,
+			config: {
+				googleMapsApiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+			},
 			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				// ✅ habilita portrait + landscape no iPad
@@ -44,6 +47,11 @@ export default {
 			adaptiveIcon: {
 				foregroundImage: "./assets/images/adaptive-icon.png",
 				backgroundColor: "#ffffff"
+			},
+			config: {
+				googleMaps: {
+					apiKey: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY
+				}
 			},
 			edgeToEdgeEnabled: true,
 			package: process.env.ANDROID_PACKAGE_NAME,
@@ -80,7 +88,13 @@ export default {
 						// deploymentTarget: "13.4"
 					}
 				}
-			]
+			],
+			[
+				"expo-location",
+				{
+					locationAlwaysAndWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) use sua localização."
+				}
+			],
 		],
 
 		experiments: { typedRoutes: true }

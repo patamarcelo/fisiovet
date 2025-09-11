@@ -11,12 +11,12 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 // Redux
 import { Provider, useSelector, useDispatch } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from '../store';
+import { store, persistor } from '../src/store';
 
 // Firebase
 import auth from '@react-native-firebase/auth';
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
-import { setUser } from '@/store/slices/userSlice';
+import { setUser } from '@/src/store/slices/userSlice';
 
 // Fonts
 import { Fonts } from '@/assets/assets';
@@ -24,6 +24,10 @@ import { Fonts } from '@/assets/assets';
 // NEW: provider/variant
 import { LayoutProvider } from '@/src/providers/LayoutProvider';
 import { useLayoutVariant } from '@/hooks/useLayoutVariant';
+
+
+import { DarkAppTheme, LightAppTheme } from '@/src/theme/AppTheme'; // opcional (custom)
+import { ColorSchemeProvider, useColorMode } from '@/src/theme/color-scheme';
 
 function useAuthBinding() {
   const dispatch = useDispatch();
@@ -53,23 +57,29 @@ function AuthGate({ children }) {
   const variant = useLayoutVariant(); // "phone" | "tabletPortrait" | "tabletLandscape"
 
   useEffect(() => {
+    const group = segments[0]; // "(phone)" | "(tablet)" | "(auth)" | "configuracoes" | undefined
     const atRoot = segments.length === 0;
-    const group = segments[0]; // "(phone)" | "(tablet)" | "(auth)" | undefined
-    const inPhone = group === '(phone)';
-    const inTablet = group === '(tablet)';
     const inAuth = group === '(auth)' || group === 'firebaseCheck';
 
-    // Não logado -> manda para auth
+    // ✅ rotas de topo permitidas fora dos grupos
+    const ALLOWED_TOP = ['configuracoes']; // adicione outras se precisar
+    const inAllowedTop = ALLOWED_TOP.includes(group);
+
     if (!user) {
       if (!inAuth) router.replace('/(auth)/login');
       return;
     }
 
-    // Logado -> decide grupo por variante
+    // Se o user está logado:
     const shouldBeTablet = variant === 'tabletLandscape';
     const target = shouldBeTablet ? '/(tablet)' : '/(phone)';
+    const inPhone = group === '(phone)';
+    const inTablet = group === '(tablet)';
 
-    // Se está em auth ou na raiz, ou no grupo errado, redireciona
+    // Permite ficar em rotas de topo whitelisted
+    if (inAllowedTop) return;
+
+    // Se está em auth, na raiz, ou no grupo “errado”, redireciona
     if (inAuth || atRoot || (shouldBeTablet && !inTablet) || (!shouldBeTablet && !inPhone)) {
       router.replace(target);
     }
@@ -77,18 +87,17 @@ function AuthGate({ children }) {
 
   return children;
 }
-
 function RootNavigator() {
-  const colorScheme = useColorScheme();
-
+  const { scheme } = useColorMode(); // 'light' | 'dark'
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+    <ThemeProvider value={scheme === 'dark' ? DarkAppTheme : LightAppTheme}>
       <AuthGate>
         <Stack screenOptions={{ headerShown: false }}>
           {/* Grupos principais */}
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(phone)" />
           <Stack.Screen name="(tablet)" />
+          <Stack.Screen name="configuracoes" />
           {/* Suas outras rotas soltas */}
           <Stack.Screen name="testeRota" />
           <Stack.Screen name="+not-found" />
@@ -111,9 +120,9 @@ export default function RootLayout() {
       <PersistGate loading={null} persistor={persistor}>
         <AuthBootstrap>
           {/* Provider que expõe a variante de layout */}
-          <LayoutProvider>
+          <ColorSchemeProvider>
             <RootNavigator />
-          </LayoutProvider>
+          </ ColorSchemeProvider>
         </AuthBootstrap>
       </PersistGate>
     </Provider>
