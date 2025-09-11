@@ -1,48 +1,48 @@
+// components/ui/ThemedButton.jsx
 import React from 'react';
 import { Pressable, Text, StyleSheet } from 'react-native';
-import { useThemeColor } from '@/hooks/useThemeColor';
+import { useTheme } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
-export default function ThemedButton({ title, onPress, variant = 'primary', style = {}, textStyle = {} }) {
-    const tint = useThemeColor({}, 'tint');
-    const text = useThemeColor({}, 'text');
-    const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
+export default function ThemedButton({
+    title,
+    onPress,
+    variant = 'primary',   // 'primary' | 'secondary' | 'danger'
+    style = {},
+    textStyle = {},
+    disabled = false,
+}) {
+    const { colors } = useTheme(); // <- pega cores do AppTheme
 
-    const backgroundColor =
-        variant === 'primary'
-            ? tint
-            : variant === 'secondary'
-                ? 'transparent'
+    const bg =
+        disabled
+            ? `${colors.text}33` // cinza com transparência
+            : variant === 'primary'
+                ? colors.success      // 👈 verde do tema
                 : variant === 'danger'
-                    ? '#DC2626'
-                    : tint;
+                    ? colors.danger
+                    : 'transparent';
 
-    const borderColor =
-        variant === 'secondary'
-            ? subtle
-            : 'transparent';
+    const borderColor = variant === 'secondary' ? colors.border : 'transparent';
+    const labelColor = variant === 'secondary' ? colors.text : '#fff';
 
-    const textColor =
-        variant === 'primary'
-            ? '#fff'
-            : variant === 'secondary'
-                ? text
-                : '#fff';
+    const handlePress = () => {
+        if (disabled) return;
+        onPress?.();
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    };
 
-    const handlerPress = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-        onPress()
-    }
     return (
         <Pressable
-            onPress={handlerPress}
+            onPress={handlePress}
+            disabled={disabled}
             style={({ pressed }) => [
                 styles.button,
-                { backgroundColor, borderColor, opacity: pressed ? 0.85 : 1 },
+                { backgroundColor: bg, borderColor, opacity: pressed && !disabled ? 0.88 : 1 },
                 style,
             ]}
         >
-            <Text style={[styles.label, { color: textColor }, textStyle]}>{title}</Text>
+            <Text style={[styles.label, { color: labelColor }, textStyle]}>{title}</Text>
         </Pressable>
     );
 }

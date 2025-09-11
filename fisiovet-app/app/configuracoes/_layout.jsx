@@ -40,7 +40,7 @@ export default function ConfigLayout() {
           )
         }}
       />
-      <Stack.Screen name="aparencia" options={{ headerTitle: 'Aparência' }} />
+      <Stack.Screen name="aparencia" options={{ headerTitle: 'Aparência', headerLargeTitle: false }} />
     </Stack>
   );
 }

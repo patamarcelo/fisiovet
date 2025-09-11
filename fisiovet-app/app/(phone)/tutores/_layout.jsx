@@ -38,6 +38,8 @@ export default function TutoresLayout() {
         headerShown: true,
         headerLargeTitle: true,    // iOS: título grande que colapsa
         headerTitle: 'Tutores',
+        headerStyle: { backgroundColor: 'transparent' },
+        headerShadowVisible: false,
       }}
     >
       <Stack.Screen
@@ -49,7 +51,14 @@ export default function TutoresLayout() {
         }}
       />
       <Stack.Screen name="novo" options={{ headerLargeTitle: false, headerTitle: 'Novo Tutor' }} />
-      <Stack.Screen name="[id]" options={{ headerLargeTitle: false, headerTitle: 'Tutor' }} />
+      <Stack.Screen name="[id]"
+        options={{
+          headerLargeTitle: false,
+          headerTitle: '',               // deixa sem título
+        }}
+
+
+      />
     </Stack>
   );
 }

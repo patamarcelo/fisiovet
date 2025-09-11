@@ -8,10 +8,14 @@ import Avatar from '@/components/ui/Avatar';
 import ThemedButton from '@/components/ui/ThemedButton';
 import MapCard from '@/components/MapCard';
 
-import { geocodeCepMock, updateTutor } from '@/src/services/tutores';
+
 import Screen from '../_ui/Screen';
 import useHideTabBar from '@/hooks/useHideBar';
+import EnderecoCard from './EnderecoCard';
 
+import { maskPhone } from '@/src/utils/masks';
+import { openWhatsapp } from '@/src/utils/openWhatsapp';
+import Action from '@/components/ui/Action';
 
 export default function TutorDetail() {
   useHideTabBar(true); // 👈 esconde a tab bar enquanto essa tela estiver ativa
@@ -61,40 +65,33 @@ export default function TutorDetail() {
       <View style={styles.header}>
         <Avatar name={tutor.nome} size={72} />
         <Text style={{ color: text, fontSize: 22, fontWeight: '700' }}>{tutor.nome}</Text>
-        {!!tutor.telefone && <Text style={{ color: subtle }}>{tutor.telefone}</Text>}
-        {!!tutor.email && <Text style={{ color: subtle }}>{tutor.email}</Text>}
+        {!!tutor.telefone && <Text selectable style={{ color: subtle }}>{maskPhone(tutor.telefone)}</Text>}
+        {!!tutor.email && <Text selectable style={{ color: subtle }}>{tutor.email}</Text>}
       </View>
 
       <View style={styles.actions}>
-        <Action title="Ligar" onPress={call} tint={tint} />
-        <Action title="E-mail" onPress={email} tint={tint} />
-        <Action title="Rota" onPress={maps} tint={tint} />
+        {/* <Action title="Ligar" onPress={call} tint={tint} /> */}
+        <Action
+          title="WhatsApp"
+          icon="message.fill"
+          onPress={() => openWhatsapp(tutor.telefone, `Olá ${tutor.nome}`)}
+          tint={tint}
+        />
+        <Action
+          title="E-mail"
+          icon="envelope.fill"
+          onPress={email}
+          tint={tint}
+        />
+        <Action
+          title="Rota"
+          icon="car.fill"
+          onPress={maps}
+          tint={tint}
+        />
       </View>
 
-      <View style={styles.block}>
-        <Text style={[styles.blockTitle, { color: text }]}>Endereço</Text>
-        <Text style={{ color: subtle }}>
-          {tutor?.endereco?.logradouro} {tutor?.endereco?.numero}{'\n'}
-          {tutor?.endereco?.bairro}{'\n'}
-          {tutor?.endereco?.cidade} - {tutor?.endereco?.uf} · {tutor?.endereco?.cep}
-        </Text>
-
-        {/* Card de mapa */}
-        <View style={{ marginTop: 12 }}>
-          <MapCard
-            lat={tutor?.geo?.lat}
-            lng={tutor?.geo?.lng}
-            title={tutor?.nome}
-            height={180}
-          />
-        </View>
-        <Pressable onPress={async () => {
-          const geo = await geocodeCepMock(tutor?.endereco?.cep, tutor?.endereco);
-          await dispatch(updateTutor({ id: tutor.id, patch: { geo } }));
-        }}>
-          <Text>Gerar coordenadas</Text>
-        </Pressable>
-      </View>
+      <EnderecoCard tutor={tutor} />
 
       <View style={[styles.block, { marginTop: 16 }]}>
         <ThemedButton title="Editar" variant="primary" onPress={() => router.push(`/(phone)/tutores/${tutor.id}/edit`)} style={({ pressed }) => [styles.btn, { backgroundColor: tint, opacity: pressed ? 0.85 : 1 }]} />
@@ -120,32 +117,20 @@ export default function TutorDetail() {
   );
 }
 
-function Action({ title, onPress, tint }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        {
-          minWidth: 96,
-          paddingVertical: 10,
-          paddingHorizontal: 14,
-          borderRadius: 12,
-          borderWidth: 1,
-          borderColor: 'rgba(0,0,0,0.08)',
-          alignItems: 'center',
-          backgroundColor: pressed ? 'rgba(0,0,0,0.04)' : 'transparent',
-        },
-      ]}
-    >
-      <Text style={{ color: tint, fontWeight: '700' }}>{title}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 16 },
+  container: { flex: 1, padding: 16, gap: 16, paddingTop: 0 },
   header: { alignItems: 'center', gap: 6, marginTop: 6 },
-  actions: { flexDirection: 'row', gap: 12, justifyContent: 'center', marginTop: 4 },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: 'space-evenly',
+    gap: 20,
+    
+    paddingVertical: 5,
+    paddingHorizontal: 0,
+    borderRadius: 20, // 👈 mais arredondado, estilo "pill"
+  },
+  label: { fontSize: 14, fontWeight: "600" },
   block: { padding: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)', borderRadius: 12, rowGap: 10 },
   blockTitle: { fontSize: 16, fontWeight: '700', marginBottom: 6 },
   btn: {

@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import Avatar from '@/components/ui/Avatar';
 
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { maskPhone } from '@/src/utils/masks';
 
 
 
@@ -41,7 +42,7 @@ function TutorRow({ item, tint, subtle, text }) {
       <Avatar name={item.nome} size={48} bg="#E8ECF1" color="#1F2937" />
       <View style={{ flex: 1 }}>
         <Text style={{ color: text, fontSize: 16, fontWeight: '600' }}>{item.nome}</Text>
-        {!!item.telefone && <Text style={{ color: subtle, marginTop: 2 }}>{item.telefone}</Text>}
+        {!!item.telefone && <Text style={{ color: subtle, marginTop: 2 }}>{maskPhone(item.telefone)}</Text>}
       </View>
 
       <Pressable
