@@ -99,14 +99,54 @@ npm run start
 ```
 
 
+
+## ✅ Concluído até agora
+
+- 🔐 **Autenticação com Firebase** (login e binding de usuário no Redux)  
+- 📱 **Layout responsivo** (iPhone + iPad landscape com Drawer customizado)  
+- 🎨 **Tema customizado** (light/dark integrado ao sistema)  
+- 📂 Estrutura de navegação com **Expo Router**  
+- 🧑‍🤝‍🧑 CRUD completo de **Tutores**:
+  - Cadastro com formulário validado
+  - Edição com auto-preenchimento
+  - Exclusão
+  - Listagem em ordem alfabética
+  - Detalhes com endereço, mapa e ações rápidas (WhatsApp, e-mail, rota)
+- 🗺️ Integração inicial com **Google Maps**:
+  - Card de mapa no detalhe do tutor
+  - Geocodificação por endereço/CEP
+  - Abertura no app de mapas nativo
+- ⚡ UI reutilizável:
+  - `Screen`, `ThemedButton`, `ThemedTextInput`, `Action`, etc.
+
+---
+
 ## 📈 Roadmap
 
-- [ ] Agenda inteligente completa
-- [ ] Gestão de pacientes com timeline de evolução
-- [ ] Otimização de rotas e integração com Google Maps
-- [ ] Gestão financeira com relatórios
-- [ ] Planos de tratamento e biblioteca de exercícios
-- [ ] Integração com gateways de pagamento
+- [ ] Cadastro e vinculação de **Pets** a tutores  
+- [ ] Exibição de Pets na tela do Tutor + navegação para detalhes do Pet  
+- [ ] Agenda inteligente:
+  - Visualização diária, semanal e mensal
+  - Status de consulta (confirmado, pendente, cancelado)
+  - Lembretes automáticos para tutores
+- [ ] Gestão de pacientes com **timeline de evolução** (anotações SOAP, fotos, vídeos)  
+- [ ] Gestão financeira:
+  - Registro de faturas
+  - Controle de recebimentos
+  - Relatórios simplificados
+- [ ] Integração com **gateways de pagamento** (Stripe, Mercado Pago, Asaas)  
+- [ ] Planos de tratamento personalizados:
+  - Objetivos claros
+  - Biblioteca de exercícios/modalidades
+  - Prescrição de atividades domiciliares  
+
+---
+
+## 🔜 Próximos passos imediatos
+
+1. Finalizar integração do **mapa** nos detalhes do tutor (com coordenadas reais).  
+2. Implementar CRUD de **Pets**, vinculado ao tutor.  
+3. Iniciar protótipo da **Agenda** com dados mockados.
 
 ---
 
