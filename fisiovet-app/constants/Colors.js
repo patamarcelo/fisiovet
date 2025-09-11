@@ -5,6 +5,7 @@
 
 const tintColorLight = '#A2CCB2'; // Verde Claro de Destaque
 const tintColorDark = '#80B3B3'; // Verde Água para o Dark Mode
+const primaryColor = '#007AFF'
 
 export const Colors = {
   light: {
@@ -15,6 +16,7 @@ export const Colors = {
     icon: '#80B3B3', // Verde Água - para ícones e elementos secundários
     tabIconDefault: '#80B3B3', // Verde Água - ícones de aba padrão
     tabIconSelected: tintColorLight, // Verde Claro - ícones de aba selecionados
+    primary:  primaryColor
   },
   dark: {
     // Modo Escuro: Cores invertidas para conforto visual, mantendo a identidade
@@ -24,5 +26,6 @@ export const Colors = {
     icon: '#A2CCB2', // Verde Claro - para ícones e elementos secundários
     tabIconDefault: '#A2CCB2', // Verde Claro - ícones de aba padrão
     tabIconSelected: tintColorDark, // Verde Água - ícones de aba selecionados
+    primary:  primaryColor
   },
 };

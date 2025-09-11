@@ -1,63 +1,79 @@
+// app/(phone)/tutores/_layout.jsx
 import React from 'react';
-import { Stack, useRouter } from 'expo-router';
-import { Pressable, Text, View } from 'react-native';
+import { Stack } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
+import { Pressable } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import * as Haptics from 'expo-haptics'
 
-function HeaderActions() {
-  const router = useRouter();
+function EditButton() {
+  const { id } = useLocalSearchParams();
   const tint = useThemeColor({}, 'tint');
-
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-      {/* Botão Ajustes (engrenagem) */}
-      {/* <Pressable
-        onPress={() => router.push('/(phone)/configuracoes')}
-        hitSlop={8}
-        style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-      >
-        <IconSymbol name="gearshape.fill" size={18} color={tint} />
-      </Pressable> */}
-
-      {/* Botão Novo */}
-      <Pressable
-        onPress={() => router.push('/(phone)/tutores/novo')}
-        hitSlop={8}
-        style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}
-      >
-        <Text style={{ color: tint, fontWeight: '700' }}>Novo</Text>
-      </Pressable>
-    </View>
+    <Pressable onPress={() => router.push(`/(phone)/tutores/${id}/edit`)} hitSlop={10}>
+      <IconSymbol name="square.and.pencil" size={20} color={tint} />
+    </Pressable>
   );
 }
 
+
+function AddButton() {
+  const tint = useThemeColor({}, 'tint');
+  const handleAdd = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+    router.push('/(phone)/tutores/novo')
+  }
+  return (
+    <Pressable onPress={handleAdd} hitSlop={10} accessibilityLabel="Novo tutor">
+      <IconSymbol name="plus" size={20} color={tint} />
+    </Pressable>
+  );
+}
+
+
 export default function TutoresLayout() {
+  const card = useThemeColor({}, 'card');
+  const tint = useThemeColor({}, 'tint');
+
   return (
     <Stack
       screenOptions={{
         headerShown: true,
-        headerLargeTitle: true,    // iOS: título grande que colapsa
-        headerTitle: 'Tutores',
-        headerStyle: { backgroundColor: 'transparent' },
-        headerShadowVisible: false,
+        headerStyle: { backgroundColor: card },
+        headerShadowVisible: false,     // 🔒 sem barra/sombra cinza
+        headerTintColor: tint,
+        headerBackTitleVisible: false,
+        headerLargeTitle: false,        // default pequeno
       }}
     >
       <Stack.Screen
         name="index"
         options={{
-          headerLargeTitle: true,
+          headerLargeTitle: true,       // só aqui é large
           headerTitle: 'Tutores',
-          headerRight: () => <HeaderActions />,
+          headerRight: () => <AddButton />,   // 👈 aqui
+          // headerRight, se quiser um + aqui
         }}
       />
-      <Stack.Screen name="novo" options={{ headerLargeTitle: false, headerTitle: 'Novo Tutor' }} />
-      <Stack.Screen name="[id]"
+      <Stack.Screen
+        name="novo"
+        options={{ headerLargeTitle: false, headerTitle: 'Novo Tutor' }}
+      />
+      <Stack.Screen
+        name="[id]"
         options={{
           headerLargeTitle: false,
-          headerTitle: '',               // deixa sem título
+          headerTitle: '',              // sem título, só a seta
+          headerRight: () => <EditButton />, // ✅ sem setOptions no componente
         }}
-
-
+      />
+      <Stack.Screen
+        name="[id]/edit"
+        options={{
+          headerLargeTitle: false,
+          headerTitle: 'Editar', // se quiser dinâmico, dá pra ler do Redux com um HeaderTitleComponent
+        }}
       />
     </Stack>
   );

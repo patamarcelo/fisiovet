@@ -5,7 +5,8 @@ export const LightAppTheme = {
     ...DefaultTheme,
     colors: {
         ...DefaultTheme.colors,
-        background: '#F9FAFB',
+        // background: '#F9FAFB',
+        background: 'white',
         card: '#FFFFFF',
         border: '#E5E7EB',
         text: '#111827',
