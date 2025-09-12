@@ -7,15 +7,6 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
 
-/**
- * Props:
- * - lat, lng: números
- * - title: string
- * - height: número (px)
- * - onPressOpenMaps: função opcional
- * - interactive: boolean (default false) -> permite gestos no card
- * - forceGoogleProviderIOS: boolean (default false) -> usar Google no iOS (requer Dev Client + API key nativa)
- */
 export default function MapCard({
     lat,
     lng,
