@@ -40,6 +40,8 @@
     </array>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>GMSApiKey</key>
+    <string>AIzaSyC74WnhqSXYu2RFGeIxKUC46yWAoSFRx9U</string>
     <key>LSMinimumSystemVersion</key>
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
@@ -51,9 +53,39 @@
       <key>NSAllowsLocalNetworking</key>
       <true/>
     </dict>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your calendars</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>Permitir adicionar eventos ao calendário.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Permitir que o app use a câmera para fotos dos pets.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Permitir acesso aos contatos para vincular tutores.</string>
+    <key>NSFaceIDUsageDescription</key>
+    <string>Permitir autenticar com Face ID.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Permitir que o $(PRODUCT_NAME) use sua localização.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Permitir que o app use sua localização para rotas e mapa.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Permitir salvar imagens e anexos no rolo da câmera.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Permitir acessar a galeria para anexos e imagens.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your reminders</string>
+    <key>NSRemindersUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your reminders</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
+    </array>
+    <key>UIBackgroundModes</key>
+    <array>
+      <string>location</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>

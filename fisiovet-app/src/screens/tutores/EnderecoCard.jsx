@@ -47,8 +47,8 @@ function EnderecoCard({ tutor }) {
             {tutor?.geo?.lat && tutor?.geo?.lng ? (
                 <View style={{ marginTop: 12, marginBottom: 12 }}>
                     <MapCard lat={tutor.geo.lat} lng={tutor.geo.lng} title={tutor.nome} height={180} 
-                    // forceGoogleProviderIOS
-                    // interactive
+                    forceGoogleProviderIOS
+                    interactive
                     />
                     
                 </View>

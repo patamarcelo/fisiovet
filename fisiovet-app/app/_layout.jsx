@@ -62,7 +62,7 @@ function AuthGate({ children }) {
     const inAuth = group === '(auth)' || group === 'firebaseCheck';
 
     // ✅ rotas de topo permitidas fora dos grupos
-    const ALLOWED_TOP = ['configuracoes']; // adicione outras se precisar
+    const ALLOWED_TOP = ['configuracoes', '(modals)']; // adicione outras se precisar
     const inAllowedTop = ALLOWED_TOP.includes(group);
 
     if (!user) {
@@ -87,6 +87,7 @@ function AuthGate({ children }) {
 
   return children;
 }
+
 function RootNavigator() {
   const { scheme } = useColorMode(); // 'light' | 'dark'
   return (
@@ -98,9 +99,11 @@ function RootNavigator() {
           <Stack.Screen name="(phone)" />
           <Stack.Screen name="(tablet)" />
           <Stack.Screen name="configuracoes" />
+          <Stack.Screen name="(modals)" options={{ headerShown: false, presentation: 'modal' }} />
           {/* Suas outras rotas soltas */}
           <Stack.Screen name="testeRota" />
           <Stack.Screen name="+not-found" />
+
         </Stack>
       </AuthGate>
       <StatusBar style="dark" />

@@ -5,6 +5,7 @@ import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import * as Linking from 'expo-linking';
+import { router } from 'expo-router';
 
 /**
  * Props:
@@ -32,9 +33,7 @@ export default function MapCard({
         return { latitude: lat, longitude: lng, latitudeDelta: 0.01, longitudeDelta: 0.01 };
     }, [lat, lng]);
 
-    // ⚠️ Provider:
-    // - Android: Google
-    // - iOS: Apple por padrão (funciona em Expo Go). Se você estiver em Dev Client com SDK configurado, ative forceGoogleProviderIOS.
+    // Provider:
     const provider = Platform.select({
         android: PROVIDER_GOOGLE,
         ios: forceGoogleProviderIOS ? PROVIDER_GOOGLE : undefined,
@@ -43,7 +42,6 @@ export default function MapCard({
 
     const mapRef = useRef(null);
 
-    // Quando as coords mudarem (ex.: depois de geocodificar), anima o mapa para a nova região
     useEffect(() => {
         if (!region || !mapRef.current) return;
         try {
@@ -55,11 +53,19 @@ export default function MapCard({
         if (!lat || !lng) return;
         if (onPressOpenMaps) return onPressOpenMaps();
         const url = Platform.select({
-            ios: `http://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(title || 'Local')}`,
+            ios: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
             android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(title || 'Local')})`,
             default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
         });
         Linking.openURL(url);
+    };
+
+    const openFullScreen = () => {
+        if (lat == null || lng == null) return;
+        router.push({
+            pathname: '/(modals)/map-full',
+            params: { lat: String(lat), lng: String(lng), title: title ?? '' },
+        });
     };
 
     if (!region) {
@@ -73,17 +79,16 @@ export default function MapCard({
         );
     }
 
-    // Se não for interativo, deixamos pointerEvents="none" no MapView e usamos o Pressable por fora.
+    // Se não for interativo, o card inteiro abre o app de mapas.
     const MapContainer = interactive ? View : Pressable;
     const mapProps = interactive
         ? {}
         : { onPress: openMaps, accessibilityRole: 'button', accessibilityLabel: 'Abrir no app de mapas' };
 
     return (
-        <MapContainer style={({ pressed }) => [!interactive && { opacity: pressed ? 0.95 : 1 }]} {...mapProps}>
+        <MapContainer {...mapProps} style={({ pressed }) => [!interactive && { opacity: pressed ? 0.95 : 1 }]}>
             <View style={[styles.card, { borderColor: border, height }]}>
-
-                {/* <MapView
+                <MapView
                     ref={mapRef}
                     style={StyleSheet.absoluteFill}
                     provider={provider}
@@ -101,9 +106,15 @@ export default function MapCard({
                     {...(Platform.OS === 'android' && !interactive ? { liteMode: true } : {})}
                 >
                     <Marker coordinate={region} title={title || 'Local'} />
-                </MapView> */}
+                </MapView>
 
-                {!interactive && (
+                {interactive ? (
+                    <View style={styles.fabRow}>
+                        <Pressable style={styles.fab} onPress={openFullScreen} accessibilityRole="button" accessibilityLabel="Abrir mapa em tela cheia">
+                            <IconSymbol name="arrow.up.left.and.arrow.down.right" size={14} color="#fff" />
+                        </Pressable>
+                    </View>
+                ) : (
                     <View style={styles.badge}>
                         <IconSymbol name="location.fill" size={12} color="#fff" />
                         <Text style={styles.badgeText}>Abrir no mapa</Text>
@@ -134,4 +145,19 @@ const styles = StyleSheet.create({
         gap: 6,
     },
     badgeText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+
+    // FABs para modo interativo
+    fabRow: {
+        position: 'absolute',
+        right: 8,
+        bottom: 8,
+        gap: 8,
+        flexDirection: 'row',
+    },
+    fab: {
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        borderRadius: 18,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+    },
 });
