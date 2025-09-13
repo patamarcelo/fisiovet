@@ -15,6 +15,7 @@ function EnderecoCard({ tutor }) {
     const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
     const success = useThemeColor({}, 'success');
     const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.08)' }, 'border');
+    const bg = useThemeColor({}, 'background');
 
     const hasGeo = Boolean(tutor?.geo?.lat && tutor?.geo?.lng);
     const btnLabel = hasGeo ? 'Atualizar coordenadas' : 'Obter coordenadas';
@@ -37,7 +38,7 @@ function EnderecoCard({ tutor }) {
     };
 
     return (
-        <View style={[styles.block, { borderColor: border }]}>
+        <View style={[styles.block, { borderColor: border, backgroundColor: bg }]}>
             <Text style={[styles.blockTitle, { color: text }]}>Endereço</Text>
             <Text style={{ color: subtle, marginBottom: 10 }}>
                 {tutor?.endereco?.logradouro} {tutor?.endereco?.numero}{'\n'}

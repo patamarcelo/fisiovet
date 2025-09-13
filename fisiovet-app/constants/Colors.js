@@ -11,7 +11,8 @@ export const Colors = {
   light: {
     // Modo Claro: Cores mais claras com um toque profissional
     text: '#003366', // Azul Marinho - para textos principais e títulos
-    background: '#E0E0E0', // Cinza Claro - fundo principal
+    background: 'whitesmoke', // Cinza Claro - fundo principal
+    // background: '#E0E0E0', // Cinza Claro - fundo principal
     tint: tintColorLight, // Verde Claro - para botões e ícones ativos
     icon: '#80B3B3', // Verde Água - para ícones e elementos secundários
     tabIconDefault: '#80B3B3', // Verde Água - ícones de aba padrão

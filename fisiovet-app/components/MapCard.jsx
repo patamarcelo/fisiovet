@@ -1,11 +1,12 @@
 // components/MapCard.jsx
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Pressable, StyleSheet, Platform, Text } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import * as Linking from 'expo-linking';
 import { router } from 'expo-router';
+import * as Location from 'expo-location';
 
 export default function MapCard({
     lat,
@@ -15,9 +16,55 @@ export default function MapCard({
     height = 160,
     interactive = false,
     forceGoogleProviderIOS = false,
+    showUserLocation = true,      // ✅ novo: mostra o pontinho azul
+    enableRecenterButton = true,  // ✅ novo: FAB para recentralizar
 }) {
     const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.08)' }, 'border');
     const bg = useThemeColor({ light: '#FFFFFF', dark: '#1C1C1E' }, 'background');
+    const [locGranted, setLocGranted] = useState(false);
+    const [myLoc, setMyLoc] = useState(null); // { latitude, longitude }
+
+    // 🔐 Permissão e leitura da localização do usuário (quando habilitado)
+    useEffect(() => {
+        let sub;
+        (async () => {
+            if (!showUserLocation) return;
+            const { status } = await Location.requestForegroundPermissionsAsync();
+            const granted = status === 'granted';
+            setLocGranted(granted);
+            if (!granted) return;
+            // pega posição inicial
+            const pos = await Location.getCurrentPositionAsync({});
+            setMyLoc({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            // opcional: acompanhar mudanças (leve)
+            sub = await Location.watchPositionAsync(
+                { accuracy: Location.Accuracy.Balanced, distanceInterval: 25 },
+                (p) => setMyLoc({ latitude: p.coords.latitude, longitude: p.coords.longitude })
+            );
+        })();
+        return () => sub?.remove?.();
+    }, [showUserLocation]);
+
+    const goToMyLocation = async () => {
+        try {
+            if (!locGranted) {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
+                setLocGranted(true);
+            }
+            let coords = myLoc;
+            if (!coords) {
+                const pos = await Location.getCurrentPositionAsync({});
+                coords = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+                setMyLoc(coords);
+            }
+            // aproxima um pouco
+            mapRef.current?.animateToRegion(
+                { ...coords, latitudeDelta: 0.005, longitudeDelta: 0.005 },
+                500
+            );
+        } catch { }
+    };
 
     const region = useMemo(() => {
         if (typeof lat !== 'number' || typeof lng !== 'number') return null;
@@ -94,6 +141,8 @@ export default function MapCard({
                     loadingEnabled
                     loadingIndicatorColor="#999"
                     moveOnMarkerPress={false}
+                    showsUserLocation={showUserLocation && locGranted}
+                    showsMyLocationButton={Platform.OS === 'android' && interactive}
                     {...(Platform.OS === 'android' && !interactive ? { liteMode: true } : {})}
                 >
                     <Marker coordinate={region} title={title || 'Local'} />
@@ -104,6 +153,11 @@ export default function MapCard({
                         <Pressable style={styles.fab} onPress={openFullScreen} accessibilityRole="button" accessibilityLabel="Abrir mapa em tela cheia">
                             <IconSymbol name="arrow.up.left.and.arrow.down.right" size={14} color="#fff" />
                         </Pressable>
+                        {enableRecenterButton && (
+                            <Pressable style={styles.fab} onPress={goToMyLocation} accessibilityRole="button" accessibilityLabel="Ir para minha localização">
+                                <IconSymbol name="location.circle.fill" size={14} color="#fff" />
+                            </Pressable>
+                        )}
                     </View>
                 ) : (
                     <View style={styles.badge}>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 
-export default function Avatar({ name = '', uri, size = 46, bg = '#E5E7EB', color = '#111' }) {
+export default function Avatar({ name = '', uri = '', size = 46, bg = '#E5E7EB', color = '#111' }) {
     const initials = (name || '')
         .trim()
         .split(/\s+/)

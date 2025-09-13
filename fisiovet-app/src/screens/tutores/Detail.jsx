@@ -13,6 +13,7 @@ import EnderecoCard from './EnderecoCard';
 import Action from '@/components/ui/Action';
 import { maskPhone } from '@/src/utils/masks';
 import { openWhatsapp } from '@/src/utils/openWhatsapp';
+import PetsCard from './PetsCard';
 
 export default function TutorDetail() {
   useHideTabBar(true);
@@ -92,6 +93,7 @@ export default function TutorDetail() {
         <Action title="Rota" icon="car.fill" onPress={maps} tint={tint} />
       </View>
 
+      <PetsCard tutor={tutor} />
       <EnderecoCard tutor={tutor} />
 
       {/* 🔸 Removidos: botões Editar/Excluir do corpo */}
