@@ -1,15 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, TextInput, SectionList, Pressable, StyleSheet } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchTutores, deleteTutor } from '@/src/store/slices/tutoresSlice';
+import { fetchTutores } from '@/src/store/slices/tutoresSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { router } from 'expo-router';
 import Avatar from '@/components/ui/Avatar';
-
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { maskPhone } from '@/src/utils/masks';
-
-
 
 function makeSections(items, q = '') {
   const norm = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -24,10 +22,9 @@ function makeSections(items, q = '') {
     if (!map.has(letter)) map.set(letter, []);
     map.get(letter).push(t);
   }
-  const sections = Array.from(map.entries())
+  return Array.from(map.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([title, data]) => ({ title, data: data.sort((a, b) => a.nome.localeCompare(b.nome)) }));
-  return sections;
 }
 
 function TutorRow({ item, tint, subtle, text }) {
@@ -56,9 +53,9 @@ function TutorRow({ item, tint, subtle, text }) {
   );
 }
 
-function AlphabetBar({ letters, onJump }) {
+function AlphabetBar({ letters, onJump, bottomOffset = 0 }) {
   return (
-    <View style={styles.alphaBar}>
+    <View style={[styles.alphaBar, { bottom: 6 + bottomOffset }]}>
       {letters.map((L) => (
         <Pressable key={L} onPress={() => onJump(L)} style={styles.alphaBtn} hitSlop={4}>
           <Text style={styles.alphaTxt}>{L}</Text>
@@ -75,12 +72,12 @@ export default function TutoresList() {
   const text = useThemeColor({}, 'text');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
   const tint = useThemeColor({}, 'tint');
-  const bg = useThemeColor({ light: '#F9FAFB', dark: '#0c0c0c' }, 'background');
 
   const [query, setQuery] = useState('');
   const listRef = useRef(null);
 
-
+  const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     dispatch(fetchTutores());
@@ -95,8 +92,8 @@ export default function TutoresList() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1 }} edges={['left', 'right', 'bottom']}>
-      {/* Caixa de busca abaixo do header nativo */}
+    // ❗️Sem bottom aqui, para não somar com a tab
+    <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
       <SectionList
         ref={listRef}
         sections={sections}
@@ -115,42 +112,26 @@ export default function TutoresList() {
               value={query}
               onChangeText={setQuery}
               style={[styles.input, { color: text, borderColor: 'rgba(0,0,0,0.12)' }]}
+              returnKeyType="search"
             />
           </View>
         }
         stickySectionHeadersEnabled
-        contentInsetAdjustmentBehavior="automatic"   // iOS: ajusta sob header grande
+        contentInsetAdjustmentBehavior="automatic"
         automaticallyAdjustContentInsets={false}
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
-        ListEmptyComponent={() => (
-          <View style={{ padding: 16 }}>
-            <Text style={{ color: subtle }}>Nenhum tutor encontrado.</Text>
-          </View>
-        )}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        ItemSeparatorComponent={() => <View className="sep" style={styles.sep} />}
+        // ✅ Usa a altura da tab + safe inset para não sobrepor e sem “gap” visível
+        contentContainerStyle={{ paddingBottom: tabBarHeight + insets.bottom }}
       />
 
-      {letters.length > 0 && <AlphabetBar letters={letters} onJump={jumpTo} />}
+      {letters.length > 0 && (
+        <AlphabetBar letters={letters} onJump={jumpTo} bottomOffset={tabBarHeight + insets.bottom} />
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  addBtn: {
-    marginLeft: 'auto',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 10,
-  },
   searchBox: { paddingHorizontal: 16, paddingBottom: 8 },
   input: {
     borderWidth: 1,
@@ -176,7 +157,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: 4,
     top: 90,
-    bottom: 90,
+    // bottom ajustado via prop
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 2,

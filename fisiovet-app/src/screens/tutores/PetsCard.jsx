@@ -10,7 +10,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { router } from 'expo-router';
 
-function PetItem({ pet, textColor, subtle }) {
+function PetItem({ pet, textColor, subtle, tutor }) {
     const subtitle = [pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ');
 
     // escolhe o ícone de acordo com a espécie
@@ -21,8 +21,7 @@ function PetItem({ pet, textColor, subtle }) {
 
     return (
         <Pressable
-            // onPress={() => router.push(`/(phone)/pets/${pet.id}`)}
-            onPress={() => Alert.alert('Ir para a página do pet')}
+            onPress={() => router.push({ pathname: '/(phone)/pacientes/[id]', params: { id: pet.id, from: 'tutor', tutorId: tutor.id }})}
             style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 10 }]}
         >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -85,7 +84,7 @@ export default function PetsCard({ tutor }) {
                     data={pets}
                     keyExtractor={(item) => item.id}
                     ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                    renderItem={({ item }) => <PetItem pet={item} textColor={text} subtle={subtle} />}
+                    renderItem={({ item }) => <PetItem pet={item} textColor={text} subtle={subtle} tutor={tutor}/>}
                     scrollEnabled={false}
                     contentContainerStyle={{ paddingTop: 6 }}
                 />
