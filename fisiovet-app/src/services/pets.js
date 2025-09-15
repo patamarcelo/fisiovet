@@ -21,7 +21,7 @@ const genId = () => Math.random().toString(36).slice(2, 8);
 let _pets = [
     {
         id: 'p1',
-        tutor: { id: 't1', nome: 'Ana Souza' },
+        tutor: { id: 't1' },
         nome: 'Thor',
         especie: 'cachorro',
         raca: 'Golden Retriever',
@@ -35,7 +35,7 @@ let _pets = [
     },
     {
         id: 'p2',
-        tutor: { id: 't1', nome: 'Ana Souza' },
+        tutor: { id: 't1' },
         nome: 'Mimi',
         especie: 'gato',
         raca: 'SRD',
@@ -49,7 +49,7 @@ let _pets = [
     },
     {
         id: 'p3',
-        tutor: { id: 't2', nome: 'Carlos Lima' },
+        tutor: { id: 't2' },
         nome: 'Rex',
         especie: 'cachorro',
         raca: 'Pastor Alemão',
@@ -63,7 +63,7 @@ let _pets = [
     },
     {
         id: 'p4',
-        tutor: { id: 't2', nome: 'Carlos Lima' },
+        tutor: { id: 't2' },
         nome: 'Luna',
         especie: 'gato',
         raca: 'Persa',
@@ -77,7 +77,7 @@ let _pets = [
     },
     {
         id: 'p5',
-        tutor: { id: 't3', nome: 'Fernanda Oliveira' },
+        tutor: { id: 't3' },
         nome: 'Bidu',
         especie: 'cachorro',
         raca: 'Beagle',
@@ -91,7 +91,7 @@ let _pets = [
     },
     {
         id: 'p6',
-        tutor: { id: 't3', nome: 'Fernanda Oliveira' },
+        tutor: { id: 't3' },
         nome: 'Mel',
         especie: 'gato',
         raca: 'Siamês',
@@ -105,7 +105,7 @@ let _pets = [
     },
     {
         id: 'p7',
-        tutor: { id: 't4', nome: 'João Pedro' },
+        tutor: { id: 't4' },
         nome: 'Apolo',
         especie: 'cachorro',
         raca: 'Labrador',
@@ -119,7 +119,7 @@ let _pets = [
     },
     {
         id: 'p8',
-        tutor: { id: 't4', nome: 'João Pedro' },
+        tutor: { id: 't4' },
         nome: 'Nina',
         especie: 'gato',
         raca: 'Maine Coon',
@@ -133,7 +133,7 @@ let _pets = [
     },
     {
         id: 'p9',
-        tutor: { id: 't5', nome: 'Mariana Silva' },
+        tutor: { id: 't5' },
         nome: 'Bob',
         especie: 'cachorro',
         raca: 'Bulldog Francês',
@@ -147,7 +147,7 @@ let _pets = [
     },
     {
         id: 'p10',
-        tutor: { id: 't5', nome: 'Mariana Silva' },
+        tutor: { id: 't5' },
         nome: 'Amora',
         especie: 'gato',
         raca: 'Angorá',
@@ -161,7 +161,7 @@ let _pets = [
     },
     {
         id: 'p11',
-        tutor: { id: 't6', nome: 'Ricardo Santos' },
+        tutor: { id: 't6' },
         nome: 'Toby',
         especie: 'cachorro',
         raca: 'Shih Tzu',
@@ -175,7 +175,7 @@ let _pets = [
     },
     {
         id: 'p12',
-        tutor: { id: 't6', nome: 'Ricardo Santos' },
+        tutor: { id: 't6' },
         nome: 'Sofia',
         especie: 'gato',
         raca: 'British Shorthair',
@@ -189,7 +189,7 @@ let _pets = [
     },
     {
         id: 'p13',
-        tutor: { id: 't7', nome: 'Beatriz Rocha' },
+        tutor: { id: 't7' },
         nome: 'Max',
         especie: 'cachorro',
         raca: 'Poodle',
@@ -203,7 +203,7 @@ let _pets = [
     },
     {
         id: 'p14',
-        tutor: { id: 't7', nome: 'Beatriz Rocha' },
+        tutor: { id: 't7' },
         nome: 'Jade',
         especie: 'gato',
         raca: 'SRD',
@@ -217,7 +217,7 @@ let _pets = [
     },
     {
         id: 'p15',
-        tutor: { id: 't8', nome: 'Lucas Almeida' },
+        tutor: { id: 't8' },
         nome: 'Spike',
         especie: 'cachorro',
         raca: 'Rottweiler',

@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectAllPets, fetchAllPets } from '@/src/store/slices/petsSlice';
+import { selectAllPetsJoined, fetchAllPets } from '@/src/store/slices/petsSlice';
 import { useFocusEffect, router, useNavigation } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -100,7 +100,7 @@ function PetRow({ pet, border, text, subtle }) {
 export default function PetsList() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const allPets = useSelector(selectAllPets);
+  const allPets = useSelector(selectAllPetsJoined); // ✅ agora já vem com tutor.nome
 
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();

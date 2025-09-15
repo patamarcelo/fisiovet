@@ -193,6 +193,7 @@ export default petsSlice.reducer;
 
 // ---------- Selectors ----------
 export const selectPetsState = (s) => s.pets;
+export const selectTutoresState = (s) => s.tutores; // ✅ novo
 
 export const selectAllPets = createSelector(
     selectPetsState,
@@ -215,3 +216,34 @@ export const selectAllPetsStatus = createSelector(
     selectPetsState,
     (pets) => pets.statusAll
 );
+
+export const selectPetByIdJoined = (id) =>
+    createSelector([selectPetsState, selectTutoresState], (pets, tutores) => {
+        const p = pets.byId[id];
+        if (!p) return undefined;
+        const t = tutores.byId[p.tutor?.id];
+        return {
+            ...p,
+            tutor: { id: p.tutor?.id, nome: t?.nome }, // ✅ injeta nome ao voar
+        };
+    });
+
+export const selectAllPetsJoined = createSelector(
+    [selectPetsState, selectTutoresState],
+    (pets, tutores) =>
+        pets.allIds.map((id) => {
+            const p = pets.byId[id];
+            const t = tutores.byId[p.tutor?.id];
+            return { ...p, tutor: { id: p.tutor?.id, nome: t?.nome } };
+        })
+);
+
+export const selectPetsByTutorIdJoined = (tutorId) =>
+    createSelector([selectPetsState, selectTutoresState], (pets, tutores) => {
+        const ids = pets.byTutorId[tutorId] || [];
+        return ids.map((id) => {
+            const p = pets.byId[id];
+            const t = tutores.byId[p.tutor?.id];
+            return { ...p, tutor: { id: p.tutor?.id, nome: t?.nome } };
+        });
+    });
