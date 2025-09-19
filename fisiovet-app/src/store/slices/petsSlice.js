@@ -4,7 +4,7 @@ import {
     listPetsByTutor,
     getPetById,
     createPet,
-    updatePet,
+    updatePet as updatePetApi,
     removePet,
 } from '@/src/services/pets';
 
@@ -40,8 +40,14 @@ export const addPet = createAsyncThunk('pets/add', async (payload) => {
     return created;
 });
 
+export const updatePet = createAsyncThunk('pets/update', async (payload) => {
+    // payload deve conter id e os demais campos do pet para atualização completa
+    const updated = await updatePetApi(payload.id, payload);
+    return updated;
+});
+
 export const patchPet = createAsyncThunk('pets/patch', async ({ id, patch }) => {
-    const updated = await updatePet(id, patch);
+    const updated = await updatePetApi(id, patch);
     return updated;
 });
 
@@ -165,6 +171,22 @@ const petsSlice = createSlice({
                     rebuildByTutorIndex(state);
                 } else {
                     // mantém índice atual
+                    const tid = p.tutor?.id;
+                    if (tid) {
+                        state.byTutorId[tid] = state.byTutorId[tid] || [];
+                        if (!state.byTutorId[tid].includes(p.id)) state.byTutorId[tid].push(p.id);
+                    }
+                }
+            })
+            .addCase(updatePet.fulfilled, (state, action) => {
+                const p = action.payload;
+                const prev = state.byId[p.id];
+                state.byId[p.id] = p;
+                if (!state.allIds.includes(p.id)) state.allIds.push(p.id);
+                // se trocou de tutor, reindexa
+                if (prev?.tutor?.id !== p.tutor?.id) {
+                    rebuildByTutorIndex(state);
+                } else {
                     const tid = p.tutor?.id;
                     if (tid) {
                         state.byTutorId[tid] = state.byTutorId[tid] || [];

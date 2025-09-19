@@ -21,7 +21,7 @@ function PetItem({ pet, textColor, subtle, tutor }) {
 
     return (
         <Pressable
-            onPress={() => router.push({ pathname: '/(phone)/pacientes/[id]', params: { id: pet.id, from: 'tutor', tutorId: tutor.id }})}
+            onPress={() => router.push({ pathname: '/(phone)/pacientes/[id]', params: { id: pet.id, from: 'tutor', tutorId: tutor.id } })}
             style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1, paddingVertical: 10 }]}
         >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -63,9 +63,14 @@ export default function PetsCard({ tutor }) {
         <View style={[styles.block, { borderColor: border, backgroundColor: bg }]}>
             <View style={styles.headerRow}>
                 <Text style={[styles.blockTitle, { color: text }]}>Pets</Text>
+
                 <Pressable
-                    // onPress={() => router.push({ pathname: '/(phone)/pets/new', params: { tutorId: tutor.id, tutorNome: tutor.nome } })}
-                    onPress={() => Alert.alert('Adicionar pet')}
+                    onPress={() =>
+                        router.push({
+                            pathname: "/(modals)/pet-new",
+                            params: { tutorId: tutor.id, tutorNome: tutor.nome },
+                        })
+                    }
                     hitSlop={8}
                     accessibilityLabel="Adicionar pet"
                 >
@@ -84,7 +89,7 @@ export default function PetsCard({ tutor }) {
                     data={pets}
                     keyExtractor={(item) => item.id}
                     ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
-                    renderItem={({ item }) => <PetItem pet={item} textColor={text} subtle={subtle} tutor={tutor}/>}
+                    renderItem={({ item }) => <PetItem pet={item} textColor={text} subtle={subtle} tutor={tutor} />}
                     scrollEnabled={false}
                     contentContainerStyle={{ paddingTop: 6 }}
                 />

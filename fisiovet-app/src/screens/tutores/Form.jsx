@@ -50,23 +50,30 @@ export default function TutorForm({ tutor, onSuccess }) {
     const phoneDigits = onlyDigits(telefone);
     const cepDigits = onlyDigits(cep);
 
+    const validation = useMemo(() => {
+        const nameOk = !!nome.trim();
+        const phoneOk = phoneDigits.length >= 10 && phoneDigits.length <= 11;
+        const emailOk = isEmail(email);
+        const cepOk = !cepDigits || cepDigits.length === 8; // CEP só valida se informado
+        const ufOk = !uf || uf.trim().length === 2;        // UF só valida se informada
+        return {
+            nameOk,
+            phoneOk,
+            emailOk,
+            cepOk,
+            ufOk,
+            isValid: nameOk && phoneOk && emailOk && cepOk && ufOk,
+        };
+    }, [nome, phoneDigits, email, cepDigits, uf]);
 
-
-    // Regras:
-    // - nome obrigatório
-    // - telefone 10–11 dígitos (com DDD)
-    // - email válido (se informado)
-    // - se CEP informado: 8 dígitos
-    // - UF 2 letras (se informado)
-    // - (logradouro/número/bairro/cidade) não obrigatórios, mas recomendados; se quiser, torne-os obrigatórios
-    const isValid = useMemo(() => {
-        if (!nome.trim()) return false;
-        if (phoneDigits.length < 10 || phoneDigits.length > 11) return false;
-        if (!isEmail(email)) return false;
-        if (cepDigits && cepDigits.length !== 8) return false;
-        if (uf && uf.trim().length !== 2) return false;
-        return true;
-    }, [nome, phoneDigits.length, email, cepDigits, uf]);
+    const firstError = useMemo(() => {
+        if (!validation.nameOk) return 'Informe o nome.';
+        if (!validation.phoneOk) return 'Telefone deve ter 10–11 dígitos (com DDD).';
+        if (!validation.emailOk) return 'E-mail inválido.';
+        if (!validation.cepOk) return 'CEP deve ter 8 dígitos.';
+        if (!validation.ufOk) return 'UF deve ter 2 letras.';
+        return null;
+    }, [validation]);
 
     const confirmDelete = useCallback(() => {
         Alert.alert('Excluir', 'Deseja excluir este tutor?', [
@@ -155,7 +162,10 @@ export default function TutorForm({ tutor, onSuccess }) {
         };
     }
     const onSubmit = async () => {
-        if (!isValid || submitting) return;
+        if (!validation.isValid || submitting) {
+            if (!submitting && firstError) Alert.alert('Validação', firstError);
+            return;
+        }
         setSubmitting(true);
 
         try {
@@ -354,8 +364,11 @@ export default function TutorForm({ tutor, onSuccess }) {
                     title={submitting ? 'Salvando…' : 'Salvar'}
                     variant="primary"
                     onPress={onSubmit}
-                    disabled={!isValid || submitting || loadingCep}
+                    disabled={!validation.isValid || submitting || loadingCep}
                 />
+                {!validation.isValid && (
+                    <Text style={{ color: subtle, marginTop: 8 }}>{firstError}</Text>
+                )}
             </Screen>
         </KeyboardAvoidingView>
     );

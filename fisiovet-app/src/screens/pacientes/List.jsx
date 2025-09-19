@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState, useEffect } from 'react';
+import React, { useMemo, useRef, useState, useEffect, useCallback, useDeferredValue } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   Pressable,
   SectionList,
   TextInput,
+  InteractionManager,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -72,7 +73,7 @@ function FilterPills({ value, onChange, border, accent, totals, text }) {
   );
 }
 
-function PetRow({ pet, border, text, subtle }) {
+const PetRow = React.memo(function PetRow({ pet, border, text, subtle }) {
   const icon = pet.especie === 'gato' ? 'cat.fill' : 'dog.fill';
   return (
     <Pressable
@@ -95,7 +96,7 @@ function PetRow({ pet, border, text, subtle }) {
       <IconSymbol name="chevron.right" size={14} />
     </Pressable>
   );
-}
+});
 
 export default function PetsList() {
   const navigation = useNavigation();
@@ -107,6 +108,9 @@ export default function PetsList() {
 
   const [filter, setFilter] = useState('todos');
   const [query, setQuery] = useState('');
+
+  const deferredQuery = useDeferredValue(query);
+  const deferredFilter = useDeferredValue(filter);
 
   const text = useThemeColor({}, 'text');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
@@ -142,26 +146,37 @@ export default function PetsList() {
         backgroundColor: bg
       },
     });
-  }, [navigation]);
+  }, [navigation, tint, bg]);
 
   // Carrega dados on-focus
   useFocusEffect(
-    React.useCallback(() => {
-      dispatch(fetchAllPets());
-    }, [dispatch])
+    useCallback(() => {
+      let cancelled = false;
+      // se já temos pets em memória, não refaz o fetch ao voltar (evita custo na animação)
+      if (allPets && allPets.length > 0) return;
+      const task = InteractionManager.runAfterInteractions(() => {
+        if (!cancelled) {
+          dispatch(fetchAllPets());
+        }
+      });
+      return () => {
+        cancelled = true;
+        task?.cancel?.();
+      };
+    }, [dispatch, allPets?.length])
   );
 
   // 1) Busca
   const queryFiltered = useMemo(() => {
-    if (!query.trim()) return allPets;
-    const q = query.trim().toLowerCase();
+    if (!deferredQuery.trim()) return allPets;
+    const q = deferredQuery.trim().toLowerCase();
     return allPets.filter(
       (p) =>
         p.nome?.toLowerCase().includes(q) ||
         p.tutor?.nome?.toLowerCase().includes(q) ||
         p.raca?.toLowerCase().includes(q)
     );
-  }, [allPets, query]);
+  }, [allPets, deferredQuery]);
 
   // 2) Totais (com base na busca)
   const totals = useMemo(() => {
@@ -173,12 +188,17 @@ export default function PetsList() {
 
   // 3) Filtro por espécie
   const filtered = useMemo(() => {
-    if (filter === 'todos') return queryFiltered;
-    return queryFiltered.filter((p) => p.especie === filter);
-  }, [queryFiltered, filter]);
+    if (deferredFilter === 'todos') return queryFiltered;
+    return queryFiltered.filter((p) => p.especie === deferredFilter);
+  }, [queryFiltered, deferredFilter]);
 
   const sections = useMemo(() => groupByInitial(filtered), [filtered]);
   const letters = useMemo(() => sections.map((s) => s.title), [sections]);
+
+  const renderItem = useCallback(
+    ({ item }) => <PetRow pet={item} border={border} text={text} subtle={subtle} />,
+    [border, text, subtle]
+  );
 
   const jumpTo = (letter) => {
     const idx = sections.findIndex((s) => s.title === letter);
@@ -194,9 +214,12 @@ export default function PetsList() {
           ref={listRef}
           sections={sections}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <PetRow pet={item} border={border} text={text} subtle={subtle} />
-          )}
+          renderItem={renderItem}
+          initialNumToRender={20}
+          maxToRenderPerBatch={20}
+          updateCellsBatchingPeriod={16}
+          windowSize={10}
+          removeClippedSubviews
           ListHeaderComponent={
             <View style={[styles.headerInner, { borderBottomColor: border }]}>
               {/* Busca */}

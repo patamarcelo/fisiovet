@@ -61,17 +61,15 @@ export default function PetDetail() {
     if (!pet) dispatch(fetchPet(id));
   }, [dispatch, id, pet]);
 
-  const goBack = useCallback(() => {
-    if (router.canGoBack?.()) {
-      router.back();
+  const goBack = React.useCallback(() => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
       return;
     }
-    if (_from === 'tutor' && _tutorId) {
-      router.replace(`/(phone)/tutores/${_tutorId}`);
-      return;
-    }
+    // fallback: volta para a lista
     router.replace('/(phone)/pacientes');
-  }, [_from, _tutorId]);
+  }, [navigation]);
+
 
 
 
@@ -91,24 +89,24 @@ export default function PetDetail() {
         options={{
           headerTitle: pet?.nome ?? 'Pet',
           headerTintColor: tint,
-          // 🔹 estilos do título grande (iOS)
-          headerLargeTitleStyle: {
-            color: tint,
-            fontWeight: '800',
-          },
-          // 🔹 cor de fundo do header
-          headerStyle: {
-            backgroundColor: bg
-          },
+          headerStyle: { backgroundColor: bg },
+          headerBackVisible: false,
+          gestureEnabled: true,
           headerLeft: () => (
-            <Pressable onPress={goBack} hitSlop={10} accessibilityLabel="Voltar">
+            <Pressable onPress={goBack} hitSlop={10}>
               <IconSymbol name="chevron.left" size={20} />
             </Pressable>
           ),
+          // headerLeft: () => (
+          //   <Pressable onPress={goBack} hitSlop={10} accessibilityLabel="Voltar">
+          //     <IconSymbol name="chevron.left" size={20} />
+          //   </Pressable>
+          // ),
         }}
       />
 
-      <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={[ 'left', 'right']}>
+
+      <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['left', 'right']}>
         {/* Cabeçalho */}
         <View style={[styles.header, { borderColor: border }]}>
           <View style={[styles.avatarBig, { backgroundColor: accent }]}>
@@ -120,6 +118,15 @@ export default function PetDetail() {
               {[pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ')}
             </Text>
           </View>
+          <Pressable
+            onPress={() => router.push({ pathname: '/(modals)/pet-new', params: { mode: 'edit', id: String(pet.id) } })}
+            hitSlop={10}
+            accessibilityRole="button"
+            accessibilityLabel="Editar pet"
+            style={styles.editBtn}
+         >
+            <IconSymbol name="pencil.circle.fill" size={26} color={tint} />
+          </Pressable>
         </View>
 
         {/* Grid de ações (já com “atalho +”) */}
@@ -219,4 +226,7 @@ const styles = StyleSheet.create({
   },
   cardTitle: { flex: 1, fontSize: 16, fontWeight: '700' },
   addBtn: { marginRight: 6 },
+  editBtn: {
+    alignSelf: 'center',
+  },
 });
