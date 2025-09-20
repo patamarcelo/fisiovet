@@ -27,9 +27,9 @@ export default function PetNewModal() {
 
     const pet = useSelector(selectPetById(_id));
     useEffect(() => {
-      if (isEdit && !pet && _id) {
-        dispatch(fetchPet(_id));
-      }
+        if (isEdit && !pet && _id) {
+            dispatch(fetchPet(_id));
+        }
     }, [dispatch, isEdit, _id, pet]);
 
     const FOOTER_H = 72; // altura aproximada do footer (ajuste se mudar estilos)
@@ -54,17 +54,17 @@ export default function PetNewModal() {
 
     const [initialized, setInitialized] = useState(false);
     useEffect(() => {
-      if (isEdit && pet && !initialized) {
-        setNome(pet.nome || '');
-        setEspecie(pet.especie || 'cachorro');
-        setRaca(pet.raca || '');
-        setCor(pet.cor || '');
-        setSexo(pet.sexo || 'M');
-        setCastrado(!!pet.castrado);
-        setNasc(pet.nasc || '');
-        setPesoKg(pet.pesoKg ? String(pet.pesoKg) : '');
-        setInitialized(true);
-      }
+        if (isEdit && pet && !initialized) {
+            setNome(pet.nome || '');
+            setEspecie(pet.especie || 'cachorro');
+            setRaca(pet.raca || '');
+            setCor(pet.cor || '');
+            setSexo(pet.sexo || 'M');
+            setCastrado(!!pet.castrado);
+            setNasc(pet.nasc || '');
+            setPesoKg(pet.pesoKg ? String(pet.pesoKg) : '');
+            setInitialized(true);
+        }
     }, [isEdit, pet, initialized]);
 
     const canSubmit = useMemo(() => nome.trim().length > 0 && ESPECIES.includes(especie), [nome, especie]);
@@ -272,15 +272,31 @@ export default function PetNewModal() {
                     }}
                 >
                     <View style={[styles.actions, { height: FOOTER_H - (insets.bottom || 0) }]}>
-                        <Pressable style={[styles.btn, { borderColor: border, backgroundColor: 'yellow' }]} onPress={() => router.back()}>
-                            <Text style={{ fontWeight: '700' }}>Cancelar</Text>
-                        </Pressable>
                         <Pressable
-                            style={[styles.btn, styles.btnPrimary, { backgroundColor: canSubmit ? 'blue' : 'rgba(0,0,0,0.2)' }]}
+                            style={[
+                                styles.btn,
+                                { borderColor: border, backgroundColor: 'rgba(107,114,128,1)' } // cinza #6B7280
+                            ]}
+                            onPress={() => router.back()}
+                        >
+                            <Text style={{ fontWeight: '700', color: '#fff' }}>Cancelar</Text>
+                        </Pressable>
+
+                        <Pressable
+                            style={[
+                                styles.btn,
+                                styles.btnPrimary,
+                                {
+                                    backgroundColor: canSubmit
+                                        ? 'rgba(16,185,129,1)'   // verde #10B981
+                                        : 'rgba(16,185,129,0.3)', // verde com opacidade reduzida
+                                    borderColor: !canSubmit && 'grey'
+                                }
+                            ]}
                             onPress={submit}
                             disabled={!canSubmit}
                         >
-                            <Text style={{ color: '#fff', fontWeight: '800' }}>Salvar</Text>
+                            <Text style={{ color: canSubmit ? '#fff' : 'rgba(107,114,128,0.3)', fontWeight: '800' }}>Salvar</Text>
                         </Pressable>
                     </View>
                 </View>

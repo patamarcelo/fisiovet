@@ -1,13 +1,21 @@
 // src/services/tutores.js
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// ---- Constantes / helpers ----
+const STORAGE_KEY = 'fisiovet:tutores_v1';
 
 // Porto Alegre - RS (centro aproximado)
 const POA = { lat: -30.0346, lng: -51.2177 };
-
-// jitter leve (± ~1km) – só usado em dados existentes
+// jitter leve (± ~1km) – só usado no SEED
 const jitter = (v) => v + (Math.random() - 0.5) * 0.02;
 
-// Mock em memória
-let _tutores = [
+// IDs novos para criações futuras (evita colisão)
+function genId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+// ---- SEED: usado apenas se ainda não existir nada salvo ----
+const SEED_TUTORES = [
   {
     id: 't1',
     nome: 'Ana Souza',
@@ -45,221 +53,98 @@ let _tutores = [
     createdAt: Date.now(),
     updatedAt: Date.now(),
   },
-  {
-    id: 't3',
-    nome: 'Fernanda Alves',
-    telefone: '51997776666',
-    email: 'fernanda@example.com',
-    endereco: {
-      cep: '91751-630',
-      logradouro: 'Av. Edgar Pires de Castro',
-      numero: '200',
-      bairro: 'Vila Nova',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted:
-        'Av. Edgar Pires de Castro, 200 - Vila Nova, Porto Alegre - RS, 91751-630, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t3' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't4',
-    nome: 'Marcos Pereira',
-    telefone: '51992223344',
-    email: 'marcos@example.com',
-    endereco: {
-      cep: '90440-050',
-      logradouro: 'Rua Padre Chagas',
-      numero: '150',
-      bairro: 'Moinhos de Vento',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted:
-        'Rua Padre Chagas, 150 - Moinhos de Vento, Porto Alegre - RS, 90440-050, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t4' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't5',
-    nome: 'Juliana Martins',
-    telefone: '51993335555',
-    email: 'juliana@example.com',
-    endereco: {
-      cep: '91330-000',
-      logradouro: 'Av. Protásio Alves',
-      numero: '5000',
-      bairro: 'Petrópolis',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted:
-        'Av. Protásio Alves, 5000 - Petrópolis, Porto Alegre - RS, 91330-000, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t5' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-
-  // novos tutores, alinhados ao mock dos pets
-  {
-    id: 't6',
-    nome: 'Bruno Carvalho',
-    telefone: '51991112233',
-    email: 'bruno@example.com',
-    endereco: {
-      cep: '90110-001',
-      logradouro: 'Av. Ipiranga',
-      numero: '2000',
-      bairro: 'Azenha',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted: 'Av. Ipiranga, 2000 - Azenha, Porto Alegre - RS, 90110-001, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t6' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't7',
-    nome: 'Paula Rocha',
-    telefone: '51994447777',
-    email: 'paula@example.com',
-    endereco: {
-      cep: '91340-001',
-      logradouro: 'Av. Carlos Gomes',
-      numero: '1200',
-      bairro: 'Bela Vista',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted: 'Av. Carlos Gomes, 1200 - Bela Vista, Porto Alegre - RS, 91340-001, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t7' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't8',
-    nome: 'Rafael Santos',
-    telefone: '51995556666',
-    email: 'rafael@example.com',
-    endereco: {
-      cep: '90520-001',
-      logradouro: 'Av. Assis Brasil',
-      numero: '4500',
-      bairro: 'Passo d’Areia',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted:
-        'Av. Assis Brasil, 4500 - Passo d’Areia, Porto Alegre - RS, 90520-001, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t8' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't9',
-    nome: 'Camila Duarte',
-    telefone: '51996667777',
-    email: 'camila@example.com',
-    endereco: {
-      cep: '91710-001',
-      logradouro: 'Av. Cavalhada',
-      numero: '800',
-      bairro: 'Cavalhada',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted: 'Av. Cavalhada, 800 - Cavalhada, Porto Alegre - RS, 91710-001, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t9' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't10',
-    nome: 'Tiago Nunes',
-    telefone: '51997778888',
-    email: 'tiago@example.com',
-    endereco: {
-      cep: '91110-001',
-      logradouro: 'Av. Sertório',
-      numero: '3000',
-      bairro: 'Sarandi',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted: 'Av. Sertório, 3000 - Sarandi, Porto Alegre - RS, 91110-001, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t10' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
 ];
-const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
-const genId = () => Math.random().toString(36).slice(2, 8);
 
-// --- API Mock --- //
+// ---- Storage helpers ----
+async function loadAll() {
+  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  if (!raw) {
+    // 1ª execução: grava seed e retorna
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_TUTORES));
+    return SEED_TUTORES;
+  }
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveAll(tutores) {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(tutores) ? tutores : []));
+}
+
+// 👉 Geocoding MOCK: devolve POA fixo, sem delay
+export async function geocodeCepMock(_cep, _enderecoParcial) {
+  return { ...POA };
+}
+
+// ---- API local-first ----
 export async function listTutores() {
-    await delay();
-    return [..._tutores].sort((a, b) => a.nome.localeCompare(b.nome));
+  const list = await loadAll();
+  // Collator melhora ordenação pt-BR
+  const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
+  return list.slice().sort((a, b) => collator.compare(a.nome || '', b.nome || ''));
 }
 
 export async function getTutorById(id) {
-    await delay();
-    const t = _tutores.find((x) => x.id === id);
-    if (!t) throw new Error('Tutor não encontrado');
-    return { ...t };
+  const tutores = await loadAll();
+  const t = tutores.find((x) => x.id === id);
+  if (!t) throw new Error('Tutor não encontrado');
+  return { ...t };
 }
 
-// 👉 Geocoding MOCK: agora sempre devolve POA fixo
-export async function geocodeCepMock(_cep, _enderecoParcial) {
-    await delay(120);
-    return { ...POA }; // sem jitter
-}
-
-// 👇 se quiser manter fallback, ok. Mas não geocodifique se o payload já trouxe geo.
 export async function createTutor(payload) {
-    await delay();
-    const now = Date.now();
+  const tutores = await loadAll();
+  const now = Date.now();
 
-    const geo = payload.geo ?? (await geocodeCepMock(payload?.endereco?.cep, payload?.endereco));
+  // se o form já mandar geo, usa; senão mock
+  const geo = payload.geo ?? (await geocodeCepMock(payload?.endereco?.cep, payload?.endereco));
 
-    const item = {
-        id: genId(),
-        ...payload,
-        geo, // já pode vir enriquecido do form
-        createdAt: now,
-        updatedAt: now,
-    };
+  const item = {
+    id: genId(),
+    ...payload,
+    geo,
+    createdAt: now,
+    updatedAt: now,
+  };
 
-    _tutores.push(item);
-    return { ...item };
+  tutores.push(item);
+  await saveAll(tutores);
+  return { ...item };
 }
 
 export async function updateTutor(id, patch) {
-    await delay();
-    const idx = _tutores.findIndex((x) => x.id === id);
-    if (idx === -1) throw new Error('Tutor não encontrado');
+  const tutores = await loadAll();
+  const idx = tutores.findIndex((x) => x.id === id);
+  if (idx === -1) throw new Error('Tutor não encontrado');
 
-    // se veio patch.geo, usa o que veio (enriquecido)
-    let geo = patch.geo ?? _tutores[idx].geo;
+  // se veio patch.geo, usa o que veio
+  let geo = patch.geo ?? tutores[idx].geo;
 
-    // se NÃO veio geo no patch e mudou endereço/cep, pode usar fallback mock
-    const cepMudou = patch?.endereco?.cep && patch.endereco.cep !== _tutores[idx]?.endereco?.cep;
-    if (!patch.geo && (cepMudou || patch?.endereco)) {
-        geo = await geocodeCepMock(
-            patch?.endereco?.cep ?? _tutores[idx]?.endereco?.cep,
-            patch?.endereco
-        );
-    }
+  // se NÃO veio geo e endereço/cep mudou, re-calcula (mock)
+  const cepOriginal = tutores[idx]?.endereco?.cep;
+  const cepNovo = patch?.endereco?.cep;
+  const cepMudou = cepNovo && cepNovo !== cepOriginal;
+  if (!patch.geo && (cepMudou || patch?.endereco)) {
+    geo = await geocodeCepMock(cepNovo ?? cepOriginal, patch?.endereco ?? tutores[idx]?.endereco);
+  }
 
-    _tutores[idx] = { ..._tutores[idx], ...patch, geo, updatedAt: Date.now() };
-    return { ..._tutores[idx] };
+  tutores[idx] = { ...tutores[idx], ...patch, geo, updatedAt: Date.now() };
+  await saveAll(tutores);
+  return { ...tutores[idx] };
 }
 
 export async function removeTutor(id) {
-    await delay();
-    _tutores = _tutores.filter((x) => x.id !== id);
-    return { ok: true };
+  const tutores = await loadAll();
+  const next = tutores.filter((x) => x.id !== id);
+  await saveAll(next);
+  return { ok: true };
+}
+
+// (Opcional, útil em DEV)
+export async function resetTutoresToSeed() {
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_TUTORES));
+  return { ok: true };
 }

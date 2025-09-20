@@ -7,6 +7,7 @@ import {
   SectionList,
   TextInput,
   InteractionManager,
+  Platform
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -122,6 +123,7 @@ export default function PetsList() {
   const accent = useThemeColor({ light: '#10B981', dark: '#10B981' }, 'tint'); // verde
 
 
+  const imTaskRef = useRef(null);
 
 
 
@@ -152,11 +154,13 @@ export default function PetsList() {
   useFocusEffect(
     useCallback(() => {
       dispatch(clearActiveTutorId());  // 🔹 garante que a lista não herda filtro
-      const task = InteractionManager.runAfterInteractions(() => {
-        if (!allPets.length) dispatch(fetchAllPets());
+      if (allPets?.length) return;
+      imTaskRef.current?.cancel?.();
+      imTaskRef.current = InteractionManager.runAfterInteractions(() => {
+        dispatch(fetchAllPets());
       });
-      return () => task?.cancel?.();
-    }, [dispatch, allPets.length])
+      return () => imTaskRef.current?.cancel?.();
+    }, [dispatch, allPets?.length])
   );
 
   // 1) Busca
@@ -193,12 +197,12 @@ export default function PetsList() {
     [border, text, subtle]
   );
 
-  const jumpTo = (letter) => {
-    const idx = sections.findIndex((s) => s.title === letter);
-    if (idx >= 0 && listRef.current) {
-      listRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
-    }
-  };
+  // const jumpTo = (letter) => {
+  //   const idx = sections.findIndex((s) => s.title === letter);
+  //   if (idx >= 0 && listRef.current) {
+  //     listRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
+  //   }
+  // };
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right', 'top']}>
@@ -208,11 +212,11 @@ export default function PetsList() {
           sections={sections}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
+          removeClippedSubviews={Platform.OS === 'android'}
           initialNumToRender={20}
           maxToRenderPerBatch={20}
           updateCellsBatchingPeriod={16}
           windowSize={10}
-          removeClippedSubviews
           ListHeaderComponent={
             <View style={[styles.headerInner, { borderBottomColor: border }]}>
               {/* Busca */}
@@ -252,7 +256,7 @@ export default function PetsList() {
           stickySectionHeadersEnabled
           renderSectionHeader={({ section: { title } }) => (
             <View style={styles.sectionHeaderContainer}>
-              <View style={[styles.sectionBanner, { backgroundColor: bannerBg, borderColor: border }]}>
+              <View style={[styles.sectionBanner, { backgroundColor: bannerBg, borderColor: border, borderWidth: 0.2 }]}>
                 <Text style={[styles.sectionBannerText, { color: bannerText }]}>{title}</Text>
               </View>
             </View>
@@ -265,7 +269,7 @@ export default function PetsList() {
         />
 
         {/* Índice alfabético à direita (opcional) */}
-        {letters.length > 1 && (
+        {/* {letters.length > 1 && (
           <View style={styles.index}>
             {letters.map((l) => (
               <Pressable key={l} onPress={() => jumpTo(l)} hitSlop={6}>
@@ -273,7 +277,7 @@ export default function PetsList() {
               </Pressable>
             ))}
           </View>
-        )}
+        )} */}
       </View>
     </SafeAreaView>
   );
@@ -337,7 +341,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 24,
     borderRadius: 0,
-    borderWidth: 1,
+    borderWidth: 0.3,
     justifyContent: 'center',
   },
   sectionBannerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },

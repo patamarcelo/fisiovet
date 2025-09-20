@@ -145,10 +145,18 @@ const petsSlice = createSlice({
             .addCase(fetchAllPets.fulfilled, (state, action) => {
                 state.statusAll = 'succeeded';
                 // substitui tudo (ideal p/ telas gerais)
+                const rows = Array.isArray(action.payload) ? action.payload : [];
+                // se nada mudou (mesmo total e mesmos ids), não refaça o estado:
+                if (
+                    rows.length === state.allIds.length &&
+                    rows.every((p, i) => state.byId[p.id]) // check básico, barato
+                ) {
+                    return;
+                }
                 state.byId = {};
                 state.allIds = [];
                 state.byTutorId = {};
-                upsertMany(state, action.payload);
+                upsertMany(state, rows);
             })
             .addCase(fetchAllPets.rejected, (state, action) => {
                 state.statusAll = 'failed';
