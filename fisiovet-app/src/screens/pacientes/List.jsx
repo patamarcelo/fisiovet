@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectAllPetsJoined, fetchAllPets } from '@/src/store/slices/petsSlice';
+import { selectAllPetsJoined, fetchAllPets, clearActiveTutorId } from '@/src/store/slices/petsSlice';
 import { useFocusEffect, router, useNavigation } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -151,19 +151,12 @@ export default function PetsList() {
   // Carrega dados on-focus
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-      // se já temos pets em memória, não refaz o fetch ao voltar (evita custo na animação)
-      if (allPets && allPets.length > 0) return;
+      dispatch(clearActiveTutorId());  // 🔹 garante que a lista não herda filtro
       const task = InteractionManager.runAfterInteractions(() => {
-        if (!cancelled) {
-          dispatch(fetchAllPets());
-        }
+        if (!allPets.length) dispatch(fetchAllPets());
       });
-      return () => {
-        cancelled = true;
-        task?.cancel?.();
-      };
-    }, [dispatch, allPets?.length])
+      return () => task?.cancel?.();
+    }, [dispatch, allPets.length])
   );
 
   // 1) Busca

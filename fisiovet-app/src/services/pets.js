@@ -1,26 +1,10 @@
 // src/services/pets.js
-const delay = (ms = 250) => new Promise((r) => setTimeout(r, ms));
-const genId = () => Math.random().toString(36).slice(2, 8);
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-/**
- * Modelo de Pet:
- * {
- *   id,
- *   tutor: { id, nome },
- *   nome,
- *   especie: 'cachorro'|'gato',
- *   raca, cor,
- *   sexo: 'M'|'F',
- *   castrado: boolean,
- *   nasc: 'YYYY-MM-DD' | null,
- *   pesoKg: number | null,
- *   fotoUrl?: string,
- *   createdAt, updatedAt
- * }
- */
+const STORAGE_KEY = 'fisiovet:pets_v1';
 let _pets = [
     {
-        id: 'p1',
+        id: 'mbq8j6a-1k3d9p',
         tutor: { id: 't1' },
         nome: 'Thor',
         especie: 'cachorro',
@@ -34,7 +18,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 2,
     },
     {
-        id: 'p2',
+        id: 'mbq8j6a-2k4f7x',
         tutor: { id: 't1' },
         nome: 'Mimi',
         especie: 'gato',
@@ -48,7 +32,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 1,
     },
     {
-        id: 'p3',
+        id: 'mbq8j6a-3p9z4m',
         tutor: { id: 't2' },
         nome: 'Rex',
         especie: 'cachorro',
@@ -62,7 +46,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 3,
     },
     {
-        id: 'p4',
+        id: 'mbq8j6a-4t2k1n',
         tutor: { id: 't2' },
         nome: 'Luna',
         especie: 'gato',
@@ -76,7 +60,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 5,
     },
     {
-        id: 'p5',
+        id: 'mbq8j6a-5z8r2c',
         tutor: { id: 't3' },
         nome: 'Bidu',
         especie: 'cachorro',
@@ -90,7 +74,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 1,
     },
     {
-        id: 'p6',
+        id: 'mbq8j6a-6m5v8j',
         tutor: { id: 't3' },
         nome: 'Mel',
         especie: 'gato',
@@ -104,7 +88,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 2,
     },
     {
-        id: 'p7',
+        id: 'mbq8j6a-7q1l4h',
         tutor: { id: 't4' },
         nome: 'Apolo',
         especie: 'cachorro',
@@ -118,7 +102,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 7,
     },
     {
-        id: 'p8',
+        id: 'mbq8j6a-8x7c2v',
         tutor: { id: 't4' },
         nome: 'Nina',
         especie: 'gato',
@@ -132,7 +116,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 4,
     },
     {
-        id: 'p9',
+        id: 'mbq8j6a-9g3b1p',
         tutor: { id: 't5' },
         nome: 'Bob',
         especie: 'cachorro',
@@ -146,7 +130,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 6,
     },
     {
-        id: 'p10',
+        id: 'mbq8j6a-10n2s8k',
         tutor: { id: 't5' },
         nome: 'Amora',
         especie: 'gato',
@@ -160,7 +144,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 3,
     },
     {
-        id: 'p11',
+        id: 'mbq8j6a-11d4f9m',
         tutor: { id: 't6' },
         nome: 'Toby',
         especie: 'cachorro',
@@ -174,7 +158,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 10,
     },
     {
-        id: 'p12',
+        id: 'mbq8j6a-12r7p3x',
         tutor: { id: 't6' },
         nome: 'Sofia',
         especie: 'gato',
@@ -188,7 +172,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 2,
     },
     {
-        id: 'p13',
+        id: 'mbq8j6a-13y9k2z',
         tutor: { id: 't7' },
         nome: 'Max',
         especie: 'cachorro',
@@ -202,7 +186,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 15,
     },
     {
-        id: 'p14',
+        id: 'mbq8j6a-14w6t8b',
         tutor: { id: 't7' },
         nome: 'Jade',
         especie: 'gato',
@@ -216,7 +200,7 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 1,
     },
     {
-        id: 'p15',
+        id: 'mbq8j6a-15h5m7n',
         tutor: { id: 't8' },
         nome: 'Spike',
         especie: 'cachorro',
@@ -230,28 +214,61 @@ let _pets = [
         updatedAt: Date.now() - 86400000 * 20,
     },
 ];
+
+async function loadAll() {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+        // 1ª execução no device: inicializa com SEED (apenas uma vez)
+        if (_pets?.length) {
+            await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(_pets));
+            return _pets;
+        }
+        return [];
+    }
+    try {
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+    } catch {
+        return [];
+    }
+}
+
+async function saveAll(pets) {
+    // Proteção: nunca grave undefined/null
+    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(pets) ? pets : []));
+}
+// ---- Helpers ----
+
+function genId() {
+    return (
+        Date.now().toString(36) +
+        '-' +
+        Math.random().toString(36).slice(2, 9)
+    );
+}
+
 // ---- Queries ----
 export async function listPets() {
-    await delay();
-    // ordena por nome (alfa) só para UX básica
-    return [..._pets].sort((a, b) => a.nome.localeCompare(b.nome));
+    const pets = await loadAll();
+    return pets.slice().sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 export async function listPetsByTutor(tutorId) {
-    await delay();
-    return _pets.filter((p) => p.tutor?.id === tutorId).sort((a, b) => a.nome.localeCompare(b.nome));
+    const pets = await loadAll();
+    return pets
+        .filter((p) => p.tutor?.id === tutorId)
+        .sort((a, b) => a.nome.localeCompare(b.nome));
 }
 
 export async function getPetById(id) {
-    await delay();
-    const p = _pets.find((x) => x.id === id);
+    const pets = await loadAll();
+    const p = pets.find((x) => x.id === id);
     if (!p) throw new Error('Pet não encontrado');
     return { ...p };
 }
 
 // ---- Mutations ----
 export async function createPet(payload) {
-    await delay();
     const now = Date.now();
     const item = {
         id: genId(),
@@ -259,27 +276,32 @@ export async function createPet(payload) {
         createdAt: now,
         updatedAt: now,
     };
-    _pets.push(item);
+    const pets = await loadAll();
+    pets.push(item);
+    await saveAll(pets);
     return { ...item };
 }
 
 export async function updatePet(id, patch) {
-    await delay();
-    const idx = _pets.findIndex((x) => x.id === id);
+    const pets = await loadAll();
+    const idx = pets.findIndex((x) => x.id === id);
     if (idx === -1) throw new Error('Pet não encontrado');
 
-    _pets[idx] = {
-        ..._pets[idx],
+    const merged = {
+        ...pets[idx],
         ...patch,
-        // permitir trocar tutor (relação)
-        tutor: patch?.tutor ?? _pets[idx].tutor,
+        tutor: patch?.tutor ?? pets[idx].tutor,
         updatedAt: Date.now(),
     };
-    return { ..._pets[idx] };
+
+    pets[idx] = merged;
+    await saveAll(pets);
+    return { ...merged };
 }
 
 export async function removePet(id) {
-    await delay();
-    _pets = _pets.filter((x) => x.id !== id);
+    const pets = await loadAll();
+    const next = pets.filter((x) => x.id !== id);
+    await saveAll(next);
     return { ok: true };
 }
