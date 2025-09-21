@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
@@ -7,8 +7,6 @@ import { fetchPet, selectPetById } from '@/src/store/slices/petsSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 
-
-import { Stack } from 'expo-router';
 
 function ActionCard({ title, icon, onPress, onAdd, border }) {
   return (
@@ -62,13 +60,30 @@ export default function PetDetail() {
   }, [dispatch, id, pet]);
 
   const goBack = React.useCallback(() => {
-    if (navigation.canGoBack()) {
-      navigation.goBack();
-      return;
-    }
-    // fallback: volta para a lista
+    // if (navigation.canGoBack()) {
+    //   console.log("voltando aqui")
+    //   navigation.goBack();
+    //   return;
+    // }
+    // // fallback: volta para a lista
+    console.log("voltando aqui para a lista")
     router.replace('/(phone)/pacientes');
   }, [navigation]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: pet?.nome ?? 'Pet',
+      headerTintColor: tint,
+      headerStyle: { backgroundColor: bg },
+      headerBackVisible: false,
+      gestureEnabled: true,
+      headerLeft: () => (
+        <Pressable onPress={goBack} hitSlop={10} accessibilityLabel="Voltar">
+          <IconSymbol name="chevron.left" size={20} />
+        </Pressable>
+      ),
+    });
+  }, [navigation, pet?.nome, tint, bg, goBack]);
 
 
 
@@ -84,115 +99,99 @@ export default function PetDetail() {
   const icon = pet.especie === 'gato' ? 'cat.fill' : 'dog.fill';
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          headerTitle: pet?.nome ?? 'Pet',
-          headerTintColor: tint,
-          headerStyle: { backgroundColor: bg },
-          headerBackVisible: false,
-          gestureEnabled: true,
-          headerLeft: () => (
-            <Pressable onPress={goBack} hitSlop={10}>
-              <IconSymbol name="chevron.left" size={20} />
-            </Pressable>
-          ),
-          // headerLeft: () => (
-          //   <Pressable onPress={goBack} hitSlop={10} accessibilityLabel="Voltar">
-          //     <IconSymbol name="chevron.left" size={20} />
-          //   </Pressable>
-          // ),
-        }}
-      />
-
-
-      <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['left', 'right']}>
-        {/* Cabeçalho */}
-        <View style={[styles.header, { borderColor: border }]}>
-          <View style={[styles.avatarBig, { backgroundColor: accent }]}>
-            <IconSymbol name={icon} size={22} color="#fff" />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.title, { color: text }]}>{pet.nome}</Text>
-            <Text style={{ color: subtle }}>
-              {[pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ')}
-            </Text>
-          </View>
-          <Pressable
-            onPress={() => router.push({ pathname: '/(modals)/pet-new', params: { mode: 'edit', id: String(pet.id) } })}
-            hitSlop={10}
-            accessibilityRole="button"
-            accessibilityLabel="Editar pet"
-            style={styles.editBtn}
-         >
-            <IconSymbol name="pencil.circle.fill" size={26} color={tint} />
-          </Pressable>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['left', 'right']}>
+      {/* Cabeçalho */}
+      <View style={[styles.header, { borderColor: border }]}>
+        <View style={[styles.avatarBig, { backgroundColor: accent }]}>
+          <IconSymbol name={icon} size={22} color="#fff" />
         </View>
-
-        {/* Grid de ações (já com “atalho +”) */}
-        <View style={styles.grid}>
-          <ActionCard
-            title={pet.tutor?.nome ? `Tutor: ${pet.tutor.nome}` : 'Tutor'}
-            icon="person.crop.circle.fill"
-            border={border}
-            onPress={() =>
-              pet.tutor?.id
-                ? router.push(`/(phone)/tutores/${pet.tutor.id}`)
-                : Alert.alert('Tutor não vinculado')
-            }
-            onAdd={
-              pet.tutor?.id
-                ? undefined
-                : () => Alert.alert('Vincular tutor', 'Escolher/vincular um tutor para este pet')
-            }
-          />
-          <ActionCard
-            title="Timeline"
-            icon="clock.arrow.circlepath"
-            border={border}
-            onPress={() => Alert.alert('Timeline', 'Abrir feed cronológico')}
-            onAdd={() => Alert.alert('Novo registro', 'Adicionar entrada no timeline')}
-          />
-          <ActionCard
-            title="Exames"
-            icon="doc.text.fill"
-            border={border}
-            onPress={() => Alert.alert('Exames', 'Abrir a lista de exames')}
-            onAdd={() => Alert.alert('Novo exame', 'Criar novo exame')}
-          />
-          <ActionCard
-            title="Fotos & Vídeos"
-            icon="photo.on.rectangle"
-            border={border}
-            onPress={() => Alert.alert('Mídia', 'Abrir galeria')}
-            onAdd={() => Alert.alert('Adicionar mídia', 'Abrir câmera/galeria')}
-          />
-          <ActionCard
-            title="Agenda"
-            icon="calendar"
-            border={border}
-            onPress={() => Alert.alert('Agenda', 'Abrir agenda do pet')}
-            onAdd={() => Alert.alert('Novo evento', 'Criar novo agendamento')}
-          />
-
-          {/* Espaço pra futuros cards: Vacinas, Pesagens, Alergias etc. */}
-          <ActionCard
-            title="Vacinas"
-            icon="syringe.fill"
-            border={border}
-            onPress={() => Alert.alert('Vacinas', 'Abrir carteirinha')}
-            onAdd={() => Alert.alert('Registrar vacina', 'Adicionar novo registro')}
-          />
-          <ActionCard
-            title="Pesagens"
-            icon="scalemass.fill"
-            border={border}
-            onPress={() => Alert.alert('Pesagens', 'Histórico de peso')}
-            onAdd={() => Alert.alert('Nova pesagem', 'Adicionar peso')}
-          />
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: text }]}>{pet.nome}</Text>
+          <Text style={{ color: subtle }}>
+            {[pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ')}
+          </Text>
         </View>
-      </SafeAreaView>
-    </>
+        <Pressable
+          onPress={() => router.push({ pathname: '/(modals)/pet-new', params: { mode: 'edit', id: String(pet.id) } })}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel="Editar pet"
+          style={styles.editBtn}
+       >
+          <IconSymbol name="pencil.circle.fill" size={26} color={tint} />
+        </Pressable>
+      </View>
+
+      {/* Grid de ações (já com “atalho +”) */}
+      <View style={styles.grid}>
+        <ActionCard
+          title={pet.tutor?.nome ? `Tutor: ${pet.tutor.nome}` : 'Tutor'}
+          icon="person.crop.circle.fill"
+          border={border}
+          onPress={() =>
+            pet.tutor?.id
+              ? router.push(`/(phone)/tutores/${pet.tutor.id}`)
+              : Alert.alert('Tutor não vinculado')
+          }
+          onAdd={
+            pet.tutor?.id
+              ? undefined
+              : () => Alert.alert('Vincular tutor', 'Escolher/vincular um tutor para este pet')
+          }
+        />
+        <ActionCard
+          title="Avaliação"
+          icon="clipboard-outline"   // ícone de prancheta
+          border={border}
+          onPress={() => Alert.alert('Avaliação', 'Abrir Página das avaliações')}
+          onAdd={() => Alert.alert('Novo registro', 'Adicionar entrada no timeline')}
+        />
+        <ActionCard
+          title="Timeline"
+          icon="clock.arrow.circlepath"
+          border={border}
+          onPress={() => Alert.alert('Timeline', 'Abrir feed cronológico')}
+          onAdd={() => Alert.alert('Novo registro', 'Adicionar entrada no timeline')}
+        />
+        <ActionCard
+          title="Exames"
+          icon="doc.text.fill"
+          border={border}
+          onPress={() => Alert.alert('Exames', 'Abrir a lista de exames')}
+          onAdd={() => Alert.alert('Novo exame', 'Criar novo exame')}
+        />
+        <ActionCard
+          title="Fotos & Vídeos"
+          icon="photo.on.rectangle"
+          border={border}
+          onPress={() => Alert.alert('Mídia', 'Abrir galeria')}
+          onAdd={() => Alert.alert('Adicionar mídia', 'Abrir câmera/galeria')}
+        />
+        <ActionCard
+          title="Agenda"
+          icon="calendar"
+          border={border}
+          onPress={() => Alert.alert('Agenda', 'Abrir agenda do pet')}
+          onAdd={() => Alert.alert('Novo evento', 'Criar novo agendamento')}
+        />
+
+        {/* Espaço pra futuros cards: Vacinas, Pesagens, Alergias etc. */}
+        <ActionCard
+          title="Vacinas"
+          icon="syringe.fill"
+          border={border}
+          onPress={() => Alert.alert('Vacinas', 'Abrir carteirinha')}
+          onAdd={() => Alert.alert('Registrar vacina', 'Adicionar novo registro')}
+        />
+        <ActionCard
+          title="Pesagens"
+          icon="scalemass.fill"
+          border={border}
+          onPress={() => Alert.alert('Pesagens', 'Histórico de peso')}
+          onAdd={() => Alert.alert('Nova pesagem', 'Adicionar peso')}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 

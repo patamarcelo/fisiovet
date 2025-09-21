@@ -1,13 +1,20 @@
-import React, { useMemo, useRef, useState, useEffect, useCallback, useDeferredValue } from 'react';
+import React, {
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  useDeferredValue,
+  useLayoutEffect,
+} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   Pressable,
-  SectionList,
+  FlatList,
   TextInput,
   InteractionManager,
-  Platform
+  Platform,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
@@ -17,12 +24,13 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
-import { Stack } from 'expo-router';
-
 const FILTERS = ['todos', 'cachorro', 'gato'];
+const ITEM_HEIGHT = 64;
+const HEADER_HEIGHT = 24;
 
-/** Agrupa por letra inicial (A-Z/Ç) ou # para outros */
-function groupByInitial(items) {
+/** Agrupa e “achata” em uma lista com cabeçalhos de letra */
+function groupToFlat(items) {
+  // items já devem vir filtrados/ordenados por nome
   const map = new Map();
   for (const p of items) {
     const first = (p?.nome?.[0] || '').toUpperCase();
@@ -30,13 +38,24 @@ function groupByInitial(items) {
     if (!map.has(key)) map.set(key, []);
     map.get(key).push(p);
   }
-  const sections = Array.from(map.entries())
-    .sort(([a], [b]) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)))
-    .map(([title, data]) => ({
-      title,
-      data: data.sort((a, b) => a.nome.localeCompare(b.nome)),
-    }));
-  return sections;
+  const letters = Array.from(map.keys()).sort((a, b) =>
+    a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b)
+  );
+
+  const flat = [];
+  const sticky = [];
+  let index = 0;
+  for (const letter of letters) {
+    flat.push({ _type: 'header', letter, id: `__h__${letter}` });
+    sticky.push(index);
+    index += 1;
+    const list = map.get(letter).sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
+    for (const pet of list) {
+      flat.push({ _type: 'item', pet, id: String(pet.id) });
+      index += 1;
+    }
+  }
+  return { flat, sticky, letters };
 }
 
 function FilterPills({ value, onChange, border, accent, totals, text }) {
@@ -64,9 +83,7 @@ function FilterPills({ value, onChange, border, accent, totals, text }) {
             accessibilityRole="button"
             accessibilityLabel={`Filtrar por ${f}`}
           >
-            <Text style={[styles.pillText, { color: active ? '#fff' : text }]}>
-              {label(f)}
-            </Text>
+            <Text style={[styles.pillText, { color: active ? '#fff' : text }]}>{label(f)}</Text>
           </Pressable>
         );
       })}
@@ -89,8 +106,10 @@ const PetRow = React.memo(function PetRow({ pet, border, text, subtle }) {
         <IconSymbol name={icon} size={16} color="#fff" />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.title, { color: text }]}>{pet.nome}</Text>
-        <Text style={{ color: subtle, marginTop: 2 }}>
+        <Text style={[styles.title, { color: text }]} numberOfLines={1}>
+          {pet.nome}
+        </Text>
+        <Text style={{ color: subtle, marginTop: 2 }} numberOfLines={1}>
           {[pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ')}
         </Text>
       </View>
@@ -102,13 +121,13 @@ const PetRow = React.memo(function PetRow({ pet, border, text, subtle }) {
 export default function PetsList() {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const allPets = useSelector(selectAllPetsJoined); // ✅ agora já vem com tutor.nome
+  const allPets = useSelector(selectAllPetsJoined);
 
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
 
-  const [filter, setFilter] = useState('todos');
-  const [query, setQuery] = useState('');
+  const [filter, setFilter] = React.useState('todos');
+  const [query, setQuery] = React.useState('');
 
   const deferredQuery = useDeferredValue(query);
   const deferredFilter = useDeferredValue(filter);
@@ -118,42 +137,26 @@ export default function PetsList() {
   const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' }, 'border');
   const bg = useThemeColor({}, 'background');
   const tint = useThemeColor({}, 'tint');
-  const bannerBg = useThemeColor({ light: '#E5E7EB', dark: '#2A2A2C' }, 'card'); // cinza do banner
+  const bannerBg = useThemeColor({ light: '#E5E7EB', dark: '#2A2A2C' }, 'card');
   const bannerText = useThemeColor({ light: '#111827', dark: '#F3F4F6' }, 'text');
-  const accent = useThemeColor({ light: '#10B981', dark: '#10B981' }, 'tint'); // verde
-
-
-  const imTaskRef = useRef(null);
-
-
+  const accent = useThemeColor({ light: '#10B981', dark: '#10B981' }, 'tint');
 
   const listRef = useRef(null);
+  const imTaskRef = useRef(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     navigation.setOptions({
       headerLargeTitle: true,
       headerTitle: 'Pets',
-
-      // 🔹 cor do título normal
       headerTintColor: tint,
-
-      // 🔹 estilos do título grande (iOS)
-      headerLargeTitleStyle: {
-        color: tint,
-        fontWeight: '800',
-      },
-
-      // 🔹 cor de fundo do header
-      headerStyle: {
-        backgroundColor: bg
-      },
+      headerLargeTitleStyle: { color: tint, fontWeight: '800' },
+      headerStyle: { backgroundColor: bg },
     });
   }, [navigation, tint, bg]);
 
-  // Carrega dados on-focus
   useFocusEffect(
     useCallback(() => {
-      dispatch(clearActiveTutorId());  // 🔹 garante que a lista não herda filtro
+      dispatch(clearActiveTutorId());
       if (allPets?.length) return;
       imTaskRef.current?.cancel?.();
       imTaskRef.current = InteractionManager.runAfterInteractions(() => {
@@ -175,7 +178,7 @@ export default function PetsList() {
     );
   }, [allPets, deferredQuery]);
 
-  // 2) Totais (com base na busca)
+  // 2) Totais
   const totals = useMemo(() => {
     const t = queryFiltered.length;
     const d = queryFiltered.filter((p) => p.especie === 'cachorro').length;
@@ -184,92 +187,163 @@ export default function PetsList() {
   }, [queryFiltered]);
 
   // 3) Filtro por espécie
-  const filtered = useMemo(() => {
-    if (deferredFilter === 'todos') return queryFiltered;
-    return queryFiltered.filter((p) => p.especie === deferredFilter);
+  const filteredSorted = useMemo(() => {
+    const base =
+      deferredFilter === 'todos'
+        ? queryFiltered
+        : queryFiltered.filter((p) => p.especie === deferredFilter);
+    return [...base].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''));
   }, [queryFiltered, deferredFilter]);
 
-  const sections = useMemo(() => groupByInitial(filtered), [filtered]);
-  const letters = useMemo(() => sections.map((s) => s.title), [sections]);
-
-  const renderItem = useCallback(
-    ({ item }) => <PetRow pet={item} border={border} text={text} subtle={subtle} />,
-    [border, text, subtle]
+  // 4) Achata em lista com cabeçalhos e define sticky indices
+  const { flat, sticky, letters } = useMemo(
+    () => groupToFlat(filteredSorted),
+    [filteredSorted]
   );
 
-  // const jumpTo = (letter) => {
-  //   const idx = sections.findIndex((s) => s.title === letter);
-  //   if (idx >= 0 && listRef.current) {
-  //     listRef.current.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
-  //   }
-  // };
+  const renderItem = useCallback(
+    ({ item }) => {
+      if (item._type === 'header') {
+        return (
+          <View
+            style={[
+              styles.sectionBanner,
+              { backgroundColor: bannerBg, borderColor: border, borderWidth: 0.2 },
+            ]}
+          >
+            <Text style={[styles.sectionBannerText, { color: bannerText }]}>
+              {item.letter}
+            </Text>
+          </View>
+        );
+      }
+      return <PetRow pet={item.pet} border={border} text={text} subtle={subtle} />;
+    },
+    [bannerBg, border, bannerText, text, subtle]
+  );
+
+  const keyExtractor = useCallback((item) => item.id, []);
+
+  // getItemLayout: cabeçalho tem altura diferente
+  const getItemLayout = useCallback(
+    (_, index) => {
+      // Calcula offset linear percorrendo do início até index
+      // Para manter performático, assumimos padrão (headers raros + linhas fixas):
+      // offset ≈ (#headers antes * HEADER_HEIGHT) + (#itens antes * ITEM_HEIGHT)
+      // Para precisão sem percorrer, poderíamos pré-computar cumulativos se necessário.
+      // Aqui fazemos uma aproximação O(1) usando quantidade de headers via busca simples:
+      // Dado que FlatList chama pouco, manter simples é suficiente.
+      // (Se quiser máxima precisão, dá pra pré-calcular num array cumulativo.)
+      let headersBefore = 0;
+      for (let i = 0; i < sticky.length; i++) {
+        if (sticky[i] < index) headersBefore++;
+        else break;
+      }
+      const itemsBefore = index - headersBefore;
+      const offset = headersBefore * HEADER_HEIGHT + itemsBefore * ITEM_HEIGHT;
+      const length =
+        sticky.includes(index) ? HEADER_HEIGHT : ITEM_HEIGHT;
+      return { length, offset, index };
+    },
+    [sticky]
+  );
+
+  const ListHeader = useMemo(
+    () => (
+      <View style={[styles.headerInner, { borderBottomColor: border }]}>
+        {/* Busca */}
+        <View style={[styles.searchBox, { borderColor: border }]}>
+          <IconSymbol name="magnifyingglass" size={14} />
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Buscar por nome, tutor ou raça"
+            placeholderTextColor={subtle}
+            style={[styles.searchInput, { color: text }]}
+            returnKeyType="search"
+          />
+          {!!query && (
+            <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <IconSymbol name="xmark.circle.fill" size={16} />
+            </Pressable>
+          )}
+        </View>
+
+        {/* Filtros */}
+        <FilterPills
+          value={filter}
+          onChange={setFilter}
+          border={border}
+          accent={accent}
+          totals={totals}
+          text={text}
+        />
+      </View>
+    ),
+    [border, query, subtle, text, filter, accent, totals]
+  );
+
+  const jumpTo = useCallback(
+    (letter) => {
+      // encontra o índice do header dessa letra
+      const idx = flat.findIndex((x) => x._type === 'header' && x.letter === letter);
+      if (idx >= 0 && listRef.current) {
+        listRef.current.scrollToIndex({ index: idx, animated: true });
+      }
+    },
+    [flat]
+  );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right', 'top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right']}>
       <View style={{ flex: 1 }}>
-        <SectionList
+        <FlatList
           ref={listRef}
-          sections={sections}
-          keyExtractor={(item) => item.id}
+          data={flat}
+          keyExtractor={keyExtractor}
           renderItem={renderItem}
-          removeClippedSubviews={Platform.OS === 'android'}
-          initialNumToRender={20}
-          maxToRenderPerBatch={20}
-          updateCellsBatchingPeriod={16}
-          windowSize={10}
-          ListHeaderComponent={
-            <View style={[styles.headerInner, { borderBottomColor: border }]}>
-              {/* Busca */}
-              <View style={[styles.searchBox, { borderColor: border }]}>
-                <IconSymbol name="magnifyingglass" size={14} />
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Buscar por nome, tutor ou raça"
-                  placeholderTextColor={subtle}
-                  style={[styles.searchInput, { color: text }]}
-                  returnKeyType="search"
-                />
-                {!!query && (
-                  <Pressable onPress={() => setQuery('')} hitSlop={8}>
-                    <IconSymbol name="xmark.circle.fill" size={16} />
-                  </Pressable>
-                )}
-              </View>
 
-              {/* Filtros com contadores */}
-              <FilterPills
-                value={filter}
-                onChange={setFilter}
-                border={border}
-                accent={accent}
-                totals={totals}
-                text={text}
-              />
-            </View>
-          }
-          contentContainerStyle={{
-            paddingBottom: Math.max(tabBarHeight, insets.bottom),
-          }}
-          automaticallyAdjustContentInsets
+          // 2) Cooperação com o header grande no iOS
           contentInsetAdjustmentBehavior="automatic"
-          stickySectionHeadersEnabled
-          renderSectionHeader={({ section: { title } }) => (
-            <View style={styles.sectionHeaderContainer}>
-              <View style={[styles.sectionBanner, { backgroundColor: bannerBg, borderColor: border, borderWidth: 0.2 }]}>
-                <Text style={[styles.sectionBannerText, { color: bannerText }]}>{title}</Text>
-              </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.empty}>
-              <Text style={{ color: subtle }}>Nenhum pet encontrado.</Text>
-            </View>
+          automaticallyAdjustContentInsets
+
+          // 3) Garanta que o header da lista não “grude” no topo transparente
+          ListHeaderComponent={ListHeader}
+          ListHeaderComponentStyle={{
+            backgroundColor: bg,       // evita “vazar” conteúdo atrás do header
+            paddingTop: 8,             // ajuda quando o título grande está expandido
+          }}
+
+          // Se você usa sticky headers (letras), mantenha o offset de +1
+          stickyHeaderIndices={sticky.map((i) => i + 1)}
+
+          // 4) Menos pulo de layout (iOS)
+          {...(Platform.OS === 'ios'
+            ? { maintainVisibleContentPosition: { minIndexForVisible: 0 } }
+            : {})}
+
+          ItemSeparatorComponent={({ leadingItem }) =>
+            leadingItem?._type === 'header' ? null : (
+              <View style={{ height: 0.5, backgroundColor: border }} />
+            )
           }
+
+          removeClippedSubviews={Platform.OS === 'android'}
+          initialNumToRender={22}
+          maxToRenderPerBatch={22}
+          updateCellsBatchingPeriod={16}
+          windowSize={12}
+          getItemLayout={getItemLayout}
+          contentContainerStyle={{
+            paddingBottom: Math.max(tabBarHeight, insets.bottom) + 8,
+          }}
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }} // ocupa o espaço inteiro
         />
 
-        {/* Índice alfabético à direita (opcional) */}
-        {/* {letters.length > 1 && (
+        {letters.length > 1 && (
           <View style={styles.index}>
             {letters.map((l) => (
               <Pressable key={l} onPress={() => jumpTo(l)} hitSlop={6}>
@@ -277,7 +351,7 @@ export default function PetsList() {
               </Pressable>
             ))}
           </View>
-        )} */}
+        )}
       </View>
     </SafeAreaView>
   );
@@ -286,7 +360,7 @@ export default function PetsList() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
 
-  // Header que rola junto (busca + filtros)
+  // Header (busca + filtros)
   headerInner: {
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -308,7 +382,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, paddingVertical: 6 },
 
   // Pills
-  pills: { flexDirection: 'row', gap: 8 },
+  pills: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -317,38 +391,37 @@ const styles = StyleSheet.create({
   },
   pillText: { fontWeight: '700' },
 
+  // Cabeçalho de letra
+  sectionBanner: {
+    height: HEADER_HEIGHT,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  sectionBannerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
+
   // Linha
   row: {
+    height: ITEM_HEIGHT,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    padding: 12,
-    borderRadius: 0,
+    paddingHorizontal: 12,
     borderWidth: 1,
     backgroundColor: 'transparent',
   },
   avatar: {
-    width: 32, height: 32, borderRadius: 16,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: 'rgba(0,0,0,0.75)',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: { fontSize: 16, fontWeight: '700' },
 
-  // Banner de seção (cinza)
-  sectionHeaderContainer: { paddingVertical: 0 },
-  sectionBanner: {
-    alignSelf: 'stretch',
-    paddingHorizontal: 12,
-    height: 24,
-    borderRadius: 0,
-    borderWidth: 0.3,
-    justifyContent: 'center',
-  },
-  sectionBannerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
-
   empty: { alignItems: 'center', padding: 24 },
 
-  // Índice alfabético
+  // Índice lateral
   index: {
     position: 'absolute',
     right: 6,
