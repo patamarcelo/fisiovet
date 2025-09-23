@@ -14,7 +14,7 @@ export default function MapCard({
     title,
     onPressOpenMaps,
     height = 160,
-    interactive = false,
+    interactive = true,
     forceGoogleProviderIOS = false,
     showUserLocation = true,      // ✅ novo: mostra o pontinho azul
     enableRecenterButton = true,  // ✅ novo: FAB para recentralizar

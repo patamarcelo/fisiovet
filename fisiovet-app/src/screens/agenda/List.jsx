@@ -1,3 +1,4 @@
+// @ts-nocheck
 import React, { useMemo, useState, useLayoutEffect, useCallback } from "react";
 import {
   View,
@@ -6,7 +7,8 @@ import {
   Pressable,
   TextInput,
   RefreshControl,
-  Platform
+  Platform,
+  Animated
 } from "react-native";
 import { useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,90 +20,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useThemeColor } from "@/hooks/useThemeColor";
 import { router } from "expo-router";
 
-// --- MOCK ---
-const mockEvents = [
-  {
-    id: "1",
-    title: "Consulta - Thor",
-    start: "2025-09-15T09:00:00-03:00",
-    end: "2025-09-15T10:00:00-03:00",
-    status: "confirmado",
-    cliente: "Carla",
-    local: "Clínica A"
-  },
-  {
-    id: "2",
-    title: "Vacinação - Luna",
-    start: "2025-09-15T11:00:00-03:00",
-    end: "2025-09-15T11:30:00-03:00",
-    status: "pendente",
-    cliente: "Rafael",
-    local: "Clínica A"
-  },
-  {
-    id: "3",
-    title: "Revisão - Max",
-    start: "2025-09-15T14:00:00-03:00",
-    end: "2025-09-15T15:00:00-03:00",
-    status: "confirmado",
-    cliente: "Lívia",
-    local: "Clínica B"
-  },
-  {
-    id: "4",
-    title: "Retorno - Nina",
-    start: "2025-09-14T16:00:00-03:00",
-    end: "2025-09-14T16:45:00-03:00",
-    status: "cancelado",
-    cliente: "João",
-    local: "Clínica A"
-  },
-  {
-    id: "5",
-    title: "Fisioterapia - Bob",
-    start: "2025-09-16T09:30:00-03:00",
-    end: "2025-09-16T10:00:00-03:00",
-    status: "confirmado",
-    cliente: "Marina",
-    local: "Clínica A"
-  },
-  {
-    id: "6",
-    title: "Avaliação - Mel",
-    start: "2025-09-17T13:00:00-03:00",
-    end: "2025-09-17T14:00:00-03:00",
-    status: "confirmado",
-    cliente: "Pedro",
-    local: "Clínica C"
-  },
-  {
-    id: "7",
-    title: "Avaliação - Mel",
-    start: "2025-09-17T13:00:00-03:00",
-    end: "2025-09-17T14:00:00-03:00",
-    status: "confirmado",
-    cliente: "Pedro",
-    local: "Clínica C"
-  },
-  {
-    id: "8",
-    title: "Avaliação - Mel",
-    start: "2025-09-17T13:00:00-03:00",
-    end: "2025-09-17T14:00:00-03:00",
-    status: "confirmado",
-    cliente: "Pedro",
-    local: "Clínica C"
-  },
-  {
-    id: "9",
-    title: "Retorno - Nina",
-    start: "2025-09-21T16:00:00-03:00",
-    end: "2025-09-21T16:45:00-03:00",
-    status: "cancelado",
-    cliente: "João",
-    local: "Clínica A"
-  }
-];
+import { useEffect, useRef } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { loadAgenda, selectAllEventos, updateEvento, selectEventoById } from '@/src/store/slices/agendaSlice';
+import { selectTutorById } from "@/src/store/slices/tutoresSlice";
+import { selectPetById } from "@/src/store/slices/petsSlice";
+
+import { shallowEqual } from "react-redux";
+import { selectPetsState } from "@/src/store/slices/petsSlice";
+
+import { Swipeable } from "react-native-gesture-handler";
+
 
 const STATUS_COLORS = {
   confirmado: "#1ABC9C",
@@ -222,16 +151,80 @@ function SearchField({
   );
 }
 
+function SwipeAction({ label, color, onPress, last }) {
+  const scale = useRef(new Animated.Value(1)).current;
+  const darkBg = "rgba(75, 85, 99, 0.3)";
+
+  const animateTo = (to) =>
+    Animated.spring(scale, {
+      toValue: to,
+      useNativeDriver: true,
+      speed: 20,
+      bounciness: 6,
+    }).start();
+
+  const handlePressIn = () => animateTo(0.96);
+  const handlePressOut = () => animateTo(1);
+
+  const handlePress = async () => {
+    try {
+      // haptic sutil no tap
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch { }
+    onPress?.();
+  };
+
+  return (
+    <Animated.View
+      style={{
+        transform: [{ scale }],
+        overflow: "hidden",
+        borderTopLeftRadius: 10,
+        borderBottomLeftRadius: 10,
+        ...(last ? { borderTopRightRadius: 10, borderBottomRightRadius: 10 } : null),
+        marginVertical: 6,
+      }}
+    >
+      <Pressable
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onPress={handlePress}
+        android_ripple={{ color: "rgba(255,255,255,0.2)" }}
+        style={({ pressed }) => ({
+          paddingHorizontal: 14,
+          minWidth: 92,
+          height: '100%',
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: pressed && Platform.OS === "ios" ? darkBg : color,
+          // para iOS mostrar o “escurecer” por cima da cor:
+          ...(Platform.OS === "ios" && pressed ? { backgroundColor: darkBg } : { backgroundColor: color }),
+        })}
+      >
+        <Text style={{ color: "#FFF", fontWeight: "800" }}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 // --- COMPONENT ---
 export default function AgendaScreen() {
   const navigation = useNavigation();
   // Defaults: semana / todos
+  const dispatch = useDispatch();
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState("todos"); // 'hoje' | 'semana' | 'todos'
   const [temporal, setTemporal] = useState("todos"); // 'futuros' | 'passados' | 'todos'
   const [refreshing, setRefreshing] = useState(false);
 
   const tint = useThemeColor({}, "tint");
+  const eventos = useSelector(selectAllEventos);
+
+
+  useEffect(() => {
+    dispatch(loadAgenda());
+  }, [dispatch]);
+
 
   useLayoutEffect(
     () => {
@@ -247,203 +240,203 @@ export default function AgendaScreen() {
               router.push({
                 pathname: "/(modals)/agenda-new",
               })
-      }
-            style = {({ pressed }) =>({
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        opacity: pressed ? 0.7 : 1
-      })}
+            }
+            style={({ pressed }) => ({
+              paddingHorizontal: 8,
+              paddingVertical: 4,
+              opacity: pressed ? 0.7 : 1
+            })}
           >
-    <View
-      style={{
-        width: 28,
-        height: 28,
-        alignItems: "center",
-        justifyContent: "center"
-      }}
-    >
-      <Ionicons
-        name={
-          Platform.OS === "ios"
-            ? "calendar-outline"
-            : "calendar-outline"
-        }
-        size={26}
-        color={"#007AFF"}
-      />
-      <Ionicons
-        name="add-circle"
-        size={14}
-        color={"#007AFF"}
-        style={{ position: "absolute", right: -2, bottom: -2 }}
-      />
-    </View>
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              <Ionicons
+                name={
+                  Platform.OS === "ios"
+                    ? "calendar-outline"
+                    : "calendar-outline"
+                }
+                size={26}
+                color={"#007AFF"}
+              />
+              <Ionicons
+                name="add-circle"
+                size={14}
+                color={"#007AFF"}
+                style={{ position: "absolute", right: -2, bottom: -2 }}
+              />
+            </View>
           </Pressable >
       });
     },
-[navigation]
+    [navigation]
   );
 
-// Converte diferentes formatos para Date em HORÁRIO LOCAL
+  // Converte diferentes formatos para Date em HORÁRIO LOCAL
 
 
-const now = new Date();
+  const now = new Date();
 
 
-// --- FILTER PIPELINE ---
-const filtered = useMemo(
-  () => {
-    let list = mockEvents.filter(e => {
-      const haystack = `${e.title} ${e.cliente} ${e.local}`.toLowerCase();
-      return haystack.includes(query.trim().toLowerCase());
-    });
-    list = list.filter(e => {
-      const d = toDateLocal(e.start);
-      if (scope === "todos") return true;
-      if (scope === "hoje") return sameDayLocal(d, now);
-      if (scope === "semana") return inThisWeekLocal(d, now);
-      return true;
-    });
-    list = list.filter(e => {
-      const d = new Date(e.end);
-      if (temporal === "todos") return true;
-      if (temporal === "futuros") return d >= now;
-      if (temporal === "passados") return d < now;
-      return true;
-    });
-    list.sort((a, b) => new Date(a.start) - new Date(b.start));
-    return list;
-  },
-  [query, scope, temporal, now]
-);
+  // --- FILTER PIPELINE ---
+  const filtered = useMemo(
+    () => {
+      let list = eventos.filter(e => {
+        const haystack = `${e.title} ${e.cliente} ${e.local}`.toLowerCase();
+        return haystack.includes(query.trim().toLowerCase());
+      });
+      list = list.filter(e => {
+        const d = toDateLocal(e.start);
+        if (scope === "todos") return true;
+        if (scope === "hoje") return sameDayLocal(d, now);
+        if (scope === "semana") return inThisWeekLocal(d, now);
+        return true;
+      });
+      list = list.filter(e => {
+        const d = new Date(e.end);
+        if (temporal === "todos") return true;
+        if (temporal === "futuros") return d >= now;
+        if (temporal === "passados") return d < now;
+        return true;
+      });
+      list.sort((a, b) => new Date(a.start) - new Date(b.start));
+      return list;
+    },
+    [query, scope, temporal, now, eventos]
+  );
 
-// --- GROUP BY DAY ---
-const sections = useMemo(
-  () => {
-    const map = new Map();
-    for (const e of filtered) {
-      const d = startOfDayLocal(toDateLocal(e.start));
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, '0');
-      const day = String(d.getDate()).padStart(2, '0');
-      const key = `${y}-${m}-${day}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(e);
-    }
-    return Array.from(map.entries())
-      .sort((a, b) => startOfDayLocal(toDateLocal(a[0])) - startOfDayLocal(toDateLocal(b[0])))
-      .map(([dateKey, items]) => ({ title: dateKey, data: items }));
-  },
-  [filtered]
-);
-
-const onRefresh = useCallback(() => {
-  setRefreshing(true);
-  setTimeout(() => setRefreshing(false), 600);
-}, []);
-
-// --- EMPTY LIST ---
-const ListEmpty = () =>
-  <View style={{ padding: 24, alignItems: "center" }}>
-    <Ionicons name="calendar-outline" size={48} color="#C0C0C0" />
-    <Text style={{ marginTop: 8, color: "#8E8E93" }}>
-      Nenhum evento encontrado
-    </Text>
-    <Text style={{ marginTop: 4, color: "#8E8E93" }}>
-      Ajuste os filtros ou toque no + para criar
-    </Text>
-  </View>;
-
-// --- HEADER DA LISTA (100% alinhado) ---
-const ListHeader = (
-  <View
-    style={{
-      paddingHorizontal: 12,
-      paddingTop: 8,
-      paddingBottom: 8,
-      gap: 10
-    }}
-  >
-    {/* Barra de busca padronizada (igual Pets/Tutores) */}
-    <SearchField
-      value={query}
-      onChangeText={setQuery}
-      placeholder="Buscar por cliente ou pet"
-      onClear={() => setQuery("")}
-    />
-
-    {/* Linha 1: escopo */}
-    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-      {["hoje", "semana", "todos"].map(key =>
-        <Chip
-          key={key}
-          label={key.toUpperCase()}
-          active={scope === key}
-          onPress={async () => {
-            await Haptics.selectionAsync();
-            setScope(key);
-          }}
-        />
-      )}
-    </View>
-
-    {/* Linha 2: temporal */}
-    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-      {["futuros", "passados", "todos"].map(key =>
-        <Chip
-          key={key}
-          label={key.toUpperCase()}
-          active={temporal === key}
-          onPress={async () => {
-            await Haptics.selectionAsync();
-            setTemporal(key);
-          }}
-        />
-      )}
-    </View>
-  </View>
-);
-
-return (
-  // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
-  <SafeAreaView
-    style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 12 }}
-    edges={["top", "bottom"]}
-  >
-    <SectionList
-      style={{ flex: 1 }}
-      sections={sections}
-      keyExtractor={item => item.id}
-      ListHeaderComponent={ListHeader}
-      renderSectionHeader={({ section }) =>
-        <View style={{ backgroundColor: "#FFFFFF" }}>
-          <Text
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 12,
-              fontSize: 13,
-              fontWeight: "700",
-              color: "whitesmoke",
-              backgroundColor: "rgba(162,181,178,1.0)"
-            }}
-          >
-            {fmtDateLabel(section.title) + (sameDayLocal(section.title, now) ? ' • HOJE' : '')}
-          </Text>
-        </View>}
-      renderItem={({ item }) => <EventRow item={item} />}
-      ItemSeparatorComponent={() =>
-        <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />}
-      contentContainerStyle={{ paddingBottom: 24 }}
-      ListEmptyComponent={ListEmpty}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+  // --- GROUP BY DAY ---
+  const sections = useMemo(
+    () => {
+      const map = new Map();
+      for (const e of filtered) {
+        const d = startOfDayLocal(toDateLocal(e.start));
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const key = `${y}-${m}-${day}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(e);
       }
-      contentInsetAdjustmentBehavior="automatic"
-      stickySectionHeadersEnabled
-      removeClippedSubviews
-    />
-  </SafeAreaView>
-);
+      return Array.from(map.entries())
+        .sort((a, b) => startOfDayLocal(toDateLocal(a[0])) - startOfDayLocal(toDateLocal(b[0])))
+        .map(([dateKey, items]) => ({ title: dateKey, data: items }));
+    },
+    [filtered]
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    setTimeout(() => setRefreshing(false), 600);
+  }, []);
+
+  // --- EMPTY LIST ---
+  const ListEmpty = () =>
+    <View style={{ padding: 24, alignItems: "center" }}>
+      <Ionicons name="calendar-outline" size={48} color="#C0C0C0" />
+      <Text style={{ marginTop: 8, color: "#8E8E93" }}>
+        Nenhum evento encontrado
+      </Text>
+      <Text style={{ marginTop: 4, color: "#8E8E93" }}>
+        Ajuste os filtros ou toque no + para criar
+      </Text>
+    </View>;
+
+  // --- HEADER DA LISTA (100% alinhado) ---
+  const ListHeader = (
+    <View
+      style={{
+        paddingHorizontal: 12,
+        paddingTop: 8,
+        paddingBottom: 8,
+        gap: 10
+      }}
+    >
+      {/* Barra de busca padronizada (igual Pets/Tutores) */}
+      <SearchField
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Buscar por cliente ou pet"
+        onClear={() => setQuery("")}
+      />
+
+      {/* Linha 1: escopo */}
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        {["hoje", "semana", "todos"].map(key =>
+          <Chip
+            key={key}
+            label={key.toUpperCase()}
+            active={scope === key}
+            onPress={async () => {
+              await Haptics.selectionAsync();
+              setScope(key);
+            }}
+          />
+        )}
+      </View>
+
+      {/* Linha 2: temporal */}
+      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+        {["futuros", "passados", "todos"].map(key =>
+          <Chip
+            key={key}
+            label={key.toUpperCase()}
+            active={temporal === key}
+            onPress={async () => {
+              await Haptics.selectionAsync();
+              setTemporal(key);
+            }}
+          />
+        )}
+      </View>
+    </View>
+  );
+
+  return (
+    // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 12 }}
+      edges={["top", "bottom"]}
+    >
+      <SectionList
+        style={{ flex: 1 }}
+        sections={sections}
+        keyExtractor={item => item.id}
+        ListHeaderComponent={ListHeader}
+        renderSectionHeader={({ section }) =>
+          <View style={{ backgroundColor: "#FFFFFF" }}>
+            <Text
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 12,
+                fontSize: 13,
+                fontWeight: "700",
+                color: "whitesmoke",
+                backgroundColor: "rgba(162,181,178,1.0)"
+              }}
+            >
+              {fmtDateLabel(section.title) + (sameDayLocal(section.title, now) ? ' • HOJE' : '')}
+            </Text>
+          </View>}
+        renderItem={({ item }) => <EventRow item={item} />}
+        ItemSeparatorComponent={() =>
+          <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />}
+        contentContainerStyle={{ paddingBottom: 24 }}
+        ListEmptyComponent={ListEmpty}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tint} />
+        }
+        contentInsetAdjustmentBehavior="automatic"
+        stickySectionHeadersEnabled
+        removeClippedSubviews
+      />
+    </SafeAreaView>
+  );
 }
 
 // --- UI PARTS ---
@@ -476,45 +469,167 @@ function Chip({ label, active, onPress }) {
 }
 
 function EventRow({ item }) {
-  const { title, start, end, status, cliente, local } = item;
+  const { title, start, end, cliente, local, observacoes, tutorId, petIds = [] } = item;
+  const tutor = useSelector((state) => selectTutorById(state, tutorId));
+
+  const dispatch = useDispatch();
+  const swipeRef = React.useRef(null);
+
+  const evento = useSelector((s) => selectEventoById(item.id)(s));
+  const status = evento?.status ?? item.status;      // use o status atua
+
+  // pets: pega o dicionário e memoiza a transformação
+  const petsState = useSelector(selectPetsState, shallowEqual);
+  const petNames = useMemo(() => {
+    const byId = petsState.byId || {};
+    return petIds
+      .map((id) => byId[String(id)])
+      .filter(Boolean)
+      .map((p) => p?.nome || p?.name)
+      .join(", ");
+  }, [petIds, petsState.byId]);
+
+
+  const shortAddr = tutorShortAddress(tutor);
+
+  // Endereço curto para o card
+  function tutorShortAddress(t) {
+    if (!t) return "";
+    // 1) se já tiver formatado
+
+    // 2) monta: "Rua/Av Nº, Bairro — Cidade/UF"
+    const rua = t.endereco?.logradouro || t.endereco || "";
+    const num = t.endereco?.numero ? ` ${t.endereco.numero}` : "";
+    const bairro = t.endereco?.bairro ? `, ${t.endereco.bairro}` : "";
+    const cidadeUf = (t.endereco?.cidade || t.cidade) && (t.endereco?.uf || t.uf)
+      ? ` — ${t.endereco?.cidade || t.cidade}/${t.endereco?.uf || t.uf}`
+      : (t.endereco?.cidade || t.cidade) ? ` — ${t.endereco?.cidade || t.cidade}` : "";
+
+    const base = `${rua}${num}${bairro}`.trim();
+    // 3) fallback minimalista
+    return base
+  }
+
+  console.log('item', item)
   const color = STATUS_COLORS[status] || "#8E8E93";
+
+  const handleSetStatus = async (newStatus) => {
+    try {
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await dispatch(updateEvento({ id: item.id, patch: { status: newStatus } })).unwrap();
+    } finally {
+      // Fecha o swipe
+      swipeRef.current?.close();
+    }
+  };
+
+  const renderRightActions = () => (
+    <View style={{ flexDirection: "row", alignItems: "stretch", gap: 6, paddingHorizontal: 8 }}>
+      {/* Confirmar */}
+      <SwipeAction
+        label="Confirmar"
+        color="#16A34A" // verde
+        onPress={() => handleSetStatus("confirmado")}
+      />
+      {/* Pendente */}
+      <SwipeAction
+        label="Pendente"
+        color="#F59E0B" // amarelo
+        onPress={() => handleSetStatus("pendente")}
+      />
+      {/* Cancelar */}
+      <SwipeAction
+        label="Cancelar"
+        color="#EF4444" // vermelho
+        onPress={() => handleSetStatus("cancelado")}
+        last
+      />
+    </View>
+  );
+
   return (
     // Linha full-bleed (100%)
-    <Pressable
-      onPress={async () => {
-        await Haptics.selectionAsync();
-        console.log("abrir evento", item.id);
-      }}
-      android_ripple={{ color: "#ECEFF3" }}
-      style={({ pressed }) => ({
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: pressed && Platform.OS === "ios" ? "#F7F8FA" : "#FFF",
-        alignSelf: "stretch",
-        width: "100%"
-      })}
+    <Swipeable
+      ref={swipeRef}
+      overshootRight={false}
+      renderRightActions={renderRightActions}
+      friction={2}
+      rightThreshold={24}
     >
-      <View
-        style={{
-          width: 6,
-          alignSelf: "stretch",
-          backgroundColor: color,
-          marginVertical: 2
+      <Pressable
+        onPress={async () => {
+          await Haptics.selectionAsync();
+          router.push({
+            pathname: "/(modals)/agenda-new", // ✅ sem [id] aqui
+            params: { id: String(item.id) },
+          });
         }}
-      />
-      <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 12 }}>
-        <Text style={{ fontWeight: "700", fontSize: 15 }} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={{ marginTop: 2, color: "#6B7280" }}>
-          {fmtHour(start)} — {fmtHour(end)} • {local}
-        </Text>
-        <Text style={{ marginTop: 2, color: "#6B7280" }}>
-          Cliente: {cliente}
-        </Text>
-      </View>
-      <StatusPill status={status} />
-    </Pressable>
+        android_ripple={{ color: "#ECEFF3" }}
+        style={({ pressed }) => ({
+          flexDirection: "row",
+          alignItems: "center",
+          backgroundColor: pressed && Platform.OS === "ios" ? "#F7F8FA" : "#FFF",
+          alignSelf: "stretch",
+          width: "100%",
+        })}
+      >
+        <View
+          style={{
+            width: 6,
+            alignSelf: "stretch",
+            backgroundColor: color,
+            marginVertical: 2,
+          }}
+        />
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 12 }}>
+          {/* linha título/pets à esquerda vs horário à direita */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+              marginBottom: 6,
+            }}
+          >
+            <Text
+              style={{ fontWeight: "700", fontSize: 15, flex: 1 }}
+              numberOfLines={1}
+            >
+              {title}
+              {petNames ? ` • ${petNames}` : ""}
+            </Text>
+          </View>
+
+          <Text style={{ color: "#6B7280", fontWeight: "bold" }}>
+            Tutor: {cliente}
+          </Text>
+
+          {observacoes ? (
+            <Text style={{ marginTop: 2, color: "#6B7280" }}>
+              {observacoes}
+            </Text>
+          ) : null}
+
+          {shortAddr ? (
+            <Text style={{ marginTop: 2, color: "#6B7280" }}>
+              • {shortAddr}
+            </Text>
+          ) : null}
+        </View>
+        <View style={{ paddingRight: 10, alignSelf: "stretch", justifyContent: 'space-between', marginBottom: 10 }}>
+          <Text
+            numberOfLines={1}
+            style={{ color: "#6B7280", flexShrink: 0, marginTop: 10 }}
+          >
+            {fmtHour(start)} — {fmtHour(end)}
+          </Text>
+          <View>
+            <StatusPill status={status} />
+          </View>
+        </View>
+      </Pressable>
+    </Swipeable>
   );
 }
 
@@ -529,7 +644,7 @@ function StatusPill({ status }) {
         paddingVertical: 6,
         borderRadius: 999,
         backgroundColor: bg,
-        marginRight: 6
+        // marginRight: 6,
       }}
     >
       <Text style={{ fontSize: 12, fontWeight: "700", color }}>

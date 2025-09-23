@@ -1,4 +1,5 @@
 // app/_layout.jsx
+import 'react-native-gesture-handler';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
@@ -28,6 +29,8 @@ import { useLayoutVariant } from '@/hooks/useLayoutVariant';
 
 import { DarkAppTheme, LightAppTheme } from '@/src/theme/AppTheme'; // opcional (custom)
 import { ColorSchemeProvider, useColorMode } from '@/src/theme/color-scheme';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
 
 function useAuthBinding() {
   const dispatch = useDispatch();
@@ -93,18 +96,21 @@ function RootNavigator() {
   return (
     <ThemeProvider value={scheme === 'dark' ? DarkAppTheme : LightAppTheme}>
       <AuthGate>
-        <Stack screenOptions={{ headerShown: false }}>
-          {/* Grupos principais */}
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(phone)" />
-          <Stack.Screen name="(tablet)" />
-          <Stack.Screen name="configuracoes" />
-          <Stack.Screen name="(modals)" options={{ headerShown: false, presentation: 'modal' }} />
-          {/* Suas outras rotas soltas */}
-          <Stack.Screen name="testeRota" />
-          <Stack.Screen name="+not-found" />
+        <GestureHandlerRootView style={{ flex: 1 }}>
 
-        </Stack>
+          <Stack screenOptions={{ headerShown: false }}>
+            {/* Grupos principais */}
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(phone)" />
+            <Stack.Screen name="(tablet)" />
+            <Stack.Screen name="configuracoes" />
+            <Stack.Screen name="(modals)" options={{ headerShown: false, presentation: 'modal' }} />
+            {/* Suas outras rotas soltas */}
+            <Stack.Screen name="testeRota" />
+            <Stack.Screen name="+not-found" />
+
+          </Stack>
+        </GestureHandlerRootView>
       </AuthGate>
       <StatusBar style="dark" />
     </ThemeProvider>

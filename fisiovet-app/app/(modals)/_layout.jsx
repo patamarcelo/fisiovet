@@ -44,7 +44,17 @@ export default function ModalLayout() {
             />
 
             <Stack.Screen name="pet-form" options={{ title: 'Novo pet', headerRight: () => <CloseButton /> }} />
-            <Stack.Screen name="agenda-new" options={{ title: 'Agendar', headerRight: () => <CloseButton /> }} />
+            <Stack.Screen
+                name="agenda-new"
+                options={{
+                    title: 'Agendar',
+                    // Nada de headerRight aqui! Deixa a própria tela controlar.
+                    headerTitleAlign: 'center',
+                    headerTitleContainerStyle: { flex: 1, alignItems: 'center' },
+                    headerLeftContainerStyle: { minWidth: 72 },
+                    headerRightContainerStyle: { minWidth: 72 },
+                }}
+            />
             {/* Adicione aqui outras telas modais, cada uma com suas opções:
         */}
         </Stack>
