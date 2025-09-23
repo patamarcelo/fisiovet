@@ -44,6 +44,7 @@ export default function ModalLayout() {
             />
 
             <Stack.Screen name="pet-form" options={{ title: 'Novo pet', headerRight: () => <CloseButton /> }} />
+            <Stack.Screen name="agenda-new" options={{ title: 'Agendar', headerRight: () => <CloseButton /> }} />
             {/* Adicione aqui outras telas modais, cada uma com suas opções:
         */}
         </Stack>

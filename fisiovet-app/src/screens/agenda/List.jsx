@@ -16,6 +16,7 @@ import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useThemeColor } from "@/hooks/useThemeColor";
+import { router } from "expo-router";
 
 // --- MOCK ---
 const mockEvents = [
@@ -226,7 +227,7 @@ export default function AgendaScreen() {
   const navigation = useNavigation();
   // Defaults: semana / todos
   const [query, setQuery] = useState("");
-  const [scope, setScope] = useState("semana"); // 'hoje' | 'semana' | 'todos'
+  const [scope, setScope] = useState("todos"); // 'hoje' | 'semana' | 'todos'
   const [temporal, setTemporal] = useState("todos"); // 'futuros' | 'passados' | 'todos'
   const [refreshing, setRefreshing] = useState(false);
 
@@ -241,206 +242,208 @@ export default function AgendaScreen() {
         headerRight: () =>
           <Pressable
             accessibilityRole="button"
-            onPress={async () => {
-              await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-              console.log("novo evento");
-            }}
-            style={({ pressed }) => ({
-              paddingHorizontal: 8,
-              paddingVertical: 4,
-              opacity: pressed ? 0.7 : 1
-            })}
-          >
-            <View
-              style={{
-                width: 28,
-                height: 28,
-                alignItems: "center",
-                justifyContent: "center"
-              }}
-            >
-              <Ionicons
-                name={
-                  Platform.OS === "ios"
-                    ? "calendar-outline"
-                    : "calendar-outline"
-                }
-                size={26}
-                color={"#007AFF"}
-              />
-              <Ionicons
-                name="add-circle"
-                size={14}
-                color={"#007AFF"}
-                style={{ position: "absolute", right: -2, bottom: -2 }}
-              />
-            </View>
-          </Pressable>
-      });
-    },
-    [navigation]
-  );
-
-  // Converte diferentes formatos para Date em HORÁRIO LOCAL
-
-
-  const now = new Date();
-
-
-  // --- FILTER PIPELINE ---
-  const filtered = useMemo(
-    () => {
-      let list = mockEvents.filter(e => {
-        const haystack = `${e.title} ${e.cliente} ${e.local}`.toLowerCase();
-        return haystack.includes(query.trim().toLowerCase());
-      });
-      list = list.filter(e => {
-        const d = toDateLocal(e.start);
-        if (scope === "todos") return true;
-        if (scope === "hoje") return sameDayLocal(d, now);
-        if (scope === "semana") return inThisWeekLocal(d, now);
-        return true;
-      });
-      list = list.filter(e => {
-        const d = new Date(e.end);
-        if (temporal === "todos") return true;
-        if (temporal === "futuros") return d >= now;
-        if (temporal === "passados") return d < now;
-        return true;
-      });
-      list.sort((a, b) => new Date(a.start) - new Date(b.start));
-      return list;
-    },
-    [query, scope, temporal, now]
-  );
-
-  // --- GROUP BY DAY ---
-  const sections = useMemo(
-    () => {
-      const map = new Map();
-      for (const e of filtered) {
-        const d = startOfDayLocal(toDateLocal(e.start));
-        const y = d.getFullYear();
-        const m = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const key = `${y}-${m}-${day}`;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(e);
+            onPress={() =>
+              // await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
+              router.push({
+                pathname: "/(modals)/agenda-new",
+              })
       }
-      return Array.from(map.entries())
-        .sort((a, b) => startOfDayLocal(toDateLocal(a[0])) - startOfDayLocal(toDateLocal(b[0])))
-        .map(([dateKey, items]) => ({ title: dateKey, data: items }));
-    },
-    [filtered]
-  );
-
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 600);
-  }, []);
-
-  // --- EMPTY LIST ---
-  const ListEmpty = () =>
-    <View style={{ padding: 24, alignItems: "center" }}>
-      <Ionicons name="calendar-outline" size={48} color="#C0C0C0" />
-      <Text style={{ marginTop: 8, color: "#8E8E93" }}>
-        Nenhum evento encontrado
-      </Text>
-      <Text style={{ marginTop: 4, color: "#8E8E93" }}>
-        Ajuste os filtros ou toque no + para criar
-      </Text>
-    </View>;
-
-  // --- HEADER DA LISTA (100% alinhado) ---
-  const ListHeader = (
+            style = {({ pressed }) =>({
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        opacity: pressed ? 0.7 : 1
+      })}
+          >
     <View
       style={{
-        paddingHorizontal: 12,
-        paddingTop: 8,
-        paddingBottom: 8,
-        gap: 10
+        width: 28,
+        height: 28,
+        alignItems: "center",
+        justifyContent: "center"
       }}
     >
-      {/* Barra de busca padronizada (igual Pets/Tutores) */}
-      <SearchField
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Buscar por cliente ou pet"
-        onClear={() => setQuery("")}
-      />
-
-      {/* Linha 1: escopo */}
-      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-        {["hoje", "semana", "todos"].map(key =>
-          <Chip
-            key={key}
-            label={key.toUpperCase()}
-            active={scope === key}
-            onPress={async () => {
-              await Haptics.selectionAsync();
-              setScope(key);
-            }}
-          />
-        )}
-      </View>
-
-      {/* Linha 2: temporal */}
-      <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
-        {["futuros", "passados", "todos"].map(key =>
-          <Chip
-            key={key}
-            label={key.toUpperCase()}
-            active={temporal === key}
-            onPress={async () => {
-              await Haptics.selectionAsync();
-              setTemporal(key);
-            }}
-          />
-        )}
-      </View>
-    </View>
-  );
-
-  return (
-    // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 12 }}
-      edges={["top", "bottom"]}
-    >
-      <SectionList
-        style={{ flex: 1 }}
-        sections={sections}
-        keyExtractor={item => item.id}
-        ListHeaderComponent={ListHeader}
-        renderSectionHeader={({ section }) =>
-          <View style={{ backgroundColor: "#FFFFFF" }}>
-            <Text
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 12,
-                fontSize: 13,
-                fontWeight: "700",
-                color: "whitesmoke",
-                backgroundColor: "rgba(162,181,178,1.0)"
-              }}
-            >
-              {fmtDateLabel(section.title) + (sameDayLocal(section.title, now) ? ' • HOJE' : '')}
-            </Text>
-          </View>}
-        renderItem={({ item }) => <EventRow item={item} />}
-        ItemSeparatorComponent={() =>
-          <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        ListEmptyComponent={ListEmpty}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      <Ionicons
+        name={
+          Platform.OS === "ios"
+            ? "calendar-outline"
+            : "calendar-outline"
         }
-        contentInsetAdjustmentBehavior="automatic"
-        stickySectionHeadersEnabled
-        removeClippedSubviews
+        size={26}
+        color={"#007AFF"}
       />
-    </SafeAreaView>
+      <Ionicons
+        name="add-circle"
+        size={14}
+        color={"#007AFF"}
+        style={{ position: "absolute", right: -2, bottom: -2 }}
+      />
+    </View>
+          </Pressable >
+      });
+    },
+[navigation]
   );
+
+// Converte diferentes formatos para Date em HORÁRIO LOCAL
+
+
+const now = new Date();
+
+
+// --- FILTER PIPELINE ---
+const filtered = useMemo(
+  () => {
+    let list = mockEvents.filter(e => {
+      const haystack = `${e.title} ${e.cliente} ${e.local}`.toLowerCase();
+      return haystack.includes(query.trim().toLowerCase());
+    });
+    list = list.filter(e => {
+      const d = toDateLocal(e.start);
+      if (scope === "todos") return true;
+      if (scope === "hoje") return sameDayLocal(d, now);
+      if (scope === "semana") return inThisWeekLocal(d, now);
+      return true;
+    });
+    list = list.filter(e => {
+      const d = new Date(e.end);
+      if (temporal === "todos") return true;
+      if (temporal === "futuros") return d >= now;
+      if (temporal === "passados") return d < now;
+      return true;
+    });
+    list.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return list;
+  },
+  [query, scope, temporal, now]
+);
+
+// --- GROUP BY DAY ---
+const sections = useMemo(
+  () => {
+    const map = new Map();
+    for (const e of filtered) {
+      const d = startOfDayLocal(toDateLocal(e.start));
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const key = `${y}-${m}-${day}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(e);
+    }
+    return Array.from(map.entries())
+      .sort((a, b) => startOfDayLocal(toDateLocal(a[0])) - startOfDayLocal(toDateLocal(b[0])))
+      .map(([dateKey, items]) => ({ title: dateKey, data: items }));
+  },
+  [filtered]
+);
+
+const onRefresh = useCallback(() => {
+  setRefreshing(true);
+  setTimeout(() => setRefreshing(false), 600);
+}, []);
+
+// --- EMPTY LIST ---
+const ListEmpty = () =>
+  <View style={{ padding: 24, alignItems: "center" }}>
+    <Ionicons name="calendar-outline" size={48} color="#C0C0C0" />
+    <Text style={{ marginTop: 8, color: "#8E8E93" }}>
+      Nenhum evento encontrado
+    </Text>
+    <Text style={{ marginTop: 4, color: "#8E8E93" }}>
+      Ajuste os filtros ou toque no + para criar
+    </Text>
+  </View>;
+
+// --- HEADER DA LISTA (100% alinhado) ---
+const ListHeader = (
+  <View
+    style={{
+      paddingHorizontal: 12,
+      paddingTop: 8,
+      paddingBottom: 8,
+      gap: 10
+    }}
+  >
+    {/* Barra de busca padronizada (igual Pets/Tutores) */}
+    <SearchField
+      value={query}
+      onChangeText={setQuery}
+      placeholder="Buscar por cliente ou pet"
+      onClear={() => setQuery("")}
+    />
+
+    {/* Linha 1: escopo */}
+    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+      {["hoje", "semana", "todos"].map(key =>
+        <Chip
+          key={key}
+          label={key.toUpperCase()}
+          active={scope === key}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            setScope(key);
+          }}
+        />
+      )}
+    </View>
+
+    {/* Linha 2: temporal */}
+    <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
+      {["futuros", "passados", "todos"].map(key =>
+        <Chip
+          key={key}
+          label={key.toUpperCase()}
+          active={temporal === key}
+          onPress={async () => {
+            await Haptics.selectionAsync();
+            setTemporal(key);
+          }}
+        />
+      )}
+    </View>
+  </View>
+);
+
+return (
+  // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
+  <SafeAreaView
+    style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 12 }}
+    edges={["top", "bottom"]}
+  >
+    <SectionList
+      style={{ flex: 1 }}
+      sections={sections}
+      keyExtractor={item => item.id}
+      ListHeaderComponent={ListHeader}
+      renderSectionHeader={({ section }) =>
+        <View style={{ backgroundColor: "#FFFFFF" }}>
+          <Text
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 12,
+              fontSize: 13,
+              fontWeight: "700",
+              color: "whitesmoke",
+              backgroundColor: "rgba(162,181,178,1.0)"
+            }}
+          >
+            {fmtDateLabel(section.title) + (sameDayLocal(section.title, now) ? ' • HOJE' : '')}
+          </Text>
+        </View>}
+      renderItem={({ item }) => <EventRow item={item} />}
+      ItemSeparatorComponent={() =>
+        <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />}
+      contentContainerStyle={{ paddingBottom: 24 }}
+      ListEmptyComponent={ListEmpty}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+      contentInsetAdjustmentBehavior="automatic"
+      stickySectionHeadersEnabled
+      removeClippedSubviews
+    />
+  </SafeAreaView>
+);
 }
 
 // --- UI PARTS ---
