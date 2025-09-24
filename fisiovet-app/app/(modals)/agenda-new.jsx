@@ -1,5 +1,5 @@
 // @ts-nocheck
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
 import {
     View,
     Text,
@@ -22,6 +22,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useThemeColor } from "@/hooks/useThemeColor";
+import { useColorScheme } from "react-native";
 import EnderecoCard from "@/src/screens/tutores/EnderecoCard";
 
 // tutores
@@ -49,6 +50,8 @@ import {
     updateEvento,
     selectEventoById,
 } from "@/src/store/slices/agendaSlice";
+
+
 
 
 
@@ -98,6 +101,17 @@ function tutorAddressFallback(t) {
     return partes.join(", ");
 }
 
+const hhmmToDate = (hhmm = "01:00") => {
+    const m = (hhmm || "01:00").match(/^(\d{1,2}):([0-5]\d)$/) || [0, "1", "00"];
+    const h = parseInt(m[1], 10);
+    const mi = parseInt(m[2], 10);
+    const d = new Date();
+    d.setHours(h, mi, 0, 0);
+    return d;
+};
+const dateToHHMM = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+
+
 /* ---------------- Screen ---------------- */
 export default function AgendaNewScreen() {
     const navigation = useNavigation();
@@ -108,6 +122,7 @@ export default function AgendaNewScreen() {
     const tutorNomeParam = params?.tutorNome || "";
 
     const tint = useThemeColor({}, "tint");
+    const [showTime, setShowTime] = useState(false);
 
     // Estado Redux
     const tutores = useSelector(selectTutores);
@@ -217,7 +232,7 @@ export default function AgendaNewScreen() {
     );
 
     // Header
-    useEffect(() => {
+    useLayoutEffect(() => {
         const status = evento?.status || "pendente";
         const { color } = STATUS_STYLES[status] || STATUS_STYLES.default;
         const label = status.charAt(0).toUpperCase() + status.slice(1);
@@ -236,47 +251,37 @@ export default function AgendaNewScreen() {
                     </Text>
                 </Pressable>
             ),
-            headerRight: () =>
-                eventIdParam && !isEditing ? (
-                    <Pressable onPress={() => setIsEditing(true)} hitSlop={10} style={{ padding: 6 }}>
-                        <Text style={{ color: "#007AFF", fontWeight: "800" }}>Editar</Text>
+            headerRight: () => {
+                if (eventIdParam && !isEditing) {
+                    return (
+                        <Pressable onPress={() => setIsEditing(true)} hitSlop={10} style={{ padding: 6 }}>
+                            <Text style={{ color: "#007AFF", fontWeight: "800" }}>Editar</Text>
+                        </Pressable>
+                    );
+                }
+                return (
+                    <Pressable
+                        onPress={() => { if (canSave) onSubmitRef.current(); }}
+                        hitSlop={10}
+                        style={{ padding: 6, opacity: canSave ? 1 : 0.5 }}
+                        disabled={!canSave}
+                    >
+                        <Text style={{ color: "#007AFF", fontWeight: "800" }}>Salvar</Text>
                     </Pressable>
-                ) : null,
+                );
+            },
         });
-    }, [navigation, eventIdParam, isEditing, evento]);
+    }, [navigation, router, eventIdParam, isEditing, canSave, evento]);
 
     // Submit (novo ou edição)
-    const onSubmit = async () => {
+    const onSubmit = React.useCallback(async () => {
         try {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
             if (eventIdParam) {
-                // edição
-                await dispatch(
-                    updateEvento({
-                        id: eventIdParam,
-                        patch: {
-                            title: title.trim(),
-                            // recalcula end quando muda date ou duracao (slice já cobre se vier ambos)
-                            date,
-                            duracao,
-                            tutorId: tutor.id,
-                            tutorNome: tutor.nome || tutor.name,
-                            petIds: selectedPetIds,
-                            local: (local || "").trim(),
-                            observacoes: (observacoes || "").trim(),
-                            cliente: tutor?.nome || tutor?.name || "",
-                        },
-                    })
-                ).unwrap();
-
-                setIsEditing(false);
-                Alert.alert("Pronto", "Evento atualizado.");
-                router.back();   // 🔥 fecha o modal depois de salvar
-            } else {
-                // criação
-                await dispatch(
-                    addEvento({
+                await dispatch(updateEvento({
+                    id: eventIdParam,
+                    patch: {
                         title: title.trim(),
                         date,
                         duracao,
@@ -285,10 +290,26 @@ export default function AgendaNewScreen() {
                         petIds: selectedPetIds,
                         local: (local || "").trim(),
                         observacoes: (observacoes || "").trim(),
-                        status: "pendente",
                         cliente: tutor?.nome || tutor?.name || "",
-                    })
-                ).unwrap();
+                    },
+                })).unwrap();
+
+                setIsEditing(false);
+                Alert.alert("Pronto", "Evento atualizado.");
+                router.back();
+            } else {
+                await dispatch(addEvento({
+                    title: title.trim(),
+                    date,
+                    duracao,
+                    tutorId: tutor.id,
+                    tutorNome: tutor.nome || tutor.name,
+                    petIds: selectedPetIds,
+                    local: (local || "").trim(),
+                    observacoes: (observacoes || "").trim(),
+                    status: "pendente",
+                    cliente: tutor?.nome || tutor?.name || "",
+                })).unwrap();
 
                 Alert.alert("Sucesso", "Evento agendado com sucesso!");
                 router.back();
@@ -297,10 +318,19 @@ export default function AgendaNewScreen() {
             console.warn("Erro ao salvar evento:", e);
             Alert.alert("Erro", e?.message || "Não foi possível salvar o evento.");
         }
-    };
+    }, [eventIdParam, title, date, duracao, tutor, selectedPetIds, local, observacoes, dispatch]);
+
+    // 2) ref para não “fechar” valores no header
+    const onSubmitRef = React.useRef(onSubmit);
+    useEffect(() => { onSubmitRef.current = onSubmit; }, [onSubmit]);
 
     /* ---------------- UI ---------------- */
     const inputDisabledColor = "#9CA3AF";
+    const scheme = useColorScheme(); // 'light' | 'dark'
+    const bg = useThemeColor({}, "background"); // fundo do app
+    const text = useThemeColor({}, "text");     // cor de texto padrão
+    const border = "#E5E7EB";
+
     const disabled = !isEditing;
 
     const PressableMaybe = ({ onPress, children, style }) =>
@@ -418,7 +448,7 @@ export default function AgendaNewScreen() {
                                     borderColor: "#E5E7EB",
                                     borderRadius: 10,
                                     padding: 12,
-                                    backgroundColor: pressed ? "#F3F4F6" : "#FFFFFF",
+                                    backgroundColor: pressed ? "#F3F4F6" : "rgba(142,142,147,0.1)",
                                 })}
                             >
                                 {/* Nome do tutor */}
@@ -500,39 +530,61 @@ export default function AgendaNewScreen() {
                     {/* Data e horário */}
                     <View style={{ marginTop: 16 }}>
                         <Text style={styles.label}>Data e horário</Text>
-                        <View style={{ borderWidth: 1.5, borderColor: "#E5E7EB", borderRadius: 10, overflow: "hidden", opacity: disabled ? 0.7 : 1 }}>
-                            <DateTimePicker
-                                value={date}
-                                mode="datetime"
-                                display={Platform.OS === "ios" ? "spinner" : "default"}
-                                onChange={(_, d) => {
-                                    if (disabled) return;
-                                    if (d) setDate(d);
-                                }}
-                                minuteInterval={5}
-                                locale="pt-BR"
-                            />
-                        </View>
+
+                        <DateTimePicker
+                            value={date}
+                            disabled={disabled}
+                            mode="datetime"
+                            display={Platform.OS === "ios" ? "default" : "default"}
+                            onChange={(_, d) => d && setDate(d)}
+                            minuteInterval={5}
+                            locale="pt-BR"
+                            themeVariant={Platform.OS === "ios" ? "light" : undefined} // força claro/escuro
+                            textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
+                            style={{
+                                opacity: disabled ? 0.6 : 1,
+                                backgroundColor: disabled ? "rgba(142,142,147,0.2)" : tint, // evita as faixas duplas
+                                borderRadius: 12
+
+                            }}
+                        />
+
                     </View>
 
                     {/* Duração */}
-                    <View style={{ marginTop: 14 }}>
-                        <Text style={styles.label}>Duração (HH:MM)</Text>
-                        <View style={styles.inputIcon}>
-                            <Ionicons name="time-outline" size={18} color="#8E8E93" />
-                            <TextInput
-                                placeholderTextColor="#9CA3AF"
-                                placeholder="1:00"
-                                value={duracao}
-                                onChangeText={(t) => !disabled && setDuracao(normalizeHHMM(t))}
-                                keyboardType="numbers-and-punctuation"
-                                maxLength={5}
-                                style={{ flex: 1, marginLeft: 8, paddingVertical: 0, color: disabled ? inputDisabledColor : 'black' }}
-                                editable={!disabled}
+                    <View style={{ marginTop: 14, justifyContent: 'center', alignContent: 'center' }}>
+                        <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+                            <Ionicons
+                                name="time-outline"
+                                size={16}
+                                color="#8E8E93"
+                                style={{ marginRight: 4, paddingTop: 3.5 }}
                             />
-                            {!isValidHHMM(duracao) && !disabled && (
-                                <Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "700" }}>Inválido</Text>
-                            )}
+                            <Text style={styles.label}>Duração (HH:MM)</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row' }}>
+                            <DateTimePicker
+                                disabled={disabled}
+                                value={hhmmToDate(duracao)}
+                                mode="time"
+                                display="inline" // iOS fica inline, Android abre modal
+                                is24Hour
+                                minuteInterval={5}
+                                onChange={(_, selected) => {
+                                    if (selected) {
+                                        setDuracao(dateToHHMM(selected));
+                                    }
+                                }}
+                                themeVariant={Platform.OS === "ios" ? "light" : undefined} // força claro/escuro
+                                textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
+                                style={{
+                                    opacity: disabled ? 0.6 : 1,
+                                    backgroundColor: disabled ? "rgba(142,142,147,0.2)" : tint, // evita as faixas duplas
+                                    borderRadius: 12,
+                                    transform: [{ scale: 0.8 }],
+                                    height: 80, // ajusta a altura manualmente
+                                }}
+                            />
                         </View>
                     </View>
 

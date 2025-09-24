@@ -17,6 +17,8 @@ const mockEvents = [
 ];
 
 /* ---------------- helpers ---------------- */
+// --- helpers internos (reuso do seu agrupador) ---
+
 const pad2 = (n) => String(n).padStart(2, '0');
 const toLocalIsoNoTZ = (d) =>
     `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
@@ -92,6 +94,22 @@ function normalizeNewEvent(payload) {
     }
     return sanitizeEvento(null, { ...scaffold, date: payload?.date });
 }
+
+const groupByDay = (list) => {
+    const map = new Map();
+    for (const e of list) {
+        const d = new Date(e.start);
+        const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(e);
+    }
+    return Array.from(map.entries())
+        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+        .map(([title, data]) => ({
+            title,
+            data: data.sort((a, b) => new Date(a.start) - new Date(b.start)),
+        }));
+};
 
 /* ---------------- persistência ---------------- */
 async function readFromDevice() {
@@ -281,3 +299,26 @@ export const makeSelectEventosBetween = () =>
             });
         }
     );
+
+// --- Selector: próximos eventos por tutor (futuros), limit X ---
+export const makeSelectUpcomingEventosByTutor = (tutorId, limit = 3) =>
+    createSelector([selectAllEventos], (list) => {
+        const now = new Date();
+        const tid = String(tutorId);
+        return list
+            .filter((e) => String(e.tutorId) === tid && new Date(e.end) >= now)
+            .sort((a, b) => new Date(a.start) - new Date(b.start))
+            .slice(0, limit);
+    });
+
+// NOVOS:
+export const makeSelectEventosByPetId = (petId) =>
+    createSelector(selectAllEventos, (list) => {
+        const pid = String(petId);
+        return list.filter(
+            (e) => Array.isArray(e.petIds) && e.petIds.map(String).includes(pid)
+        );
+    });
+
+export const makeSelectEventosByPetGrouped = (petId) =>
+    createSelector(makeSelectEventosByPetId(petId), (list) => groupByDay(list));

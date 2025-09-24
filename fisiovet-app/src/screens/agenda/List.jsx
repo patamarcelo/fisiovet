@@ -510,7 +510,6 @@ function EventRow({ item }) {
     return base
   }
 
-  console.log('item', item)
   const color = STATUS_COLORS[status] || "#8E8E93";
 
   const handleSetStatus = async (newStatus) => {
@@ -653,3 +652,6 @@ function StatusPill({ status }) {
     </View>
   );
 }
+
+
+export { EventRow };

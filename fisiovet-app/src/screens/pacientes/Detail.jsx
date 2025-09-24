@@ -117,7 +117,7 @@ export default function PetDetail() {
           accessibilityRole="button"
           accessibilityLabel="Editar pet"
           style={styles.editBtn}
-       >
+        >
           <IconSymbol name="pencil.circle.fill" size={26} color={tint} />
         </Pressable>
       </View>
@@ -141,7 +141,7 @@ export default function PetDetail() {
         />
         <ActionCard
           title="Avaliação"
-          icon="clipboard-outline"   // ícone de prancheta
+          icon="clipboard"   // ícone de prancheta
           border={border}
           onPress={() => Alert.alert('Avaliação', 'Abrir Página das avaliações')}
           onAdd={() => Alert.alert('Novo registro', 'Adicionar entrada no timeline')}
@@ -171,8 +171,15 @@ export default function PetDetail() {
           title="Agenda"
           icon="calendar"
           border={border}
-          onPress={() => Alert.alert('Agenda', 'Abrir agenda do pet')}
-          onAdd={() => Alert.alert('Novo evento', 'Criar novo agendamento')}
+          onPress={() => router.push({ pathname: '/(phone)/pacientes/[id]/agenda', params: { id: String(pet.id) } })}
+          onAdd={() => router.push({
+            pathname: '/(modals)/agenda-new',
+            params: {
+              tutorId: pet.tutor?.id ? String(pet.tutor.id) : '',
+              tutorNome: pet.tutor?.nome || '',
+              preselectPetId: String(pet.id),
+            }
+          })}
         />
 
         {/* Espaço pra futuros cards: Vacinas, Pesagens, Alergias etc. */}

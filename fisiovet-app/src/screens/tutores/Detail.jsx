@@ -13,6 +13,7 @@ import Action from '@/components/ui/Action';
 import { maskPhone } from '@/src/utils/masks';
 import { openWhatsapp } from '@/src/utils/openWhatsapp';
 import PetsCard from './PetsCard';
+import { UpcomingEventsCard } from './UpcomingEventsCard';
 
 export default function TutorDetail() {
   const { id } = useLocalSearchParams();
@@ -102,6 +103,7 @@ export default function TutorDetail() {
         </View>
 
         <PetsCard tutor={tutor} />
+        <UpcomingEventsCard tutorId={tutor.id} />
         <EnderecoCard tutor={tutor} />
       </ScrollView>
     </SafeAreaView>
