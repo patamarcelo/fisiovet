@@ -147,12 +147,12 @@ export default function ConfigProfile() {
   return (
     <View style={{ padding: 16, gap: 16 }}>
       {/* Avatar + Nome */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'center' }}>
         <View
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 36,
+            width: 120,
+            height: 120,
+            borderRadius: 72,
             overflow: 'hidden',
             backgroundColor: '#E5E7EB',
             alignItems: 'center',
@@ -170,7 +170,7 @@ export default function ConfigProfile() {
 
 
       </View>
-      <View style={{ flex: 1 }}>
+      <View>
         <Text style={{ fontWeight: '700', marginBottom: 6 }}>Nome</Text>
         <TextInput
           value={displayName}

@@ -12,7 +12,7 @@ const STORAGE_KEY = 'AGENDAV1_EVENTS';
 
 const pad2 = (n) => String(n).padStart(2, "0");
 const toLocalIsoNoTZ = (d) =>
-  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const durations = [
@@ -22,6 +22,13 @@ const durations = [
     { label: "01:30", min: 90 },
 ];
 const statuses = ["pendente", "confirmado", "cancelado"];
+
+// preço mock (R$)
+const PRECO_MIN = 80;
+const PRECO_MAX = 250;
+const randPreco = () =>
+    Math.round((PRECO_MIN + Math.random() * (PRECO_MAX - PRECO_MIN)) * 100) / 100;
+
 
 // titulo conforme tipo e pet
 const titles = ["Consulta", "Vacinação", "Revisão", "Retorno", "Avaliação", "Fisioterapia"];
@@ -73,6 +80,11 @@ function generateMockEvents(tutores, pets) {
             petIds,
             duracao: dur.label,
             observacoes: "",
+            financeiro: {
+                preco: randPreco(),          // R$ como número
+                pago: false,                 // pronto p/ evoluir
+                comprovanteUrl: null,
+            },
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
         };
@@ -142,6 +154,25 @@ function sanitizeEvento(prev, patchOrNew) {
     if (Array.isArray(next.petIds)) next.petIds = next.petIds.map((x) => String(x));
     if (!next.status) next.status = 'pendente';
 
+    // garante objeto financeiro
+    if (!next.financeiro || typeof next.financeiro !== 'object') {
+        next.financeiro = {};
+    }
+    // back-compat: se veio preco "solto", migra
+    if (next.preco != null && next.financeiro.preco == null) {
+        next.financeiro.preco = next.preco;
+        delete next.preco;
+    }
+    // normaliza preco em financeiro.preco (aceita "1.234,56")
+    if (next.financeiro.preco != null) {
+        const v = String(next.financeiro.preco).replace(/\./g, '').replace(',', '.');
+        const n = Number(v);
+        next.financeiro.preco = Number.isFinite(n) ? Math.max(0, n) : 0;
+    }
+    // campos padrão adicionais
+    if (typeof next.financeiro.pago !== 'boolean') next.financeiro.pago = false;
+    if (next.financeiro.comprovanteUrl == null) next.financeiro.comprovanteUrl = next.financeiro.comprovanteUrl ?? null;
+
     // (re)calcular start/end quando vier `date` (Date/ISO) e/ou `duracao`
     if (patchOrNew?.date) {
         const base = patchOrNew.date;
@@ -180,6 +211,12 @@ function normalizeNewEvent(payload) {
         petIds: Array.isArray(payload?.petIds) ? payload.petIds : [],
         duracao: payload?.duracao || '1:00',
         observacoes: payload?.observacoes || '',
+        // aceita `payload.financeiro` inteiro OU um `preco` solto
+        financeiro: {
+            preco: payload?.financeiro?.preco ?? payload?.preco ?? 0,
+            pago: payload?.financeiro?.pago ?? false,
+            comprovanteUrl: payload?.financeiro?.comprovanteUrl ?? null,
+        },
     };
 
     // se veio start/end prontos, mantemos; senão, derivamos de `date` + `duracao`
@@ -272,6 +309,17 @@ export const replaceAllEventos = createAsyncThunk('agenda/replaceAll', async (li
     return safe;
 });
 
+
+export const addEventosBatch = createAsyncThunk('agenda/addBatch', async (payloadList) => {
+    const arr = (await readFromDevice()) || [];
+    const novos = (payloadList || []).map((p) => normalizeNewEvent(p));
+    arr.push(...novos);
+    arr.sort((a, b) => new Date(a.start) - new Date(b.start));
+    await writeToDevice(arr);
+    return novos;
+});
+
+
 /* ---------------- slice ---------------- */
 const agendaSlice = createSlice({
     name: 'agenda',
@@ -337,6 +385,17 @@ const agendaSlice = createSlice({
                 });
                 state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
                 state.lastLoadedAt = new Date().toISOString();
+            })
+
+            .addCase(addEventosBatch.fulfilled, (state, action) => {
+                const rows = Array.isArray(action.payload) ? action.payload : [];
+                rows.forEach((e) => {
+                    const safe = sanitizeEvento(null, e);
+                    const id = String(safe.id);
+                    state.byId[id] = safe;
+                    if (!state.allIds.includes(id)) state.allIds.push(id);
+                });
+                state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
             });
     },
 });

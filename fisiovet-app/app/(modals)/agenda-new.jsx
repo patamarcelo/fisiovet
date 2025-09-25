@@ -9,7 +9,8 @@ import {
     Platform,
     ScrollView,
     Alert,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    Switch
 } from "react-native";
 
 import { Linking } from "react-native";
@@ -49,17 +50,17 @@ import {
     addEvento,
     updateEvento,
     selectEventoById,
+    addEventosBatch
 } from "@/src/store/slices/agendaSlice";
 
 
 
 
-
 const STATUS_STYLES = {
-    confirmado: { color: "#16A34A", bg: "rgba(22,163,74,0.15)" },   // verde
-    pendente: { color: "#F59E0B", bg: "rgba(245,158,11,0.15)" },  // amarelo
-    cancelado: { color: "#EF4444", bg: "rgba(239,68,68,0.15)" },   // vermelho
-    default: { color: "#6B7280", bg: "rgba(107,114,128,0.15)" }, // cinza
+    confirmado: { color: '#16A34A', bg: 'rgba(22,163,74,0.15)', label: 'Confirmado' },
+    pendente: { color: '#F59E0B', bg: 'rgba(245,158,11,0.15)', label: 'Pendente' },
+    cancelado: { color: '#EF4444', bg: 'rgba(239,68,68,0.15)', label: 'Cancelado' },
+    default: { color: '#6B7280', bg: 'rgba(107,114,128,0.15)', label: '—' },
 };
 
 
@@ -111,8 +112,133 @@ const hhmmToDate = (hhmm = "01:00") => {
 };
 const dateToHHMM = (d) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 
+function parseBRLToNumber(s) {
+    if (s == null) return 0;
+    const clean = String(s).replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    const n = Number(clean);
+    return Number.isFinite(n) ? n : 0;
+}
+
+function formatNumberToBRL(n) {
+    const num = Number(n);
+    if (!Number.isFinite(num)) return '—';
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(num);
+}
+
+
+const addDays = (d, days) => {
+    const x = new Date(d);
+    x.setDate(x.getDate() + days);
+    return x;
+};
 
 /* ---------------- Screen ---------------- */
+
+/** Só visualização (formata em R$) */
+function PriceDisplay({ value, containerStyle, textStyle }) {
+    return (
+        <View style={[containerStyle, { marginLeft: 20 }]}>
+            <Text style={[{ color: '#111827', fontWeight: '700' }, textStyle]}>
+                {formatNumberToBRL(value)}
+            </Text>
+        </View>
+    );
+}
+
+/** Edição (TextInput) */
+function PriceInput({ valueText, onChangeText, containerStyle, inputStyle, editable = true }) {
+    return (
+        <View style={[styles.inputOutline, containerStyle]}>
+            <TextInput
+                placeholderTextColor="#9CA3AF"
+                placeholder="Ex.: 120,00"
+                value={valueText}
+                onChangeText={onChangeText}
+                keyboardType="decimal-pad"
+                style={[{ color: editable ? 'black' : '#9CA3AF' }, inputStyle]}
+                editable={editable}
+            />
+        </View>
+    );
+}
+
+/** Wrapper que decide entre display x input */
+function PriceField({ disabled, precoText, setPrecoText, eventoExistente }) {
+    // mostra o número formatado se desabilitado
+    const precoNumber = React.useMemo(() => {
+        // 1) primeiro tenta o que o usuário digitou
+        const nFromText = parseBRLToNumber(precoText);
+        if (precoText?.trim()) return nFromText;
+        // 2) fallback pro valor salvo no evento (edição)
+        const saved = eventoExistente?.financeiro?.preco;
+        return Number.isFinite(saved) ? saved : 0;
+    }, [precoText, eventoExistente?.financeiro?.preco]);
+
+    return disabled ? (
+        <PriceDisplay value={precoNumber} />
+    ) : (
+        <PriceInput valueText={precoText} onChangeText={setPrecoText} />
+    );
+}
+
+// valores permitidos pelo slice
+const EVENT_STATUSES = ['pendente', 'confirmado', 'cancelado'];
+
+/** badge para modo leitura */
+function StatusBadge({ status }) {
+    const s = STATUS_STYLES[status] || STATUS_STYLES.default;
+    return (
+        <View style={{
+            alignSelf: 'flex-start',
+            paddingHorizontal: 10, paddingVertical: 6,
+            borderRadius: 999,
+            backgroundColor: s.bg
+        }}>
+            <Text style={{ color: s.color, fontWeight: '800', fontSize: 12 }}>{s.label}</Text>
+        </View>
+    );
+}
+
+/** chips para edição */
+function StatusChips({ value, onChange }) {
+    return (
+        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+            {EVENT_STATUSES.map((key) => {
+                const s = STATUS_STYLES[key];
+                const active = value === key;
+                return (
+                    <Pressable
+                        key={key}
+                        onPress={() => onChange(key)}
+                        android_ripple={{ color: '#E5E7EB' }}
+                        style={{
+                            paddingHorizontal: 12, paddingVertical: 9,
+                            borderRadius: 999,
+                            borderWidth: active ? 1.5 : 1,
+                            borderColor: active ? s.color : '#E5E7EB',
+                            backgroundColor: active ? s.bg : '#F9FAFB',
+                        }}
+                    >
+                        <Text style={{ fontWeight: '800', color: active ? s.color : '#374151', fontSize: 12 }}>
+                            {s.label}
+                        </Text>
+                    </Pressable>
+                );
+            })}
+        </View>
+    );
+}
+
+/** wrapper que decide entre badge (leitura) e chips (edição) */
+function StatusField({ disabled, status, setStatus }) {
+    return disabled ? (
+        <StatusBadge status={status} />
+    ) : (
+        <StatusChips value={status} onChange={setStatus} />
+    );
+}
+
+
 export default function AgendaNewScreen() {
     const navigation = useNavigation();
     const dispatch = useDispatch();
@@ -121,8 +247,16 @@ export default function AgendaNewScreen() {
     const tutorIdParam = params?.tutorId ? String(params.tutorId) : null;
     const tutorNomeParam = params?.tutorNome || "";
 
+    const [precoText, setPrecoText] = useState('');
+    const [status, setStatus] = useState(eventoExistente?.status || 'pendente');
+
+    const [recorrente, setRecorrente] = useState(false);
+    const [recorrencias, setRecorrencias] = useState('0'); // string pra TextInput numérico
+
     const tint = useThemeColor({}, "tint");
     const [showTime, setShowTime] = useState(false);
+    const isNew = !eventIdParam;
+
 
     // Estado Redux
     const tutores = useSelector(selectTutores);
@@ -196,9 +330,25 @@ export default function AgendaNewScreen() {
         setTitle(eventoExistente.title || "");
         setSelectedPetIds(Array.isArray(eventoExistente.petIds) ? eventoExistente.petIds.map(String) : []);
         setObservacoes(eventoExistente.observacoes || "");
+        const preco = eventoExistente?.financeiro?.preco;
+        setPrecoText(preco != null ? String(preco).replace('.', ',') : '');
         // date e duracao já vieram do constructor dos states
         // local idem
     }, [eventIdParam]);
+
+
+    useEffect(() => {
+        if (!eventoExistente) return;
+        setStatus(eventoExistente.status || 'pendente');
+    }, [eventIdParam]);
+
+
+    useEffect(() => {
+        if (!isNew) {
+            setRecorrente(false);
+            setRecorrencias('');
+        }
+    }, [isNew]);
 
     // Quando tutor muda: recarrega pets e preenche Local
     useEffect(() => {
@@ -225,9 +375,13 @@ export default function AgendaNewScreen() {
     // Validação para habilitar Salvar
     const canSave = useMemo(() => {
         if (!isEditing) return false;
-        // return title.trim() && tutor?.id && selectedPetIds.length && isValidHHMM(duracao);
-        return title.trim()
-    }, [isEditing, title, tutor, selectedPetIds, duracao]);
+        if (!title.trim()) return false;
+        if (recorrente) {
+            const n = parseInt(recorrencias || '0', 10);
+            if (!Number.isFinite(n) || n <= 0) return false;
+        }
+        return true;
+    }, [isEditing, title, recorrente, recorrencias]);
 
     const evento = useSelector((s) =>
         eventIdParam ? s.agenda.byId?.[String(eventIdParam)] : null
@@ -276,10 +430,12 @@ export default function AgendaNewScreen() {
     }, [navigation, router, eventIdParam, isEditing, canSave, evento]);
 
     // Submit (novo ou edição)
+    // Submit (novo ou edição)
     const onSubmit = React.useCallback(async () => {
         try {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+            // ----- EDIÇÃO -----
             if (eventIdParam) {
                 await dispatch(updateEvento({
                     id: eventIdParam,
@@ -293,34 +449,77 @@ export default function AgendaNewScreen() {
                         local: (local || "").trim(),
                         observacoes: (observacoes || "").trim(),
                         cliente: tutor?.nome || tutor?.name || "",
+                        status,
+                        financeiro: {
+                            ...(eventoExistente?.financeiro || {}),
+                            preco: parseBRLToNumber(precoText),
+                        },
                     },
                 })).unwrap();
 
                 setIsEditing(false);
                 Alert.alert("Pronto", "Evento atualizado.");
                 router.back();
-            } else {
-                await dispatch(addEvento({
-                    title: title.trim(),
-                    date,
-                    duracao,
-                    tutorId: tutor.id,
-                    tutorNome: tutor.nome || tutor.name,
-                    petIds: selectedPetIds,
-                    local: (local || "").trim(),
-                    observacoes: (observacoes || "").trim(),
-                    status: "pendente",
-                    cliente: tutor?.nome || tutor?.name || "",
-                })).unwrap();
+                return;
+            }
 
+            // ----- CRIAÇÃO (com ou sem recorrência) -----
+            const base = {
+                title: title.trim(),
+                date,
+                duracao,
+                tutorId: tutor.id,
+                tutorNome: tutor.nome || tutor.name,
+                petIds: selectedPetIds,
+                local: (local || "").trim(),
+                observacoes: (observacoes || "").trim(),
+                cliente: tutor?.nome || tutor?.name || "",
+                status, // usa o que veio do formulário
+                financeiro: {
+                    preco: parseBRLToNumber(precoText),
+                    pago: false,
+                    comprovanteUrl: null,
+                },
+            };
+
+            if (!isNew || !recorrente) {
+                await dispatch(addEvento(base)).unwrap();
                 Alert.alert("Sucesso", "Evento agendado com sucesso!");
                 router.back();
+                return;
             }
+
+            // recorrência semanal: N ocorrências
+            const n = Math.max(1, parseInt(recorrencias || '1', 10));
+            const payloads = Array.from({ length: n }, (_, i) => ({
+                ...base,
+                id: undefined,              // garante IDs únicos no sanitize
+                date: addDays(base.date, i * 7),
+            }));
+
+            await dispatch(addEventosBatch(payloads)).unwrap();
+            Alert.alert("Sucesso", `${n} eventos agendados (semanal).`);
+            router.back();
         } catch (e) {
             console.warn("Erro ao salvar evento:", e);
             Alert.alert("Erro", e?.message || "Não foi possível salvar o evento.");
         }
-    }, [eventIdParam, title, date, duracao, tutor, selectedPetIds, local, observacoes, dispatch]);
+    }, [
+        eventIdParam,
+        title,
+        date,
+        duracao,
+        tutor,
+        selectedPetIds,
+        local,
+        observacoes,
+        precoText,
+        status,
+        recorrente,
+        recorrencias,
+        eventoExistente,
+        dispatch
+    ]);
 
     // 2) ref para não “fechar” valores no header
     const onSubmitRef = React.useRef(onSubmit);
@@ -365,6 +564,14 @@ export default function AgendaNewScreen() {
                     contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
                     keyboardShouldPersistTaps="handled"
                 >
+                    {/* Status */}
+                    <View style={{ marginTop: 14, marginBottom: 12, alignSelf: isEditing ? "flex-start" : 'flex-end' }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                            <Ionicons name="information-circle-outline" size={16} color="#8E8E93" style={{ marginRight: 4, paddingTop: 3.5 }} />
+                            <Text style={styles.label}>Status</Text>
+                        </View>
+                        <StatusField disabled={!isEditing} status={status} setStatus={setStatus} />
+                    </View>
                     {/* Título */}
                     <Text style={styles.label}>Título</Text>
                     <View style={styles.inputOutline}>
@@ -530,14 +737,14 @@ export default function AgendaNewScreen() {
                     )}
 
                     {/* Data e horário */}
-                    <View style={{ marginTop: 16 }}>
+                    <View style={{ marginTop: 16, alignSelf: 'center' }}>
                         <Text style={styles.label}>Data e horário</Text>
 
                         <DateTimePicker
                             value={date}
                             disabled={disabled}
                             mode="datetime"
-                            display={Platform.OS === "ios" ? "default" : "default"}
+                            display={Platform.OS === "ios" ? "inline" : "inline"}
                             onChange={(_, d) => d && setDate(d)}
                             minuteInterval={5}
                             locale="pt-BR"
@@ -545,8 +752,9 @@ export default function AgendaNewScreen() {
                             textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
                             style={{
                                 opacity: disabled ? 0.6 : 1,
-                                backgroundColor: disabled ? "rgba(142,142,147,0.2)" : tint, // evita as faixas duplas
-                                borderRadius: 12
+                                backgroundColor: disabled ? "rgba(142,142,147,0.2)" : "rgba(107,114,128,0.05)", // evita as faixas duplas
+                                borderRadius: 12,
+                                padding: 1
 
                             }}
                         />
@@ -569,7 +777,7 @@ export default function AgendaNewScreen() {
                                 disabled={disabled}
                                 value={hhmmToDate(duracao)}
                                 mode="time"
-                                display="inline" // iOS fica inline, Android abre modal
+                                display="default" // iOS fica inline, Android abre modal
                                 is24Hour
                                 minuteInterval={5}
                                 onChange={(_, selected) => {
@@ -581,7 +789,7 @@ export default function AgendaNewScreen() {
                                 textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
                                 style={{
                                     opacity: disabled ? 0.6 : 1,
-                                    backgroundColor: disabled ? "rgba(142,142,147,0.2)" : tint, // evita as faixas duplas
+                                    backgroundColor: disabled ? "rgba(142,142,147,0.2)" : "rgba(107,114,128,0.05)", // evita as faixas duplas
                                     borderRadius: 12,
                                     transform: [{ scale: 0.8 }],
                                     height: 80, // ajusta a altura manualmente
@@ -590,6 +798,54 @@ export default function AgendaNewScreen() {
                         </View>
                     </View>
 
+                    {/* Preço */}
+                    <View style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: "row", alignItems: "baseline" }}>
+                            <Ionicons name="cash-outline" size={16} color="#8E8E93" style={{ marginRight: 4, paddingTop: 3.5 }} />
+                            <Text style={styles.label}>Preço</Text>
+                        </View>
+
+                        <PriceField
+                            disabled={disabled}
+                            precoText={precoText}
+                            setPrecoText={(t) => !disabled && setPrecoText(t)}
+                            eventoExistente={eventoExistente}
+                        />
+                    </View>
+
+                    {/* Recorrência */}
+                    {
+                        isNew &&
+
+                        <View style={{ marginTop: 16 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                                    <Ionicons name="repeat-outline" size={16} color="#8E8E93" style={{ marginRight: 4, paddingTop: 3.5 }} />
+                                    <Text style={styles.label}>Evento recorrente</Text>
+                                </View>
+                                <Switch value={recorrente} onValueChange={setRecorrente} />
+                            </View>
+
+                            {recorrente && (
+                                <View style={{ marginTop: 10 }}>
+                                    <Text style={styles.label}>Ocorrências (semanas)</Text>
+                                    <View style={styles.inputOutline}>
+                                        <TextInput
+                                            keyboardType="number-pad"
+                                            value={recorrencias}
+                                            onChangeText={setRecorrencias}
+                                            placeholder="Ex.: 4"
+                                            placeholderTextColor="#9CA3AF"
+                                            style={{ color: 'black' }}
+                                        />
+                                    </View>
+
+                                    {/* se quiser mostrar o intervalo, por ora informativo */}
+                                    <Text style={{ color: '#6B7280', marginTop: 6 }}>Repetir a cada 7 dias no mesmo horário</Text>
+                                </View>
+                            )}
+                        </View>
+                    }
                     {/* Observações */}
                     <View style={{ marginTop: 14, marginBottom: 20 }}>
                         <Text style={styles.label}>Observações</Text>

@@ -30,14 +30,10 @@ export default function ConfigLayout() {
       <Stack.Screen
         name="index"
         options={{
-          headerLargeTitle: true,
-          headerTitle: 'Configurações',
+          headerLargeTitle: false,
+          // headerTransparent: true,
+          // headerTitle: 'Configurações',
           headerLeft: () => <BackButton />,
-          headerRight: () => (
-            <Pressable onPress={() => router.replace('/(phone)')}>
-              <Text style={{ color: tint, fontWeight: '600' }}>Home</Text>
-            </Pressable>
-          )
         }}
       />
       <Stack.Screen name="aparencia" options={{ headerTitle: 'Aparência', headerLargeTitle: false }} />

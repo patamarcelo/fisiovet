@@ -14,6 +14,10 @@ import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import Screen from '../_ui/Screen';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+
 
 function SectionLabel({ children }) {
   return (
@@ -96,6 +100,8 @@ function CellSwitch({ title, subtitle, value, onValueChange, leftIcon, subtleCol
 
 // Célula “texto à direita” (valor editável futuramente via modal)
 function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) {
+  const isString = typeof value === 'string' || typeof value === 'number';
+
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}>
       <View style={styles.cellLeft}>
@@ -104,9 +110,19 @@ function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) 
             <IconSymbol name={leftIcon} size={16} color="#fff" />
           </View>
         )}
-        <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>{title}</Text>
+        <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
+          {title}
+        </Text>
       </View>
-      <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>{value}</Text>
+
+      {isString ? (
+        <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>
+          {value}
+        </Text>
+      ) : (
+        <View style={{ marginRight: 6 }}>{value}</View>
+      )}
+
       <IconSymbol name="chevron.right" size={14} color={subtleColor} />
     </Pressable>
   );
@@ -123,12 +139,17 @@ export default function ConfigIndex() {
   // estados locais (exemplo; depois pode ligar no Redux)
   const [notifAgenda, setNotifAgenda] = useState(true);
   const [notifLembretes, setNotifLembretes] = useState(false);
+  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
 
   return (
-    <Screen style={[styles.screen, { backgroundColor: bgScreen }]}>
+    <View style={[styles.screen, { backgroundColor: bgScreen }]}>
       <ScrollView
-        contentContainerStyle={{ paddingBottom: 24 }}
+        // ESSENCIAL para largeTitle não “sobrepor”
+        contentInsetAdjustmentBehavior="automatic"
+        automaticallyAdjustsScrollIndicatorInsets
+        scrollEventThrottle={16}
         showsVerticalScrollIndicator
+        contentContainerStyle={{ paddingBottom: 24 }}
       >
         {/* CONTA */}
         <SectionLabel>CONTA</SectionLabel>
@@ -199,11 +220,44 @@ export default function ConfigIndex() {
             textColor={text}
           />
           <Divider />
+        </Group>
+        {/* INTEGRACOES */}
+        <SectionLabel>INTEGRAÇÕES</SectionLabel>
+        <Group bg={card}>
           <CellValue
             title="Integração Google Agenda"
-            value="Desconectado"
+            value={
+              isGoogleConnected ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <FontAwesome name="check-circle" size={20} color="#16A34A" />
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                </View>
+              )
+            }
             leftIcon="calendar"
-            onPress={() => router.push('/configuracoes/agenda/google')}
+            onPress={() => router.push('/configuracoes/agenda')}
+            subtleColor={subtle}
+            textColor={text}
+          />
+          <Divider />
+          <CellValue
+            title="Integração Asaas"
+            value={
+              !isGoogleConnected ? (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <FontAwesome name="check-circle" size={20} color="#16A34A" />
+                </View>
+              ) : (
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Ionicons name="close-circle" size={20} color="#EF4444" />
+                </View>
+              )
+            }
+            leftIcon="money.fill"
+            onPress={() => router.push('/configuracoes/asaas')}
             subtleColor={subtle}
             textColor={text}
           />
@@ -290,7 +344,7 @@ export default function ConfigIndex() {
           FisioVet • Configurações
         </Text>
       </ScrollView>
-    </Screen>
+    </View>
   );
 }
 

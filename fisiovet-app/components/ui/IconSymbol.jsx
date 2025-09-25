@@ -19,15 +19,34 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 export function IconSymbol({
   name,
   size = 24,
-  color= "whitesmoke",
+  color = "whitesmoke",
   style = {},
 }) {
-  return <MaterialIcons color={color} size={size} name={MAPPING[name]} style={style} />;
+
+  const resolved = MAPPING[name] || name;
+
+  return <MaterialIcons color={color} size={size} name={resolved} style={style} />;
 }
 
 // exemplo de mapeamento (precisa criar)
+// mapeie os nomes “estilo SF Symbols” que você usa para MaterialIcons equivalentes
 const MAPPING = {
   home: 'home',
   settings: 'settings',
   search: 'search',
+
+  // setas / navegação
+  'chevron.right': 'chevron-right',
+
+  // pagamentos / dinheiro
+  'creditcard.fill': 'credit-card',
+  'monetization-on': 'monetization-on',
+  'payments': 'payments',
+
+  // agenda / calendário
+  calendar: 'calendar-today',
+  'calendar-outline': 'calendar-today',
+
+  // pessoa
+  'person.crop.circle.fill': 'person',
 };

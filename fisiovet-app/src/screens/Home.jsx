@@ -10,6 +10,8 @@ import {
     SectionList,
     useWindowDimensions,
 } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, router } from 'expo-router';
 import { useSelector } from 'react-redux';
@@ -50,8 +52,14 @@ const fmtDay = (iso) => {
 };
 
 // Agrupa eventos por dia (YYYY-MM-DD)
+const isSameLocalDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
 const toSections = (items) => {
     const map = new Map();
+
     for (const ev of items) {
         const d = new Date(ev.start);
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
@@ -60,12 +68,22 @@ const toSections = (items) => {
         if (!map.has(key)) map.set(key, []);
         map.get(key).push(ev);
     }
+
+    const today = new Date();
+
     return Array.from(map.entries())
         .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-        .map(([_, data]) => ({
-            title: fmtDay(data[0].start),
-            data: data.sort((a, b) => new Date(a.start) - new Date(b.start)),
-        }));
+        .map(([_, data]) => {
+            const d0 = new Date(data[0].start);
+            let title = fmtDay(data[0].start);
+            if (isSameLocalDay(d0, today)) {
+                title = `${title} • Hoje`;
+            }
+            return {
+                title,
+                data: data.sort((a, b) => new Date(a.start) - new Date(b.start)),
+            };
+        });
 };
 
 /* ---------- UI subcomponents ---------- */
@@ -84,6 +102,7 @@ function MiniEventRow({ item }) {
             style={({ pressed }) => [
                 styles.row,
                 pressed && Platform.OS === 'ios' ? { backgroundColor: '#F7F8FA' } : null,
+                { paddingLeft: 4, alignItems: 'center', marginVertical: 4 }
             ]}
         >
             {/* barra de status */}
@@ -107,7 +126,7 @@ function MiniEventRow({ item }) {
                 )}
             </View>
 
-            <Ionicons name="chevron-forward" size={18} color="#9CA3AF" style={{ marginRight: 8 }} />
+            <Ionicons name="chevron-forward-sharp" size={18} color="#4B5563" style={{ marginRight: 2 }} />
         </Pressable>
     );
 }
@@ -134,9 +153,9 @@ function UpcomingEventsList({ upcoming, subtle }) {
                     style={{
                         backgroundColor: '#F3F4F6',
                         paddingVertical: 6,
-                        paddingHorizontal: 10,
-                        borderRadius: 8,
-                        marginTop: 8,
+                        paddingHorizontal: 6,
+                        // borderRadius: 8,
+                        // marginHorizontal: 4
                     }}
                 >
                     <Text style={{ fontWeight: '700', color: '#374151' }}>{section.title}</Text>
@@ -146,7 +165,9 @@ function UpcomingEventsList({ upcoming, subtle }) {
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
             style={{ maxHeight: Math.min(height * 0.45, 360) }}
             stickySectionHeadersEnabled={false}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
+            indicatorStyle="black"                 // 🔹 iOS: 'white' ou 'black'
+            persistentScrollbar={true}             // 🔹 Android: deixa barra sempre visível
         />
     );
 }
@@ -213,12 +234,59 @@ export default function Home() {
                         android_ripple={{ color: '#E5E7EB', borderless: true }}
                         style={styles.gearBtn}
                     >
-                        <Ionicons name="settings-outline" size={22} color={tint} />
+                        <Ionicons name="settings-outline" size={22} color={tint} fontWeight={"bold"} />
                     </Pressable>
                 </View>
 
                 {/* atalhos (stories) */}
                 <View style={styles.shortcuts}>
+                    {/* Adicionar tutor */}
+                    <Pressable
+                        onPress={async () => {
+                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            router.push('/(modals)/pet-new');
+                        }}
+                        android_ripple={{ color: '#E5E7EB' }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adicionar tutor"
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
+                    >
+                        <View style={styles.storyCircle}>
+                            <MaterialIcons name="pets" size={24} color={tint} />
+                            <Ionicons
+                                name="add-circle-sharp"
+                                size={18}
+                                color={tint}
+                                style={{ position: 'absolute', right: 12, bottom: 12 }}
+                            />
+                        </View>
+                        <Text style={styles.storyLabel}>Pet</Text>
+                    </Pressable>
+
+                    {/* Adicionar pet */}
+                    <Pressable
+                        onPress={async () => {
+                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            router.push('/(modals)/tutor-new');
+                        }}
+                        android_ripple={{ color: '#E5E7EB' }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Adicionar tutor"
+                        hitSlop={8}
+                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
+                    >
+                        <View style={styles.storyCircle}>
+                            <Ionicons name="person-sharp" size={26} color={tint} />
+                            <Ionicons
+                                name="add-circle-sharp"
+                                size={18}
+                                color={tint}
+                                style={{ position: 'absolute', right: 12, bottom: 12 }}
+                            />
+                        </View>
+                        <Text style={styles.storyLabel}>Tutor</Text>
+                    </Pressable>
                     {/* Adicionar evento */}
                     <Pressable
                         onPress={async () => {
@@ -237,28 +305,10 @@ export default function Home() {
                                 name="add-circle-sharp"
                                 size={18}
                                 color={tint}
-                                style={{ position: 'absolute', right: 6, bottom: 6 }}
+                                style={{ position: 'absolute', right: 12, bottom: 12 }}
                             />
                         </View>
                         <Text style={styles.storyLabel}>Evento</Text>
-                    </Pressable>
-
-                    {/* Adicionar tutor */}
-                    <Pressable
-                        onPress={async () => {
-                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push('/(modals)/tutor-new');
-                        }}
-                        android_ripple={{ color: '#E5E7EB' }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Adicionar tutor"
-                        hitSlop={8}
-                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
-                    >
-                        <View style={styles.storyCircle}>
-                            <Ionicons name="person-add-outline" size={26} color={tint} />
-                        </View>
-                        <Text style={styles.storyLabel}>Tutor</Text>
                     </Pressable>
                 </View>
 
@@ -346,7 +396,7 @@ const styles = StyleSheet.create({
     card: {
         borderWidth: 1,
         borderRadius: 14,
-        padding: 12,
+        paddingVertical: 12,
         backgroundColor: '#FFF',
     },
     cardHeader: {
@@ -354,6 +404,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 6,
+        paddingHorizontal: 12
     },
     cardTitle: { fontSize: 16, fontWeight: '800' },
 
