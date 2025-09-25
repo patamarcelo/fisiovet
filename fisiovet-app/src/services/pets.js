@@ -2,7 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'fisiovet:pets_v1';
-let _pets = [
+export let _pets = [
     {
         id: 'mbq8j6a-1k3d9p',
         tutor: { id: 't1' },

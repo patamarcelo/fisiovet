@@ -2,26 +2,120 @@
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { SEED_TUTORES } from '@/src/services/tutores';
+import { _pets } from '@/src/services/pets';
+
 const STORAGE_KEY = 'AGENDAV1_EVENTS';
 
-const mockEvents = [
-    { id: "1", title: "Consulta - Thor", start: "2025-09-23T19:00:00-03:00", end: "2025-09-23T20:00:00-03:00", status: "confirmado", cliente: "Carla", local: "Clínica A" },
-    { id: "2", title: "Vacinação - Luna", start: "2025-09-15T11:00:00-03:00", end: "2025-09-15T11:30:00-03:00", status: "pendente", cliente: "Rafael", local: "Clínica A" },
-    { id: "3", title: "Revisão - Max", start: "2025-09-15T14:00:00-03:00", end: "2025-09-15T15:00:00-03:00", status: "confirmado", cliente: "Lívia", local: "Clínica B" },
-    { id: "4", title: "Retorno - Nina", start: "2025-09-14T16:00:00-03:00", end: "2025-09-14T16:45:00-03:00", status: "cancelado", cliente: "João", local: "Clínica A" },
-    { id: "5", title: "Fisioterapia - Bob", start: "2025-09-16T09:30:00-03:00", end: "2025-09-16T10:00:00-03:00", status: "confirmado", cliente: "Marina", local: "Clínica A" },
-    { id: "6", title: "Avaliação - Mel", start: "2025-09-17T13:00:00-03:00", end: "2025-09-17T14:00:00-03:00", status: "confirmado", cliente: "Pedro", local: "Clínica C" },
-    { id: "7", title: "Avaliação - Mel", start: "2025-09-17T13:00:00-03:00", end: "2025-09-17T14:00:00-03:00", status: "confirmado", cliente: "Pedro", local: "Clínica C" },
-    { id: "8", title: "Avaliação - Mel", start: "2025-09-17T13:00:00-03:00", end: "2025-09-17T14:00:00-03:00", status: "confirmado", cliente: "Pedro", local: "Clínica C" },
-    { id: "9", title: "Retorno - Nina", start: "2025-09-21T16:00:00-03:00", end: "2025-09-21T16:45:00-03:00", status: "cancelado", cliente: "João", local: "Clínica A" }
+
+// --- helpers iguais ao slice ---
+
+const pad2 = (n) => String(n).padStart(2, "0");
+const toLocalIsoNoTZ = (d) =>
+  `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const durations = [
+    { label: "00:30", min: 30 },
+    { label: "00:45", min: 45 },
+    { label: "01:00", min: 60 },
+    { label: "01:30", min: 90 },
 ];
+const statuses = ["pendente", "confirmado", "cancelado"];
+
+// titulo conforme tipo e pet
+const titles = ["Consulta", "Vacinação", "Revisão", "Retorno", "Avaliação", "Fisioterapia"];
+
+function addMinutes(date, mins) {
+    const d = new Date(date);
+    d.setMinutes(d.getMinutes() + mins);
+    return d;
+}
+
+function generateMockEvents(tutores, pets) {
+    // indexar pets por tutor
+    const petsByTutor = tutores.reduce((acc, t) => {
+        acc[t.id] = pets.filter((p) => p.tutor?.id === t.id);
+        return acc;
+    }, {});
+
+    const makeEvent = ({ dayOffset = 0, hour = 9, tutor }) => {
+        // pega 1..2 pets válidos do tutor (se tiver)
+        const tutorPets = petsByTutor[tutor.id] || [];
+        const chosen = tutorPets.length
+            ? [pick(tutorPets)].concat(Math.random() < 0.35 && tutorPets.length > 1 ? [pick(tutorPets.filter(p => p.id !== tutorPets[0].id))] : []).filter(Boolean)
+            : [];
+
+        const petNames = chosen.map((p) => p.nome).join(", ");
+        const petIds = chosen.map((p) => p.id);
+
+        const kind = pick(titles);
+        const dur = pick(durations);
+
+        const start = new Date();
+        start.setHours(9, 0, 0, 0);
+        start.setDate(start.getDate() + dayOffset);
+        start.setHours(hour, 0, 0, 0);
+        const end = addMinutes(start, dur.min);
+
+        const status = pick(statuses);
+
+        return {
+            id: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
+            title: `${kind}${petNames ? " - " + petNames.split(", ")[0] : ""}`,
+            start: toLocalIsoNoTZ(start),
+            end: toLocalIsoNoTZ(end),
+            status,
+            cliente: tutor.nome,
+            local: tutor.endereco?.formatted || "",
+            tutorId: tutor.id,
+            tutorNome: tutor.nome,
+            petIds,
+            duracao: dur.label,
+            observacoes: "",
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        };
+    };
+
+    // 2 passados (ontem e 2 dias atrás), 8 futuros (espalha próximos dias/horas)
+    const plan = [
+        { offset: -2, hour: 15 },
+        { offset: -1, hour: 10 },
+        { offset: 0, hour: 16 },
+        { offset: 1, hour: 9 },
+        { offset: 2, hour: 11 },
+        { offset: 3, hour: 14 },
+        { offset: 4, hour: 10 },
+        { offset: 5, hour: 15 },
+        { offset: 6, hour: 13 },
+        { offset: 7, hour: 9 },
+    ];
+
+    // alterna entre tutores t1/t2, garantindo pets coerentes
+    const poolTutors = tutores.filter(Boolean);
+    const events = plan.map((p, i) =>
+        makeEvent({
+            dayOffset: p.offset,
+            hour: p.hour,
+            tutor: poolTutors[i % poolTutors.length],
+        })
+    );
+
+    // mantém ordenado por start
+    events.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return events;
+}
+
+// --- exemplo de uso ---
+const mockEvents = generateMockEvents(SEED_TUTORES, _pets);
 
 /* ---------------- helpers ---------------- */
 // --- helpers internos (reuso do seu agrupador) ---
 
-const pad2 = (n) => String(n).padStart(2, '0');
-const toLocalIsoNoTZ = (d) =>
-    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+// const pad2 = (n) => String(n).padStart(2, '0');
+// const toLocalIsoNoTZ = (d) =>
+//     `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
 const hhmmToMinutes = (v) => {
     const m = String(v || '').match(/^(\d{1,2}):([0-5]\d)$/);

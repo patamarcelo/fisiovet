@@ -4,7 +4,7 @@ import { View, Text, Alert, ActivityIndicator, Platform, KeyboardAvoidingView, P
 import { useDispatch } from 'react-redux';
 import { addTutor, deleteTutor, updateTutor } from '@/src/store/slices/tutoresSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
-import Screen from '../_ui/Screen';
+import Screen from '@/src/screens/_ui/Screen';
 import ThemedTextInput from '@/components/ui/ThemedTextInput';
 import ThemedButton from '@/components/ui/ThemedButton';
 import useHideTabBar from '@/hooks/useHideBar';

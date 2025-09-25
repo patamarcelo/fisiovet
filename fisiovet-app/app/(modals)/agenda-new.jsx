@@ -155,9 +155,11 @@ export default function AgendaNewScreen() {
     const [date, setDate] = useState(() => {
         if (eventoExistente?.start) return new Date(eventoExistente.start);
         const d = new Date();
-        d.setHours(16, 0, 0, 0); // default 16:00 até o DatePicker ficar ok
+        d.setDate(d.getDate() + 1);
+        d.setHours(9, 0, 0, 0);
         return d;
     });
+
 
     const defaultDur = () => {
         if (eventoExistente?.start && eventoExistente?.end) {

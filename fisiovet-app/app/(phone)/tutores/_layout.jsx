@@ -22,7 +22,8 @@ function AddButton() {
   const tint = useThemeColor({}, 'tint');
   const handleAdd = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy)
-    router.push('/(phone)/tutores/novo')
+    // router.push('/(phone)/tutores/novo')
+    router.push('/(modals)/tutor-new');
   }
   return (
     <Pressable onPress={handleAdd} hitSlop={10} accessibilityLabel="Novo tutor">

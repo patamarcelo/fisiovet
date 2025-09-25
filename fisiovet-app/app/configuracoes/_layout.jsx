@@ -41,6 +41,7 @@ export default function ConfigLayout() {
         }}
       />
       <Stack.Screen name="aparencia" options={{ headerTitle: 'Aparência', headerLargeTitle: false }} />
+      <Stack.Screen name="perfil" options={{ headerTitle: 'Perfil', headerLargeTitle: false }} />
     </Stack>
   );
 }

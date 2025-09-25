@@ -224,6 +224,7 @@ const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row',
+    backgroundColor: 'rgba(107,114,128,0.04)',
     alignItems: 'center',
     gap: 12,
     padding: 14,

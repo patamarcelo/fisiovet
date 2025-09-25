@@ -15,7 +15,7 @@ function genId() {
 }
 
 // ---- SEED: usado apenas se ainda não existir nada salvo ----
-const SEED_TUTORES = [
+export const SEED_TUTORES = [
   {
     id: 't1',
     nome: 'Ana Souza',

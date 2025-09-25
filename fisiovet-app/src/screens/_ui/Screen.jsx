@@ -41,7 +41,8 @@ export default function Screen({
 }
 
 const styles = StyleSheet.create({
-    safe: { flex: 1 },
+    safe: { flex: 1,},
     container: { flexGrow: 1 },
     inner: { gap: 12 },
+    
 });
