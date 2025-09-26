@@ -53,6 +53,8 @@ import {
     addEventosBatch
 } from "@/src/store/slices/agendaSlice";
 
+import { selectDefaultDuracao, selectStartOfDay } from "@/src/store/slices/systemSlice";
+
 
 
 
@@ -286,23 +288,32 @@ export default function AgendaNewScreen() {
 
     const [selectedPetIds, setSelectedPetIds] = useState([]);
 
+    const defaultStartDay = useSelector(selectStartOfDay); // ex.: "08:00"
     const [date, setDate] = useState(() => {
         if (eventoExistente?.start) return new Date(eventoExistente.start);
+
+        // base: amanhã
         const d = new Date();
         d.setDate(d.getDate() + 1);
-        d.setHours(9, 0, 0, 0);
+
+        // aplica horário configurado
+        const [h, m] = (defaultStartDay || "09:00").split(":").map(Number);
+        d.setHours(h, m || 0, 0, 0);
+
         return d;
     });
 
 
-    const defaultDur = () => {
-        if (eventoExistente?.start && eventoExistente?.end) {
-            const mins = minutesBetween(eventoExistente.start, eventoExistente.end);
-            return toHHMM(mins);
-        }
-        return "1:00";
-    };
-    const [duracao, setDuracao] = useState(defaultDur());
+    // const defaultDur = () => {
+    //     if (eventoExistente?.start && eventoExistente?.end) {
+    //         const mins = minutesBetween(eventoExistente.start, eventoExistente.end);
+    //         return toHHMM(mins);
+    //     }
+    //     return "1:00";
+    // };
+
+    const defaultDur = useSelector(selectDefaultDuracao);
+    const [duracao, setDuracao] = useState(defaultDur);
     const [local, setLocal] = useState(() => {
         if (eventoExistente?.local) return eventoExistente.local;
         if (tutor?.endereco?.formatted) return tutor.endereco.formatted;

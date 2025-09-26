@@ -23,7 +23,7 @@ export default function ConfigLayout() {
     <Stack
       screenOptions={{
         headerShown: true,
-        headerLargeTitle: true,
+        headerLargeTitle: false,
         headerTitle: 'Configurações',
       }}
     >
@@ -38,6 +38,8 @@ export default function ConfigLayout() {
       />
       <Stack.Screen name="aparencia" options={{ headerTitle: 'Aparência', headerLargeTitle: false }} />
       <Stack.Screen name="perfil" options={{ headerTitle: 'Perfil', headerLargeTitle: false }} />
+      <Stack.Screen name="duration" options={{ headerTitle: 'Duração', headerLargeTitle: false }} />
+      <Stack.Screen name="startevent" options={{ headerTitle: 'Ínicio do Dia', headerLargeTitle: false }} />
     </Stack>
   );
 }

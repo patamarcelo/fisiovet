@@ -18,6 +18,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 
+import { useSelector } from 'react-redux';
+import { useColorMode } from '@/src/theme/color-scheme';
+import { selectDefaultDuracao, selectStartOfDay } from '@/src/store/slices/systemSlice';
+
+
+import { signOut } from '@react-native-firebase/auth';
+import { useDispatch } from 'react-redux';
+import { setUser } from '@/src/store/slices/userSlice';
+import { ensureFirebase } from '@/firebase/firebase';
+
+
+
 
 function SectionLabel({ children }) {
   return (
@@ -101,12 +113,13 @@ function CellSwitch({ title, subtitle, value, onValueChange, leftIcon, subtleCol
 // Célula “texto à direita” (valor editável futuramente via modal)
 function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) {
   const isString = typeof value === 'string' || typeof value === 'number';
+  const getColor = title.includes("Integração") ? "#8B5CF6" : "#8E8E93"
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}>
       <View style={styles.cellLeft}>
         {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: '#8E8E93' }]}>
+          <View style={[styles.iconBadge, { backgroundColor: getColor }]}>
             <IconSymbol name={leftIcon} size={16} color="#fff" />
           </View>
         )}
@@ -135,6 +148,37 @@ export default function ConfigIndex() {
   const text = useThemeColor({}, 'text');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
   const tint = useThemeColor({}, 'tint');
+  const { mode, scheme } = useColorMode();
+
+  const fb = ensureFirebase()
+  const dispatch = useDispatch();
+
+  const handleLogout = async () => {
+    try {
+      if (!fb) return;
+      await fb.auth.signOut();
+      dispatch(clearUser());
+    } catch (e) {
+      console.warn("Erro ao sair:", e);
+      Alert.alert("Erro", "Não foi possível sair da conta.");
+    }
+
+  };
+
+
+  // VALORES DEFAULTS
+  // TEMA
+  const modeLabel =
+    mode === 'light' ? 'Claro'
+      : mode === 'dark' ? 'Escuro'
+        : 'Automático';
+  const subtitleTema =
+    mode === 'system' ? `Ativo: ${scheme === 'dark' ? 'Escuro' : 'Claro'}` : 'Claro / Escuro / Automático';
+
+  // DURACAO
+  const defaultDur = useSelector(selectDefaultDuracao);
+  const defaultStartDay = useSelector(selectStartOfDay);
+
 
   // estados locais (exemplo; depois pode ligar no Redux)
   const [notifAgenda, setNotifAgenda] = useState(true);
@@ -182,10 +226,12 @@ export default function ConfigIndex() {
             title="Tema"
             subtitle="Claro / Escuro / Automático"
             leftIcon="paintbrush.fill"
-            value="Automático"
+            value={modeLabel}
+            subtitle={subtitleTema}
             onPress={() => router.push('/configuracoes/aparencia')}
             subtleColor={subtle}
             textColor={text}
+          // disabled
           />
           <Divider />
           <Cell
@@ -204,18 +250,18 @@ export default function ConfigIndex() {
         <Group bg={card}>
           <CellValue
             title="Duração padrão"
-            value="01:00"
+            value={defaultDur}
             leftIcon="clock.fill"
-            onPress={() => router.push('/configuracoes/agenda/duracao')}
+            onPress={() => router.push('/configuracoes/duration')}
             subtleColor={subtle}
             textColor={text}
           />
           <Divider />
           <CellValue
             title="Início do dia"
-            value="08:00"
+            value={defaultStartDay}
             leftIcon="sunrise.fill"
-            onPress={() => router.push('/configuracoes/agenda/inicio')}
+            onPress={() => router.push('/configuracoes/startevent')}
             subtleColor={subtle}
             textColor={text}
           />
@@ -256,7 +302,7 @@ export default function ConfigIndex() {
                 </View>
               )
             }
-            leftIcon="money.fill"
+            leftIcon="creditcard.fill"
             onPress={() => router.push('/configuracoes/asaas')}
             subtleColor={subtle}
             textColor={text}
@@ -338,7 +384,24 @@ export default function ConfigIndex() {
             textColor={text}
           />
         </Group>
-
+        <Pressable
+          onPress={handleLogout}
+          style={({ pressed }) => [
+            {
+              marginTop: 24,
+              marginHorizontal: 16,
+              paddingVertical: 14,
+              borderRadius: 10,
+              alignItems: "center",
+              backgroundColor: "#EF4444", // vermelho de alerta
+              opacity: pressed ? 0.85 : 1,
+            },
+          ]}
+        >
+          <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+            Sair
+          </Text>
+        </Pressable>
         {/* Rodapé opcional */}
         <Text style={{ fontSize: 12, color: subtle, textAlign: 'center', marginTop: 16 }}>
           FisioVet • Configurações

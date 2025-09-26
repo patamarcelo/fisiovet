@@ -1,7 +1,7 @@
 // src/screens/config/ConfigProfile.jsx
 // @ts-nocheck
 import React from 'react';
-import { View, Text, TextInput, Image, Pressable, Alert } from 'react-native';
+import { View, Text, TextInput, Image, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -29,11 +29,11 @@ function mapAuthUser(u) {
 export default function ConfigProfile() {
   const dispatch = useDispatch();
 
-  // Inicializa Firebase helpers (auth, firestore, storage)
+  // Firebase helpers
   const fb = ensureFirebase();
   const auth = fb?.auth || null;
   const firestore = fb?.firestore || null;
-  const storage = fb?.storage || null;
+  const storage = fb?.storageInstance || null;
 
   const currentUser = useSelector((s) => s.user.user);
 
@@ -41,6 +41,29 @@ export default function ConfigProfile() {
   const [photoURL, setPhotoURL] = React.useState(currentUser?.photoURL ?? '');
   const [localImage, setLocalImage] = React.useState(null); // URI local escolhida
   const [saving, setSaving] = React.useState(false);
+
+  // novos estados
+  const [loadingAvatar, setLoadingAvatar] = React.useState(false);
+
+  // derive a source única para a <Image />
+  const imageSource = React.useMemo(() => {
+    // prioridade: imagem escolhida localmente > photoURL digitada > photoURL do usuário
+    if (localImage) return { uri: localImage };
+    if (photoURL?.trim()) return { uri: photoURL.trim() };
+    if (currentUser?.photoURL) return { uri: currentUser.photoURL };
+    return null; // sem imagem -> mostra ícone
+  }, [localImage, photoURL, currentUser?.photoURL]);
+
+  // sempre que a source mudar, ligue o loading; desliga via eventos ou timeout
+  React.useEffect(() => {
+    if (!imageSource?.uri) {
+      setLoadingAvatar(false);
+      return;
+    }
+    setLoadingAvatar(true);
+    const failSafe = setTimeout(() => setLoadingAvatar(false), 8000); // 8s de segurança
+    return () => clearTimeout(failSafe);
+  }, [imageSource?.uri]);
 
   // Escolher imagem do rolo da câmera
   async function pickPhotoFromDevice() {
@@ -70,13 +93,7 @@ export default function ConfigProfile() {
   async function uploadAvatarIfNeeded() {
     if (!localImage || !storage || !auth?.currentUser) return null;
     const uid = auth.currentUser.uid;
-
-    // Caminho do arquivo no Storage
-    // Obs: com @react-native-firebase/storage, a API namespaced é storage().ref(...).putFile(...).
-    // Como usamos ensureFirebase(), use a instância retornada:
     const ref = storage.ref(`users/${uid}/avatar.jpg`);
-
-    // putFile aceita "file://" e "content://"
     await ref.putFile(localImage, { contentType: 'image/jpeg' });
     const url = await ref.getDownloadURL();
     return url;
@@ -100,25 +117,15 @@ export default function ConfigProfile() {
       }
 
       // 1) Atualiza no Auth (nome/foto)
-      console.log('[Gravando] em:', `profiles/${auth.currentUser.uid}`);
-      console.log('[FB] projectId:', auth?.app?.options?.projectId);
-      console.log('[FB] storageBucket:', auth?.app?.options?.storageBucket);
-      console.log('[FB] appName:', auth?.app?.name);
       await auth.currentUser.updateProfile({
         displayName: displayName?.trim() || null,
         photoURL: finalPhotoURL,
       });
 
       // 2) Persiste/espelha no Firestore (profiles/{uid})
-      // ATENÇÃO às regras: libere /profiles/{uid} p/ o próprio uid (read/write)
-      //   match /profiles/{uid} { allow read, write: if request.auth != null && request.auth.uid == uid; }
       if (firestore && auth.currentUser?.uid) {
         const uid = auth.currentUser.uid;
-
-        // Compatível com @react-native-firebase/firestore (API namespaced):
-        // firestore().collection('profiles').doc(uid).set(..., { merge: true })
         const col = typeof firestore.collection === 'function' ? firestore.collection('profiles') : null;
-
         if (col) {
           await col.doc(uid).set(
             {
@@ -161,19 +168,39 @@ export default function ConfigProfile() {
             backgroundColor: '#E5E7EB',
             alignItems: 'center',
             justifyContent: 'center',
+            position: 'relative',
           }}
         >
-          {localImage ? (
-            <Image source={{ uri: localImage }} style={{ width: '100%', height: '100%' }} />
-          ) : currentUser?.photoURL ? (
-            <Image source={{ uri: currentUser.photoURL }} style={{ width: '100%', height: '100%' }} />
+          {imageSource ? (
+            <>
+              <Image
+                source={imageSource}
+                style={{ width: '100%', height: '100%' }}
+                onLoad={() => setLoadingAvatar(false)}
+                onLoadEnd={() => setLoadingAvatar(false)}
+                onError={() => setLoadingAvatar(false)}
+              />
+              {loadingAvatar && (
+                <View
+                  pointerEvents="none"
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundColor: 'rgba(255,255,255,0.35)',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ActivityIndicator size="small" />
+                </View>
+              )}
+            </>
           ) : (
             <Ionicons name="person" size={28} color="#9CA3AF" />
           )}
         </View>
-
-
       </View>
+
       <View>
         <Text style={{ fontWeight: '700', marginBottom: 6 }}>Nome</Text>
         <TextInput
@@ -225,15 +252,19 @@ export default function ConfigProfile() {
         <Pressable
           onPress={pickPhotoFromDevice}
           style={({ pressed }) => ({
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
             padding: 12,
             borderRadius: 8,
             borderWidth: 1,
-            borderColor: '#E5E7EB',
-            alignItems: 'center',
-            backgroundColor: pressed ? '#F3F4F6' : '#FFF',
+            borderColor: '#3B82F6', // azul amigável
+            backgroundColor: pressed ? '#DBEAFE' : '#EFF6FF', // azul bem claro
           })}
         >
-          <Text>Escolher do dispositivo…</Text>
+          <Text style={{ color: '#1D4ED8', fontWeight: '600' }}>Escolher do dispositivo</Text>
+          <Ionicons name="cloud-upload-outline" size={20} color="#2563EB" />
         </Pressable>
       </View>
 
@@ -247,8 +278,12 @@ export default function ConfigProfile() {
           alignItems: 'center',
           backgroundColor: saving ? '#9CA3AF' : '#0A84FF',
           opacity: pressed ? 0.9 : 1,
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 8,
         })}
       >
+        {saving && <ActivityIndicator color="#FFF" />}
         <Text style={{ color: '#FFF', fontWeight: '700' }}>
           {saving ? 'Salvando…' : 'Salvar'}
         </Text>
