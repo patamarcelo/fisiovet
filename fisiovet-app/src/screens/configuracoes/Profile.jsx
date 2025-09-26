@@ -77,7 +77,7 @@ export default function ConfigProfile() {
     const ref = storage.ref(`users/${uid}/avatar.jpg`);
 
     // putFile aceita "file://" e "content://"
-    await ref.putFile(localImage);
+    await ref.putFile(localImage, { contentType: 'image/jpeg' });
     const url = await ref.getDownloadURL();
     return url;
   }
@@ -100,6 +100,10 @@ export default function ConfigProfile() {
       }
 
       // 1) Atualiza no Auth (nome/foto)
+      console.log('[Gravando] em:', `profiles/${auth.currentUser.uid}`);
+      console.log('[FB] projectId:', auth?.app?.options?.projectId);
+      console.log('[FB] storageBucket:', auth?.app?.options?.storageBucket);
+      console.log('[FB] appName:', auth?.app?.name);
       await auth.currentUser.updateProfile({
         displayName: displayName?.trim() || null,
         photoURL: finalPhotoURL,
