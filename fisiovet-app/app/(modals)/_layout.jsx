@@ -1,4 +1,5 @@
 // app/(modals)/_layout.jsx
+//@ts-nocheck
 import React from 'react';
 import { Platform, Pressable } from 'react-native';
 import { Stack, router } from 'expo-router';
@@ -33,17 +34,8 @@ export default function ModalLayout() {
                 headerTintColor: tint,
             }}
         >
-            {/* Mapa em tela cheia: título padrão + botão fechar.
-          Se a tela 'map-full' definir o título dinamicamente, ela SOBRESCREVE este default. */}
-            <Stack.Screen
-                name="map-full"
-                options={{
-                    title: 'Mapa',
-                    headerRight: () => <CloseButton />,
-                }}
-            />
-
-            <Stack.Screen name="pet-form" options={{ title: 'Novo pet', headerRight: () => <CloseButton /> }} />
+        
+            {/* <Stack.Screen name="pet-form" options={{ title: 'Novo pet', headerRight: () => <CloseButton /> }} /> */}
             <Stack.Screen
                 name="agenda-new"
                 options={{

@@ -101,8 +101,8 @@ export default function PhoneTabsLayout() {
                 }}
             />
 
-            Financeiro (index, faturas, recebimentos)
-            <Tabs.Screen
+            {/* Financeiro (index, faturas, recebimentos) */}
+            {/* <Tabs.Screen
                 name="faturas"
                 options={{
                     title: 'Faturas',
@@ -120,8 +120,8 @@ export default function PhoneTabsLayout() {
                         <IconSymbol size={size ?? 26} name="creditcard.fill" color={color} />
                     ),
                 }}
-            />
-            <Tabs.Screen name="configuracoes" options={{ href: null }} />
+            /> */}
+            {/* <Tabs.Screen name="configuracoes" options={{ href: null }} /> */}
             {/* <Tabs.Screen name="financeiro" options={{ href: null }} /> */}
             <Tabs.Screen name="biblioteca" options={{ href: null }} />
         </Tabs>

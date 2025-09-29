@@ -209,7 +209,7 @@ export default function Home() {
                 <View style={styles.topBar}>
                     <View style={styles.topLeft}>
                         {photoURL ? (
-                            <Image source={{ uri: photoURL }} style={styles.avatar} />
+                            <Image source={{ uri: photoURL }} style={styles.avatar} cachePolicy='memory-disk' />
                         ) : (
                             <View style={[styles.avatar, { backgroundColor: '#E5E7EB' }]}>
                                 <Ionicons name="person" size={20} color="#9CA3AF" />

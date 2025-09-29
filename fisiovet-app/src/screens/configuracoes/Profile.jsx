@@ -1,11 +1,12 @@
 // src/screens/config/ConfigProfile.jsx
 // @ts-nocheck
 import React from 'react';
-import { View, Text, TextInput, Image, Pressable, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 
 import { ensureFirebase } from '@/firebase/firebase';
 import { setUser } from '@/src/store/slices/userSlice';
@@ -175,6 +176,7 @@ export default function ConfigProfile() {
             <>
               <Image
                 source={imageSource}
+                cachePolicy='memory-disk'
                 style={{ width: '100%', height: '100%' }}
                 onLoad={() => setLoadingAvatar(false)}
                 onLoadEnd={() => setLoadingAvatar(false)}

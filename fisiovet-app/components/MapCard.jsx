@@ -100,8 +100,10 @@ export default function MapCard({
 
     const openFullScreen = () => {
         if (lat == null || lng == null) return;
+        console.log("gogogo")
         router.push({
-            pathname: '/(modals)/map-full',
+            // pathname: '/(modals)/map-full',
+            pathname: '/map-full-screen',
             params: { lat: String(lat), lng: String(lng), title: title ?? '' },
         });
     };

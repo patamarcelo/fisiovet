@@ -15,6 +15,7 @@ import { maskPhone } from '@/src/utils/masks';
 import { openWhatsapp } from '@/src/utils/openWhatsapp';
 import PetsCard from './PetsCard';
 import { UpcomingEventsCard } from './UpcomingEventsCard';
+import * as Haptics from 'expo-haptics';
 
 export default function TutorDetail() {
   const { id } = useLocalSearchParams();
@@ -65,18 +66,83 @@ export default function TutorDetail() {
   }
 
   const email = () => tutor.email && Linking.openURL(`mailto:${tutor.email}`);
-  const maps = () => {
-    const { geo, endereco } = tutor;
-    if (geo?.lat && geo?.lng) {
-      const q = encodeURIComponent(`${endereco?.logradouro ?? ''} ${endereco?.numero ?? ''}, ${endereco?.cidade ?? ''} - ${endereco?.uf ?? ''}`);
-      const url = Platform.select({
-        ios: `https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`,
-        android: `geo:${geo.lat},${geo.lng}?q=${q}`,
-        default: `https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`,
-      });
-      Linking.openURL(url);
-    } else {
-      Alert.alert('Endereço', 'Sem coordenadas para abrir no mapa.');
+  // const maps = () => {
+  //   const { geo, endereco } = tutor;
+  //   if (geo?.lat && geo?.lng) {
+  //     const q = encodeURIComponent(`${endereco?.logradouro ?? ''} ${endereco?.numero ?? ''}, ${endereco?.cidade ?? ''} - ${endereco?.uf ?? ''}`);
+  //     const url = Platform.select({
+  //       ios: `https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`,
+  //       android: `geo:${geo.lat},${geo.lng}?q=${q}`,
+  //       default: `https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`,
+  //     });
+  //     Linking.openURL(url);
+  //   } else {
+  //     Alert.alert('Endereço', 'Sem coordenadas para abrir no mapa.');
+  //   }
+  // };
+
+  const maps = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    try {
+      const lat = tutor?.geo?.lat;
+      const lng = tutor?.geo?.lng;
+
+      if (!lat || !lng) {
+        Alert.alert('Endereço', 'Sem coordenadas para abrir no mapa.');
+        return;
+      }
+
+      // tenta obter origem atual (permite navegação porta-a-porta)
+      let origin = '';
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const pos = await Location.getCurrentPositionAsync({});
+          origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+        }
+      } catch {
+        // sem origem — segue sem quebrar
+      }
+
+      const dest = `${lat},${lng}`;
+
+      if (Platform.OS === 'android') {
+        // tenta navegação direta (Google Maps app)
+        const navIntent = `google.navigation:q=${encodeURIComponent(dest)}&mode=d`;
+        const canNav = await Linking.canOpenURL('google.navigation:q=0,0');
+        if (canNav) {
+          await Linking.openURL(navIntent);
+          return;
+        }
+        // fallback: universal link (abre app se instalado ou web)
+        const gmapsWeb =
+          `https://www.google.com/maps/dir/?api=1` +
+          `&destination=${encodeURIComponent(dest)}` +
+          (origin ? `&origin=${encodeURIComponent(origin)}` : '') +
+          `&travelmode=driving`;
+        await Linking.openURL(gmapsWeb);
+        return;
+      }
+
+      // iOS: universal link primeiro (não precisa configurar Info.plist)
+      const gmapsUniversal =
+        `https://www.google.com/maps/dir/?api=1` +
+        `&destination=${encodeURIComponent(dest)}` +
+        (origin ? `&origin=${encodeURIComponent(origin)}` : '') +
+        `&travelmode=driving`;
+
+      try {
+        await Linking.openURL(gmapsUniversal);
+      } catch {
+        // último fallback: Apple Maps
+        const apple =
+          `http://maps.apple.com/?dirflg=d` +
+          `&daddr=${encodeURIComponent(dest)}` +
+          (origin ? `&saddr=${encodeURIComponent(origin)}` : '');
+        await Linking.openURL(apple);
+      }
+    } catch (err) {
+      console.log('Erro ao abrir direções:', err);
     }
   };
 
