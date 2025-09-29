@@ -1,4 +1,5 @@
 // (phone)/tutores/[id].jsx
+//@ts-nocheck
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Alert, Platform, Linking, Pressable, ScrollView } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,7 @@ export default function TutorDetail() {
   const text = useThemeColor({}, 'text');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
   const tint = useThemeColor({}, 'tint');
+  const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' }, 'border');
 
   useEffect(() => {
     if (!tutor) dispatch(fetchTutor(id));
@@ -39,7 +41,12 @@ export default function TutorDetail() {
       headerTitle: tutor?.nome ?? 'Tutor',
       headerRight: () => (
         <Pressable
-          onPress={() => router.push(`/(phone)/tutores/${id}/edit`)}
+          onPress={() =>
+            router.push({
+              pathname: '/(modals)/tutor-new',
+              params: { id: Array.isArray(id) ? id[0] : String(id), mode: 'edit' },
+            })
+          }
           hitSlop={10}
           accessibilityLabel="Editar tutor"
         >
@@ -103,6 +110,17 @@ export default function TutorDetail() {
         </View>
 
         <PetsCard tutor={tutor} />
+        {tutor?.observacoes ? (
+          <View style={[styles.noteCard, { borderColor: border, backgroundColor: 'rgba(10,132,255,0.06)' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <IconSymbol name="info.circle.fill" size={16} color={tint} />
+              <Text style={{ color: text, fontWeight: '800' }}>Observações</Text>
+            </View>
+            <Text style={{ color: subtle, lineHeight: 20 }}>
+              {tutor.observacoes}
+            </Text>
+          </View>
+        ) : null}
         <UpcomingEventsCard tutorId={tutor.id} />
         <EnderecoCard tutor={tutor} />
       </ScrollView>
@@ -122,5 +140,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     gap: 20,
     paddingVertical: 5,
+  },
+  noteCard: {
+    // marginTop: 12,
+    // marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'blacks',
+    borderRadius: 12,
+    padding: 12,
   },
 });

@@ -1,25 +1,34 @@
 // src/screens/tutores/Form.jsx
+// @ts-nocheck
 import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { View, Text, Alert, ActivityIndicator, Platform, KeyboardAvoidingView, Pressable } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { addTutor, deleteTutor, updateTutor } from '@/src/store/slices/tutoresSlice';
+import { useDispatch, useSelector } from 'react-redux';
+import { addTutor, deleteTutor, updateTutor, fetchTutor } from '@/src/store/slices/tutoresSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import Screen from '@/src/screens/_ui/Screen';
 import ThemedTextInput from '@/components/ui/ThemedTextInput';
 import ThemedButton from '@/components/ui/ThemedButton';
-import useHideTabBar from '@/hooks/useHideBar';
 import { fetchAddressByCep } from '@/src/services/cep';
 import { geocodeAddress } from '@/src/services/geocoding';
 import { maskCep, maskPhone } from '@/src/utils/masks';
 import { router, useNavigation, useLocalSearchParams } from 'expo-router';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 
-
-export default function TutorForm({ tutor, onSuccess }) {
-    // useHideTabBar(true);
+export default function TutorForm() {
     const navigation = useNavigation();
     const dispatch = useDispatch();
-    const { id } = useLocalSearchParams();
+
+    // 🔹 pega id/mode da rota
+    const { id: rawId, mode } = useLocalSearchParams();
+    const id = rawId ? (Array.isArray(rawId) ? rawId[0] : String(rawId)) : null;
+
+    // 🔹 pega tutor do Redux (se id existir)
+    const tutor = useSelector((s) => (id ? s.tutores.byId[id] : null));
+
+    // se tem id e ainda não temos tutor em memória, busca
+    useEffect(() => {
+        if (id && !tutor) dispatch(fetchTutor(id));
+    }, [id, tutor, dispatch]);
 
     const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
 
@@ -28,12 +37,11 @@ export default function TutorForm({ tutor, onSuccess }) {
     const numeroRef = useRef(null);
     const telefoneRef = useRef(null);
 
-    // Dados básicos
+    // ====== state (inicial a partir de tutor?) ======
     const [nome, setNome] = useState(tutor?.nome || '');
     const [telefone, setTelefone] = useState(tutor?.telefone || '');
     const [email, setEmail] = useState(tutor?.email || '');
 
-    // Endereço
     const [cep, setCep] = useState(tutor?.endereco?.cep || '');
     const [logradouro, setLogradouro] = useState(tutor?.endereco?.logradouro || '');
     const [numero, setNumero] = useState(tutor?.endereco?.numero || '');
@@ -44,7 +52,26 @@ export default function TutorForm({ tutor, onSuccess }) {
     const [loadingCep, setLoadingCep] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
-    // Helpers de validação
+    // Observações
+    const [observacoes, setObservacoes] = useState(tutor?.observacoes || '');
+
+    // ⚠️ Reidrata quando dados do tutor chegarem/ mudarem
+    useEffect(() => {
+        if (!tutor) return;
+        setNome(tutor?.nome || '');
+        setTelefone(tutor?.telefone || '');
+        setEmail(tutor?.email || '');
+        setCep(tutor?.endereco?.cep || '');
+        setLogradouro(tutor?.endereco?.logradouro || '');
+        setNumero(tutor?.endereco?.numero || '');
+        setBairro(tutor?.endereco?.bairro || '');
+        setCidade(tutor?.endereco?.cidade || '');
+        setUf(tutor?.endereco?.uf || '');
+        setComplemento(tutor?.endereco?.complemento || '');
+        setObservacoes(tutor?.observacoes || '');
+    }, [tutor?.id]);
+
+    // ====== validações ======
     const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
     const isEmail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
     const phoneDigits = onlyDigits(telefone);
@@ -54,14 +81,10 @@ export default function TutorForm({ tutor, onSuccess }) {
         const nameOk = !!nome.trim();
         const phoneOk = phoneDigits.length >= 10 && phoneDigits.length <= 11;
         const emailOk = isEmail(email);
-        const cepOk = !cepDigits || cepDigits.length === 8; // CEP só valida se informado
-        const ufOk = !uf || uf.trim().length === 2;        // UF só valida se informada
+        const cepOk = !cepDigits || cepDigits.length === 8;
+        const ufOk = !uf || uf.trim().length === 2;
         return {
-            nameOk,
-            phoneOk,
-            emailOk,
-            cepOk,
-            ufOk,
+            nameOk, phoneOk, emailOk, cepOk, ufOk,
             isValid: nameOk && phoneOk && emailOk && cepOk && ufOk,
         };
     }, [nome, phoneDigits, email, cepDigits, uf]);
@@ -75,7 +98,23 @@ export default function TutorForm({ tutor, onSuccess }) {
         return null;
     }, [validation]);
 
+    // ====== Header (título + excluir quando editar) ======
+    useEffect(() => {
+        navigation.setOptions({
+            headerLargeTitle: false,
+            headerBackTitleVisible: false,
+            headerTitle: id ? (tutor?.nome || 'Editar Tutor') : 'Novo Tutor',
+            headerRight: () =>
+                id ? (
+                    <Pressable onPress={confirmDelete} hitSlop={10} accessibilityLabel="Excluir tutor">
+                        <IconSymbol name="trash" size={24} />
+                    </Pressable>
+                ) : null,
+        });
+    }, [navigation, id, tutor?.nome]);
+
     const confirmDelete = useCallback(() => {
+        if (!id) return;
         Alert.alert('Excluir', 'Deseja excluir este tutor?', [
             { text: 'Cancelar', style: 'cancel' },
             {
@@ -83,35 +122,18 @@ export default function TutorForm({ tutor, onSuccess }) {
                 style: 'destructive',
                 onPress: async () => {
                     await dispatch(deleteTutor(id));
-                    router.push('/(phone)/tutores');
-
+                    router.dismiss();                // fecha modal
+                    router.replace('/tutores');      // garante a lista aberta
                 },
             },
         ]);
     }, [dispatch, id]);
 
-    useEffect(() => {
-        if (tutor?.nome) {
-
-            navigation.setOptions({
-                headerLargeTitle: false,
-                headerBackTitleVisible: false,
-                headerTitle: tutor?.nome || 'Editar Tutor',
-                headerRight: () => (
-                    <Pressable onPress={confirmDelete} hitSlop={10} accessibilityLabel="Excluir tutor">
-                        <IconSymbol name="trash" size={24} />
-                    </Pressable>
-                ),
-            });
-        }
-    }, [navigation, tutor?.nome, confirmDelete]);
-
-    // CEP -> ViaCEP
+    // ====== CEP -> ViaCEP ======
     const onChangeCep = async (value) => {
         const digits = onlyDigits(value);
         setCep(digits);
 
-        // limpa campos que dependem do CEP
         setLogradouro('');
         setNumero('');
         setBairro('');
@@ -128,7 +150,7 @@ export default function TutorForm({ tutor, onSuccess }) {
                 setCidade(addr.cidade);
                 setUf(addr.uf);
                 setComplemento(addr.complemento || '');
-                numeroRef.current?.focus(); // foco no número após preencher
+                numeroRef.current?.focus();
             } catch (err) {
                 Alert.alert('CEP', err?.message || 'Não foi possível buscar o CEP.');
             } finally {
@@ -136,20 +158,19 @@ export default function TutorForm({ tutor, onSuccess }) {
             }
         }
     };
+
     function normalizeGoogleAddress(components = []) {
         const get = (type) => {
             const c = components.find((x) => x.types?.includes(type));
             return c ? { long: c.long_name, short: c.short_name } : { long: '', short: '' };
         };
-
         const streetNumber = get('street_number');
         const route = get('route');
         const neighborhood = get('sublocality')?.long ? get('sublocality') : get('neighborhood');
-        const locality = get('locality'); // cidade
-        const admin1 = get('administrative_area_level_1'); // UF
+        const locality = get('locality');
+        const admin1 = get('administrative_area_level_1');
         const postal = get('postal_code');
         const country = get('country');
-
         return {
             street_number: streetNumber.long,
             route: route.long,
@@ -161,6 +182,7 @@ export default function TutorForm({ tutor, onSuccess }) {
             postal_code: postal.long,
         };
     }
+
     const onSubmit = async () => {
         if (!validation.isValid || submitting) {
             if (!submitting && firstError) Alert.alert('Validação', firstError);
@@ -169,7 +191,6 @@ export default function TutorForm({ tutor, onSuccess }) {
         setSubmitting(true);
 
         try {
-            // endereço digitado no form
             const enderecoBase = {
                 cep: cepDigits,
                 logradouro: logradouro?.trim(),
@@ -185,18 +206,14 @@ export default function TutorForm({ tutor, onSuccess }) {
 
             try {
                 const geo = await geocodeAddress(enderecoBase);
-                // geo esperado (baseado no seu log):
-                // { formattedAddress, lat, lng, placeId, precision, raw, ... }
                 const normalized = normalizeGoogleAddress(geo?.raw?.address_components || []);
 
-                // enriquecer endereço salvo
                 enderecoFinal = {
                     ...enderecoBase,
                     formatted: geo?.formattedAddress || undefined,
-                    normalized, // rota, número, bairro, cidade etc. normalizados
+                    normalized,
                 };
 
-                // viewport / navigation_points quando houver
                 const vp = geo?.raw?.geometry?.viewport;
                 const navigationPoints = geo?.raw?.navigation_points;
 
@@ -215,26 +232,24 @@ export default function TutorForm({ tutor, onSuccess }) {
                     navigationPoints: navigationPoints || undefined,
                     provider: 'google',
                     retrievedAt: Date.now(),
-                    raw: geo?.raw, // opcional: útil p/ auditoria e futuras features
+                    raw: geo?.raw,
                 };
-
-                // (opcional) se quiser calcular/geohash depois, dá pra incluir aqui
-                // geoEnriched.geohash = encodeGeohash(geo.lat, geo.lng)
             } catch (e) {
                 console.warn('Geocoding falhou:', e?.message);
                 Alert.alert('Atenção', 'Não foi possível obter as coordenadas. O cadastro seguirá sem mapa.');
             }
 
-            if (tutor?.id) {
+            if (id) {
                 await dispatch(
                     updateTutor({
-                        id: tutor.id,
+                        id,
                         patch: {
                             nome,
                             telefone: phoneDigits,
                             email,
                             endereco: enderecoFinal,
-                            geo: geoEnriched, // pode ser undefined se falhou
+                            geo: geoEnriched,
+                            observacoes: observacoes?.trim() || null,
                         },
                     })
                 );
@@ -246,13 +261,15 @@ export default function TutorForm({ tutor, onSuccess }) {
                         telefone: phoneDigits,
                         email,
                         endereco: enderecoFinal,
-                        geo: geoEnriched, // pode ser undefined se falhou
+                        geo: geoEnriched,
+                        observacoes: observacoes?.trim() || null,
                     })
                 );
                 Alert.alert('Sucesso', 'Tutor cadastrado!');
             }
 
-            onSuccess?.();
+            // ✅ fecha o modal
+            router.back();
         } finally {
             setSubmitting(false);
         }
@@ -358,16 +375,31 @@ export default function TutorForm({ tutor, onSuccess }) {
                         onChangeText={setComplemento}
                         returnKeyType="done"
                     />
+
+                    {/* Observações */}
+                    <View style={{ gap: 8, marginTop: 16 }}>
+                        <Text style={{ color: subtle, fontWeight: '700' }}>Observações</Text>
+                        <ThemedTextInput
+                            placeholder="Anotações gerais sobre o tutor (opcional)"
+                            value={observacoes}
+                            onChangeText={setObservacoes}
+                            multiline
+                            numberOfLines={4}
+                            style={{ minHeight: 96, textAlignVertical: 'top' }}
+                        />
+                    </View>
                 </View>
 
                 <ThemedButton
-                    title={submitting ? 'Salvando…' : 'Salvar'}
+                    title={submitting ? 'Salvando…' : (id ? 'Salvar alterações' : 'Salvar')}
                     variant="primary"
                     onPress={onSubmit}
                     disabled={!validation.isValid || submitting || loadingCep}
                 />
                 {!validation.isValid && (
-                    <Text style={{ color: subtle, marginTop: 8 }}>{firstError}</Text>
+                    <Text style={{ color: subtle, marginTop: 8 }}>
+                        {firstError}
+                    </Text>
                 )}
             </Screen>
         </KeyboardAvoidingView>

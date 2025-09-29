@@ -44,6 +44,8 @@ export default function TutorForm({ tutor, onSuccess }) {
     const [loadingCep, setLoadingCep] = useState(false);
     const [submitting, setSubmitting] = useState(false);
 
+
+
     // Helpers de validação
     const onlyDigits = (v) => String(v || '').replace(/\D/g, '');
     const isEmail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -235,10 +237,14 @@ export default function TutorForm({ tutor, onSuccess }) {
                             email,
                             endereco: enderecoFinal,
                             geo: geoEnriched, // pode ser undefined se falhou
+                            // observacoes: observacoes?.trim() || null,
                         },
                     })
                 );
-                Alert.alert('Sucesso', 'Tutor atualizado!');
+
+                Alert.alert('Sucesso', 'Tutor atualizado!', [
+                    { text: 'OK', onPress: () => onSuccess?.() }
+                ]);
             } else {
                 await dispatch(
                     addTutor({
@@ -247,9 +253,12 @@ export default function TutorForm({ tutor, onSuccess }) {
                         email,
                         endereco: enderecoFinal,
                         geo: geoEnriched, // pode ser undefined se falhou
+                        // observacoes: observacoes?.trim() || null,
                     })
                 );
-                Alert.alert('Sucesso', 'Tutor cadastrado!');
+                Alert.alert('Sucesso', 'Tutor cadastrado!', [
+                    { text: 'OK', onPress: () => onSuccess?.() }
+                ]);
             }
 
             onSuccess?.();

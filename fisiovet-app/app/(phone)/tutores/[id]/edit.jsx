@@ -1,11 +1,13 @@
 import React, { useLayoutEffect } from 'react';
 import { useLocalSearchParams, useNavigation } from 'expo-router';
 import { useSelector } from 'react-redux';
-import TutorForm from '@/src/screens/tutores/Form';
+import TutorForm from '@/app/(modals)/tutor-new';
 
 export default function EditarTutor() {
-    const { id } = useLocalSearchParams();
+    const { id, mode } = useLocalSearchParams();
     const navigation = useNavigation();
+
+    console.log('id: ', id, 'mode: ', mode)
 
     // pega o tutor do redux
     const tutor = useSelector((s) => s.tutores.byId[id]);
