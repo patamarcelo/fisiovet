@@ -441,7 +441,6 @@ export default function AgendaNewScreen() {
     }, [navigation, router, eventIdParam, isEditing, canSave, evento]);
 
     // Submit (novo ou edição)
-    // Submit (novo ou edição)
     const onSubmit = React.useCallback(async () => {
         try {
             await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -485,7 +484,7 @@ export default function AgendaNewScreen() {
                 local: (local || "").trim(),
                 observacoes: (observacoes || "").trim(),
                 cliente: tutor?.nome || tutor?.name || "",
-                status, // usa o que veio do formulário
+                status, // do formulário
                 financeiro: {
                     preco: parseBRLToNumber(precoText),
                     pago: false,
@@ -493,7 +492,8 @@ export default function AgendaNewScreen() {
                 },
             };
 
-            if (!isNew || !recorrente) {
+            // sem recorrência -> cria 1 evento
+            if (!recorrente) {
                 await dispatch(addEvento(base)).unwrap();
                 Alert.alert("Sucesso", "Evento agendado com sucesso!");
                 router.back();
@@ -501,13 +501,18 @@ export default function AgendaNewScreen() {
             }
 
             // recorrência semanal: N ocorrências
+            const seriesId = `SR-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
             const n = Math.max(1, parseInt(recorrencias || '1', 10));
+            const baseTime = Date.now();
             const payloads = Array.from({ length: n }, (_, i) => ({
                 ...base,
-                id: undefined,              // garante IDs únicos no sanitize
+                // já vem único e o sanitize vai respeitar esse id:
+                seriesId,
+                id: `${baseTime}-${i}-${Math.random().toString(36).slice(2, 6)}`,
                 date: addDays(base.date, i * 7),
             }));
 
+            console.log('recorrente:', recorrente, 'n:', n, 'payloads:', payloads.length);
             await dispatch(addEventosBatch(payloads)).unwrap();
             Alert.alert("Sucesso", `${n} eventos agendados (semanal).`);
             router.back();

@@ -149,7 +149,7 @@ function sanitizeEvento(prev, patchOrNew) {
     const next = { ...(prev || {}), ...(patchOrNew || {}) };
 
     // normalizações
-    next.id = ensureStringId(next.id) || String(Date.now());
+    next.id = ensureStringId(next.id) || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     next.tutorId = ensureStringId(next.tutorId);
     if (Array.isArray(next.petIds)) next.petIds = next.petIds.map((x) => String(x));
     if (!next.status) next.status = 'pendente';
@@ -172,6 +172,9 @@ function sanitizeEvento(prev, patchOrNew) {
     // campos padrão adicionais
     if (typeof next.financeiro.pago !== 'boolean') next.financeiro.pago = false;
     if (next.financeiro.comprovanteUrl == null) next.financeiro.comprovanteUrl = next.financeiro.comprovanteUrl ?? null;
+
+    // seriesId permanece como veio (string/null)
+    if (next.seriesId != null) next.seriesId = String(next.seriesId);
 
     // (re)calcular start/end quando vier `date` (Date/ISO) e/ou `duracao`
     if (patchOrNew?.date) {
@@ -211,6 +214,7 @@ function normalizeNewEvent(payload) {
         petIds: Array.isArray(payload?.petIds) ? payload.petIds : [],
         duracao: payload?.duracao || '1:00',
         observacoes: payload?.observacoes || '',
+        seriesId: payload?.seriesId ?? null,
         // aceita `payload.financeiro` inteiro OU um `preco` solto
         financeiro: {
             preco: payload?.financeiro?.preco ?? payload?.preco ?? 0,
@@ -245,7 +249,7 @@ const groupByDay = (list) => {
 /* ---------------- persistência ---------------- */
 async function readFromDevice() {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+    if (raw) return null;
     try { return JSON.parse(raw); } catch { return null; }
 }
 async function writeToDevice(arr) {
@@ -278,20 +282,31 @@ export const addEvento = createAsyncThunk('agenda/add', async (payload) => {
     return evt;
 });
 
-export const updateEvento = createAsyncThunk('agenda/update', async ({ id, patch }) => {
-    const arr = (await readFromDevice()) || [];
-    const idx = arr.findIndex((e) => String(e.id) === String(id));
-    if (idx === -1) throw new Error('Evento não encontrado');
+export const updateEvento = createAsyncThunk(
+    'agenda/update',
+    async ({ id, patch }, { getState }) => {
+        const key = String(id);
+        const arr = (await readFromDevice()) || [];
+        let idx = arr.findIndex((e) => String(e.id) === key);
 
-    const curr = arr[idx];
-    // sanitiza o patch (converte date -> start/end; normaliza ids; remove `date`)
-    const merged = sanitizeEvento(curr, { ...patch, id: String(id) });
+        // ⚠️ fallback: se não estiver no storage, tenta buscar no Redux e injeta
+        if (idx === -1) {
+            const st = getState()?.agenda;
+            const fromRedux = st?.byId?.[key];
+            if (!fromRedux) throw new Error('Evento não encontrado');
+            arr.push(fromRedux);
+            idx = arr.length - 1;
+        }
 
-    arr[idx] = merged;
-    arr.sort((a, b) => new Date(a.start) - new Date(b.start));
-    await writeToDevice(arr);
-    return merged;
-});
+        const curr = arr[idx];
+        const merged = sanitizeEvento(curr, { ...patch, id: key });
+
+        arr[idx] = merged;
+        arr.sort((a, b) => new Date(a.start) - new Date(b.start));
+        await writeToDevice(arr);
+        return merged;
+    }
+);
 
 export const deleteEvento = createAsyncThunk('agenda/delete', async (id) => {
     const arr = (await readFromDevice()) || [];
@@ -299,6 +314,20 @@ export const deleteEvento = createAsyncThunk('agenda/delete', async (id) => {
     await writeToDevice(next);
     return String(id);
 });
+
+export const cancelEventosBySeries = createAsyncThunk(
+    'agenda/cancelBySeries',
+    async (seriesId) => {
+        const arr = (await readFromDevice()) || [];
+        const next = arr.map(e =>
+            (e.seriesId || '') === String(seriesId)
+                ? { ...e, status: 'cancelado', updatedAt: new Date().toISOString() }
+                : e
+        );
+        await writeToDevice(next);
+        return { seriesId, rows: next.filter(e => (e.seriesId || '') === String(seriesId)) };
+    }
+);
 
 export const replaceAllEventos = createAsyncThunk('agenda/replaceAll', async (list) => {
     // garante serializável e sem `date`
@@ -475,3 +504,10 @@ export const makeSelectEventosByPetId = (petId) =>
 
 export const makeSelectEventosByPetGrouped = (petId) =>
     createSelector(makeSelectEventosByPetId(petId), (list) => groupByDay(list));
+
+
+export const makeSelectEventosBySeriesId = (seriesId) =>
+    createSelector(selectAllEventos, (list) => {
+        const sid = String(seriesId || '');
+        return list.filter((e) => (e.seriesId || '') === sid);
+    });

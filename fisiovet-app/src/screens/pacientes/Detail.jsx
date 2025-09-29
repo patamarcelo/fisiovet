@@ -85,6 +85,17 @@ export default function PetDetail() {
     });
   }, [navigation, pet?.nome, tint, bg, goBack]);
 
+  function formatPeso(pesoKg) {
+    if (pesoKg == null || isNaN(pesoKg)) return null;
+    return `${pesoKg.toString().replace('.', ',')} kg`;
+  }
+
+  function formatIdade(idade) {
+    if (idade == null || isNaN(idade)) return null;
+    const n = Number(idade);
+    return `${n} ${n === 1 ? 'ano' : 'anos'}`;
+  }
+
 
 
 
@@ -110,6 +121,9 @@ export default function PetDetail() {
           <Text style={{ color: subtle }}>
             {[pet.especie, pet.raca, pet.cor].filter(Boolean).join(' • ')}
           </Text>
+          <Text style={{ color: subtle }}>
+            {[formatPeso(pet.pesoKg), formatIdade(pet.idade)].filter(Boolean).join(' • ')}
+          </Text>
         </View>
         <Pressable
           onPress={() => router.push({ pathname: '/(modals)/pet-new', params: { mode: 'edit', id: String(pet.id) } })}
@@ -121,6 +135,18 @@ export default function PetDetail() {
           <IconSymbol name="pencil.circle.fill" size={26} color={tint} />
         </Pressable>
       </View>
+      {/* Card de Observações (só mostra se existir) */}
+      {pet?.observacoes ? (
+        <View style={[styles.noteCard, { borderColor: border, backgroundColor: 'rgba(10,132,255,0.06)' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <IconSymbol name="info.circle.fill" size={16} color={tint} />
+            <Text style={{ color: text, fontWeight: '800' }}>Observações</Text>
+          </View>
+          <Text style={{ color: subtle, lineHeight: 20 }}>
+            {pet.observacoes}
+          </Text>
+        </View>
+      ) : null}
 
       {/* Grid de ações (já com “atalho +”) */}
       <View style={styles.grid}>
@@ -183,7 +209,7 @@ export default function PetDetail() {
         />
 
         {/* Espaço pra futuros cards: Vacinas, Pesagens, Alergias etc. */}
-        <ActionCard
+        {/* <ActionCard
           title="Vacinas"
           icon="syringe.fill"
           border={border}
@@ -196,7 +222,7 @@ export default function PetDetail() {
           border={border}
           onPress={() => Alert.alert('Pesagens', 'Histórico de peso')}
           onAdd={() => Alert.alert('Nova pesagem', 'Adicionar peso')}
-        />
+        /> */}
       </View>
     </SafeAreaView>
   );
@@ -235,5 +261,13 @@ const styles = StyleSheet.create({
   addBtn: { marginRight: 6 },
   editBtn: {
     alignSelf: 'center',
+  },
+  noteCard: {
+    // marginTop: 12,
+    // marginHorizontal: 16,
+    borderWidth: 1,
+    borderColor: 'blacks',
+    borderRadius: 12,
+    padding: 12,
   },
 });
