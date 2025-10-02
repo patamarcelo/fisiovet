@@ -122,6 +122,7 @@ module.exports = {
 					backgroundColor: "#ffffff",
 				},
 			],
+			["react-native-bottom-tabs"],
 			["expo-build-properties", { ios: { useFrameworks: "static" } }],
 			[
 				"expo-location",

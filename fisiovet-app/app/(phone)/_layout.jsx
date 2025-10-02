@@ -1,6 +1,7 @@
 // app/(phone)/_layout.jsx
+//@ts-nocheck
 import React from 'react';
-import { Tabs } from 'expo-router';
+// import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 
 import HapticTab from '@/components/HapticTab';
@@ -9,6 +10,19 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import AnimatedTabBar from '@/components/AnimatedTabBar';
+
+import { withLayoutContext } from 'expo-router';
+import {
+  createNativeBottomTabNavigator,
+//   NativeBottomTabNavigationOptions,
+//   NativeBottomTabNavigationEventMap,
+} from '@bottom-tabs/react-navigation';
+
+// import { ParamListBase, TabNavigationState } from '@react-navigation/native';
+
+const BottomTabNavigator = createNativeBottomTabNavigator().Navigator;
+
+const Tabs = withLayoutContext(BottomTabNavigator);
 
 
 export default function PhoneTabsLayout() {
@@ -53,9 +67,10 @@ export default function PhoneTabsLayout() {
                 name="index"
                 options={{
                     title: 'Home',
-                    tabBarIcon: ({ color, size }) => (
-                        <IconSymbol size={size ?? 26} name="house.fill" color={color} />
-                    ),
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="house.fill" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'house.fill'})
                 }}
             />
 
@@ -64,9 +79,10 @@ export default function PhoneTabsLayout() {
                 name="tutores"
                 options={{
                     title: 'Tutores',
-                    tabBarIcon: ({ color, size }) => (
-                        <IconSymbol size={size ?? 26} name="person.2.fill" color={color} />
-                    ),
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="person.2.fill" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'person.2.fill'})
                 }}
             />
 
@@ -75,9 +91,10 @@ export default function PhoneTabsLayout() {
                 name="pacientes"
                 options={{
                     title: 'Pets',
-                    tabBarIcon: ({ color, size }) => (
-                        <IconSymbol size={size ?? 26} name="pawprint.fill" color={color} />
-                    ),
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="pawprint.fill" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'pawprint.fill'})
                 }}
             />
 
@@ -86,18 +103,20 @@ export default function PhoneTabsLayout() {
                 name="agenda"
                 options={{
                     title: 'Agenda',
-                    tabBarIcon: ({ color, size }) => (
-                        <IconSymbol size={size ?? 26} name="calendar" color={color} />
-                    ),
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="calendar" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'calendar'})
                 }}
             />
             <Tabs.Screen
                 name="financeiro"
                 options={{
                     title: 'Financeiro',
-                    tabBarIcon: ({ color, size }) => (
-                        <IconSymbol size={size ?? 26} name="banknote.fill" color={color} />
-                    ),
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="banknote.fill" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'banknote.fill'})
                 }}
             />
 

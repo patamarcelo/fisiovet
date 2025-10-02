@@ -96,6 +96,7 @@ module.exports = {
 			resizeMode: "contain",
 			backgroundColor: "#ffffff",
 		}],
+		["react-native-bottom-tabs"],
 		["expo-build-properties", { ios: { useFrameworks: "static" } }],
 		["expo-location", { locationAlwaysAndWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) use sua localização." }],
 		"expo-notifications",

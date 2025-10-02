@@ -400,8 +400,8 @@ export default function AgendaScreen() {
   return (
     // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 12 }}
-      edges={["top", "bottom"]}
+      style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 0 }}
+      edges={["top"]}
     >
       <SectionList
         style={{ flex: 1 }}

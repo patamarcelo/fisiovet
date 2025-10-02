@@ -6,7 +6,7 @@ import { useThemeColor } from '@/hooks/useThemeColor';
 import { router } from 'expo-router';
 import Avatar from '@/components/ui/Avatar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+// import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { maskPhone } from '@/src/utils/masks';
 
 function makeSections(items, q = '') {
@@ -76,7 +76,7 @@ export default function TutoresList() {
   const [query, setQuery] = useState('');
   const listRef = useRef(null);
 
-  const tabBarHeight = useBottomTabBarHeight();
+  // const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -121,11 +121,11 @@ export default function TutoresList() {
         automaticallyAdjustContentInsets={false}
         ItemSeparatorComponent={() => <View className="sep" style={styles.sep} />}
         // ✅ Usa a altura da tab + safe inset para não sobrepor e sem “gap” visível
-        contentContainerStyle={{ paddingBottom: tabBarHeight + insets.bottom }}
+        contentContainerStyle={{ paddingBottom: 0 + insets.bottom }}
       />
 
       {letters.length > 0 && (
-        <AlphabetBar letters={letters} onJump={jumpTo} bottomOffset={tabBarHeight + insets.bottom} />
+        <AlphabetBar letters={letters} onJump={jumpTo} bottomOffset={0 + insets.bottom} />
       )}
     </SafeAreaView>
   );

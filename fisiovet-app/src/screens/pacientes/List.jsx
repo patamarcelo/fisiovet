@@ -22,7 +22,7 @@ import { selectAllPetsJoined, fetchAllPets, clearActiveTutorId } from '@/src/sto
 import { useFocusEffect, router, useNavigation } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+// import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 const FILTERS = ['todos', 'cachorro', 'gato'];
 const ITEM_HEIGHT = 64;
@@ -123,7 +123,7 @@ export default function PetsList() {
   const dispatch = useDispatch();
   const allPets = useSelector(selectAllPetsJoined);
 
-  const tabBarHeight = useBottomTabBarHeight();
+  // const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
 
   const [filter, setFilter] = React.useState('todos');
@@ -335,7 +335,7 @@ export default function PetsList() {
           windowSize={12}
           getItemLayout={getItemLayout}
           contentContainerStyle={{
-            paddingBottom: Math.max(tabBarHeight, insets.bottom) + 8,
+            paddingBottom: Math.max(0, insets.bottom) + 8,
           }}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
