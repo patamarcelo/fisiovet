@@ -1,6 +1,6 @@
 // src/screens/Home.jsx
 // @ts-nocheck
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -24,6 +24,9 @@ import { selectUserName } from '@/src/store/slices/userSlice';
 import { selectUserPhoto } from '@/src/store/slices/userSlice';
 
 import { Image } from 'expo-image';
+
+import { getMetadata, ref } from "firebase/storage";
+import { getCachedAvatar } from '../utils/avatarCache';
 
 /* ---------- Consts & helpers ---------- */
 
@@ -174,6 +177,16 @@ function UpcomingEventsList({ upcoming, subtle }) {
 
 /* ---------- Screen ---------- */
 
+async function getVersionedPhotoURL(storage, path) {
+    const storageRef = ref(storage, path);
+    const [url, meta] = await Promise.all([
+        getDownloadURL(storageRef),
+        getMetadata(storageRef),
+    ]);
+    const version = meta?.generation || Date.now();
+    return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+}
+
 export default function Home() {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
@@ -187,10 +200,25 @@ export default function Home() {
     const userName = useSelector(selectUserName);
     const photoURL = useSelector(selectUserPhoto);
     const eventos = useSelector(selectAllEventos);
+    const [localAvatar, setLocalAvatar] = useState(null);
+
 
     useEffect(() => {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
+
+    // sempre que o path mudar, busca a URL versionada
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            if (!photoURL) return setLocalAvatar(null);
+            const res = await getCachedAvatar(storage, photoURL);
+            if (!alive) return;
+            setLocalAvatar(res.localUri);
+        })();
+        return () => { alive = false; };
+    }, [photoURL]);
+
 
     // Próximos eventos (somente futuros)
     const upcoming = useMemo(() => {

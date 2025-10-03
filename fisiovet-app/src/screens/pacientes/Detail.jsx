@@ -8,6 +8,11 @@ import { fetchPet, selectPetById } from '@/src/store/slices/petsSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 
+import { pickExamFile, uploadExamForPet } from '@/src/features/exams/uploadExam';
+import { ensureFirebase } from '@/firebase/firebase';
+import { chooseExamSource, takePhotoAsFile, pickImageAsFile, pickDocumentAsFile } from '@/src/features/exams/pickers';
+
+
 
 function ActionCard({ title, icon, onPress, onAdd, border }) {
   return (
@@ -184,16 +189,59 @@ export default function PetDetail() {
           title="Exames"
           icon="doc.text.fill"
           border={border}
-          onPress={() => router.push({ pathname: '/(phone)/pacientes/[id]/exam', params: { id: String(pet.id) } })}
-          // onPress={() => Alert.alert('Exames', 'Abrir a lista de exames')}
-          onAdd={() => router.push({
-            pathname: '/(modals)/exam-new',
-            params: {
-              tutorId: pet.tutor?.id ? String(pet.tutor.id) : '',
-              tutorNome: pet.tutor?.nome || '',
-              preselectPetId: String(pet.id),
+          onPress={() =>
+            router.push({
+              pathname: '/(phone)/pacientes/[id]/exam',
+              params: { id: String(pet.id) },
+            })
+          }
+          onAdd={async () => {
+            try {
+              const fb = ensureFirebase();
+              if (!fb) {
+                Alert.alert('Exames', 'Falha ao inicializar Firebase.');
+                return;
+              }
+              const { auth, firestore, storageInstance } = fb;
+              const uid = auth?.currentUser?.uid;
+              if (!uid) {
+                Alert.alert('Exames', 'Usuário não autenticado.');
+                return;
+              }
+
+              // 1) pergunta a origem
+              const source = await chooseExamSource();
+              if (!source) return;
+
+              // 2) abre o picker conforme escolha
+              let picked = null;
+              if (source === 'camera') {
+                picked = await takePhotoAsFile();
+              } else if (source === 'gallery') {
+                picked = await pickImageAsFile();
+              } else if (source === 'document') {
+                picked = await pickDocumentAsFile();
+              }
+              if (!picked) return;
+
+              // 3) envia para storage + firestore
+              const { examId } = await uploadExamForPet({
+                firestore,
+                storage: storageInstance,
+                uid,
+                petId: String(pet.id),
+                tutorId: pet.tutor?.id ? String(pet.tutor.id) : null,
+                title: null,
+                notes: null,
+                file: picked, // { uri, name, mime, size, width?, height? }
+              });
+
+              Alert.alert('Exames', 'Arquivo salvo!', [{ text: 'OK' }]);
+            } catch (e) {
+              console.log('Erro ao salvar exame:', e);
+              Alert.alert('Exames', 'Falha ao salvar o arquivo.');
             }
-          })}
+          }}
         />
         <ActionCard
           title="Fotos & Vídeos"
