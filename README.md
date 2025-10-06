@@ -123,13 +123,13 @@ npm run start
 
 ## 📈 Roadmap
 
-- [ ] Cadastro e vinculação de **Pets** a tutores  
-- [ ] Exibição de Pets na tela do Tutor + navegação para detalhes do Pet  
-- [ ] Agenda inteligente:
+- [X] Cadastro e vinculação de **Pets** a tutores  
+- [X] Exibição de Pets na tela do Tutor + navegação para detalhes do Pet  
+- [X] Agenda inteligente:
   - Visualização diária, semanal e mensal
   - Status de consulta (confirmado, pendente, cancelado)
-  - Lembretes automáticos para tutores
-- [ ] Gestão de pacientes com **timeline de evolução** (anotações SOAP, fotos, vídeos)  
+  - [ ]Lembretes automáticos para tutores
+- [X] Gestão de pacientes com **timeline de evolução** (anotações SOAP, fotos, vídeos)  
 - [ ] Gestão financeira:
   - Registro de faturas
   - Controle de recebimentos
