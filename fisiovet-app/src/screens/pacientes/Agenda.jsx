@@ -28,6 +28,8 @@ export default function PetAgendaScreen() {
     useLayoutEffect(() => {
         navigation.setOptions({
             headerTitle: pet?.nome ? `Agenda · ${pet.nome}` : 'Agenda do Pet',
+            headerShown: true,
+            headerTitleStyle: { color: tint, fontWeight: "700" },
             headerRight: () => (
                 <Pressable
                     onPress={() => {
@@ -58,7 +60,7 @@ export default function PetAgendaScreen() {
     );
 
     return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={['top', 'bottom']}>
+        <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={[ 'bottom']}>
             <SectionList
                 style={{ flex: 1 }}
                 sections={sections}
@@ -82,7 +84,7 @@ export default function PetAgendaScreen() {
                 renderItem={({ item }) => <EventRow item={item} />}
                 ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />}
                 ListEmptyComponent={ListEmpty}
-                refreshControl={<RefreshControl refreshing={false} onRefresh={() => { }} />}
+                refreshControl={<RefreshControl tintColor={tint} refreshing={false} onRefresh={() => { }} />}
                 contentContainerStyle={{ paddingBottom: 24 }}
                 stickySectionHeadersEnabled
                 contentInsetAdjustmentBehavior="automatic"

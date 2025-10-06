@@ -32,6 +32,7 @@ export default function PhoneTabsLayout() {
     return (
         <Tabs
             // tabBar={(props) => <AnimatedTabBar {...props} />}
+            sceneContainerStyle={{ backgroundColor: 'whitesmoke' }}
             screenOptions={{
                 headerShown: false,
                 tabBarActiveTintColor: colors.tint,
@@ -142,7 +143,17 @@ export default function PhoneTabsLayout() {
             /> */}
             {/* <Tabs.Screen name="configuracoes" options={{ href: null }} /> */}
             {/* <Tabs.Screen name="financeiro" options={{ href: null }} /> */}
-            <Tabs.Screen name="biblioteca" options={{ href: null }} />
+            <Tabs.Screen
+                name="biblioteca"
+                options={{
+                    href: null,
+                    title: 'Biblioteca',
+                    // tabBarIcon: ({ color, size }) => (
+                    //     <IconSymbol size={size ?? 26} name="banknote.fill" color={color} />
+                    // ),
+                    tabBarIcon: () => ({sfSymbol: 'book.fill'})
+                }}
+            />
         </Tabs>
     );
 }

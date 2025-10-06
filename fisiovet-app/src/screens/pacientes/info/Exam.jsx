@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
     View, Text, SectionList, TouchableOpacity, RefreshControl,
-    Alert, Platform, ActionSheetIOS, ActivityIndicator
+    Alert, Platform, ActionSheetIOS, ActivityIndicator, Pressable
 } from 'react-native';
 import { useLocalSearchParams, router, Stack } from 'expo-router';
 import { Image } from 'expo-image';
@@ -11,6 +11,15 @@ import { ensureFirebase } from '@/firebase/firebase';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { Share } from 'react-native';
+
+// 👉 helpers de escolha/seleção e upload
+import {
+    chooseExamSource,
+    takePhotoAsFile,
+    pickImageAsFile,
+    pickDocumentAsFile,
+} from '@/src/features/exams/pickers';
+import { uploadExamForPet } from '@/src/features/exams/uploadExam';
 
 function isImageMime(m) { return (m || '').startsWith('image/'); }
 function sameDay(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
@@ -46,14 +55,13 @@ function guessExt(mime, url = '') {
     return 'bin';
 }
 
-// prepara o arquivo no cache e retorna o caminho local
+// baixa pro cache e devolve o caminho local (pra compartilhar)
 async function prepareLocalForShare({ url, mime, title }) {
     if (!url) throw new Error('URL ausente');
     const safeName = (title || 'arquivo').toString().trim().replace(/[^\w.-]/g, '_') || 'arquivo';
     const ext = guessExt(mime || '', url);
     const local = `${FileSystem.cacheDirectory}${safeName}.${ext}`;
 
-    // Reaproveita se já baixado
     try {
         const info = await FileSystem.getInfoAsync(local);
         if (info.exists && info.size > 0) return local;
@@ -67,10 +75,15 @@ async function prepareLocalForShare({ url, mime, title }) {
 export default function ExamsList() {
     const { firestore, auth, storageInstance } = ensureFirebase() || {};
     const { id: petId } = useLocalSearchParams();
+
     const [items, setItems] = useState([]);
     const [err, setErr] = useState(null);
     const [refreshing, setRefreshing] = useState(false);
+
+    // overlays
     const [isSharing, setIsSharing] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
 
     useEffect(() => {
         if (!firestore) return;
@@ -114,14 +127,10 @@ export default function ExamsList() {
             const title = item?.title || item?.file?.name || 'Exame';
             if (!url) return;
 
-            // 1) prepara (spinner ON)
             setIsSharing(true);
             const localUri = await prepareLocalForShare({ url, mime, title });
-
-            // 2) desliga spinner ANTES de abrir o sheet
             setIsSharing(false);
 
-            // 3) abre sheet
             if (Platform.OS !== 'web' && (await Sharing.isAvailableAsync())) {
                 await Sharing.shareAsync(localUri, { mimeType: mime || undefined, dialogTitle: title });
             } else {
@@ -227,10 +236,79 @@ export default function ExamsList() {
         </View>
     );
 
+    // ⬇️ função "Adicionar" (usada pelo botão + do header)
+    const handleAdd = useCallback(async () => {
+        try {
+            const fb = ensureFirebase();
+            if (!fb) return Alert.alert('Exames', 'Falha ao inicializar Firebase.');
+            const { auth, firestore, storageInstance } = fb;
+            const uid = auth?.currentUser?.uid;
+            if (!uid) return Alert.alert('Exames', 'Usuário não autenticado.');
+            if (!petId) return;
+
+            // (opcional) buscar tutorId do pet para salvar junto
+            let tutorId = null;
+            try {
+                const petSnap = await firestore
+                    .collection('users').doc(String(uid))
+                    .collection('pets').doc(String(petId))
+                    .get();
+                if (petSnap.exists) {
+                    const data = petSnap.data();
+                    tutorId = data?.tutor?.id ? String(data.tutor.id) : null;
+                }
+            } catch { /* segue sem tutorId */ }
+
+            // 1) escolher origem
+            const source = await chooseExamSource();
+            if (!source) return;
+
+            // 2) picker
+            let picked = null;
+            if (source === 'camera') picked = await takePhotoAsFile();
+            else if (source === 'gallery') picked = await pickImageAsFile();
+            else if (source === 'document') picked = await pickDocumentAsFile();
+            if (!picked) return;
+
+            // 3) upload com progress
+            setUploading(true);
+            setProgress(0);
+
+            await uploadExamForPet({
+                firestore,
+                storage: storageInstance,
+                uid,
+                petId: String(petId),
+                tutorId,
+                title: null,
+                notes: null,
+                file: picked,
+                onProgress: (p) => setProgress(p),
+            });
+
+            setProgress(100);
+            setUploading(false);
+            Alert.alert('Exames', 'Arquivo salvo!');
+        } catch (e) {
+            setUploading(false);
+            console.log('Erro ao salvar exame:', e);
+            Alert.alert('Exames', 'Falha ao salvar o arquivo.');
+        }
+    }, [petId]);
+
     return (
         <View style={{ flex: 1, backgroundColor: 'white' }}>
-            {/* título do header */}
-            <Stack.Screen options={{ title: 'Exames' }} />
+            {/* título + botão "+" no header */}
+            <Stack.Screen
+                options={{
+                    title: 'Exames',
+                    headerRight: () => (
+                        <Pressable onPress={handleAdd} hitSlop={8} style={{ paddingHorizontal: 4 }}>
+                            <Ionicons name="add-circle" size={24} color="#007AFF" />
+                        </Pressable>
+                    ),
+                }}
+            />
 
             {err ? (
                 <View style={{ padding: 16 }}>
@@ -259,6 +337,7 @@ export default function ExamsList() {
                 contentContainerStyle={{ paddingBottom: 16 }}
             />
 
+            {/* Spinner de compartilhar */}
             {isSharing && (
                 <View
                     pointerEvents="none"
@@ -270,6 +349,21 @@ export default function ExamsList() {
                     <View style={{ backgroundColor: '#111827', paddingVertical: 14, paddingHorizontal: 22, borderRadius: 10, alignItems: 'center' }}>
                         <ActivityIndicator size="large" color="#fff" />
                         <Text style={{ color: '#fff', marginTop: 10 }}>Preparando para compartilhar…</Text>
+                    </View>
+                </View>
+            )}
+
+            {/* Overlay de upload com progress */}
+            {uploading && (
+                <View style={{
+                    position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+                    backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+                }}>
+                    <View style={{ backgroundColor: '#111827', padding: 16, borderRadius: 12, minWidth: 180, alignItems: 'center' }}>
+                        <ActivityIndicator size="large" color="#fff" />
+                        <Text style={{ color: 'white', marginTop: 10, fontWeight: '600' }}>
+                            Enviando… {progress}%
+                        </Text>
                     </View>
                 </View>
             )}
