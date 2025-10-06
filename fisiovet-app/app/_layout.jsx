@@ -65,7 +65,7 @@ function AuthGate({ children }) {
     const inAuth = group === '(auth)' || group === 'firebaseCheck';
 
     // ✅ rotas de topo permitidas fora dos grupos
-    const ALLOWED_TOP = ['configuracoes', '(modals)', 'pacientes', '(maps)']; // adicione outras se precisar
+    const ALLOWED_TOP = ['configuracoes', '(modals)', 'pacientes', '(maps)', '(files)']; // adicione outras se precisar
     const inAllowedTop = ALLOWED_TOP.includes(group);
 
     if (!user) {

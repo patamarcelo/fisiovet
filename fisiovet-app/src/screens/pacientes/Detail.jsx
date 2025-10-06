@@ -1,6 +1,6 @@
 //@ts-nocheck
-import React, { useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import React, { useEffect, useMemo, useCallback, useLayoutEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -42,6 +42,59 @@ function ActionCard({ title, icon, onPress, onAdd, border }) {
   );
 }
 
+function UploadOverlay({ visible, progress = 0 }) {
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      presentationStyle={Platform.OS === 'ios' ? 'overFullScreen' : 'fullScreen'}
+    >
+      <View style={{
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        <View style={{
+          backgroundColor: '#111827',
+          paddingVertical: 18,
+          paddingHorizontal: 16,
+          borderRadius: 12,
+          minWidth: 220,
+          alignItems: 'center',
+        }}>
+          <ActivityIndicator size="large" />
+          <Text style={{ color: 'white', marginTop: 10, fontWeight: '700' }}>
+            Enviando… {progress}%
+          </Text>
+
+          {/* Barra de progresso */}
+          <View style={{
+            width: '100%',
+            height: 8,
+            borderRadius: 999,
+            backgroundColor: 'rgba(255,255,255,0.15)',
+            marginTop: 12,
+            overflow: 'hidden',
+          }}>
+            <View style={{
+              width: `${progress}%`,
+              height: '100%',
+              backgroundColor: 'white',
+            }} />
+          </View>
+
+          <Text style={{ color: '#9CA3AF', marginTop: 8, fontSize: 12 }}>
+            Não feche o app durante o upload
+          </Text>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 export default function PetDetail() {
   const { id, from, tutorId } = useLocalSearchParams();
   const dispatch = useDispatch();
@@ -58,6 +111,10 @@ export default function PetDetail() {
 
   const _from = Array.isArray(from) ? from[0] : from;
   const _tutorId = Array.isArray(tutorId) ? tutorId[0] : tutorId;
+
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+
 
 
 
@@ -114,6 +171,54 @@ export default function PetDetail() {
   }
 
   const icon = pet.especie === 'gato' ? 'cat.fill' : 'dog.fill';
+
+  const handleAdd = async () => {
+    try {
+      const fb = ensureFirebase();
+      if (!fb) return Alert.alert('Exames', 'Falha ao inicializar Firebase.');
+      const { auth, firestore, storageInstance } = fb;
+      const uid = auth?.currentUser?.uid;
+      if (!uid) return Alert.alert('Exames', 'Usuário não autenticado.');
+
+      // 1) origem
+      const source = await chooseExamSource();
+      if (!source) return;
+
+      // 2) picker
+      let picked = null;
+      if (source === 'camera') picked = await takePhotoAsFile();
+      else if (source === 'gallery') picked = await pickImageAsFile();
+      else if (source === 'document') picked = await pickDocumentAsFile();
+      if (!picked) return;
+
+      // 3) upload
+      setUploading(true);
+      setProgress(0);
+
+      await uploadExamForPet({
+        firestore,
+        storage: storageInstance,
+        uid,
+        petId: String(pet.id),
+        tutorId: pet.tutor?.id ? String(pet.tutor.id) : null,
+        title: null,
+        notes: null,
+        file: picked,
+        onProgress: (p) => setProgress(p),
+      });
+
+      setProgress(100);
+      setUploading(false);
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch { }
+      Alert.alert('Exames', 'Arquivo salvo!');
+    } catch (e) {
+      setUploading(false);
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch { }
+      console.log('Erro ao salvar exame:', e);
+      Alert.alert('Exames', 'Falha ao salvar o arquivo.');
+    }
+  };
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['left', 'right']}>
@@ -195,53 +300,7 @@ export default function PetDetail() {
               params: { id: String(pet.id) },
             })
           }
-          onAdd={async () => {
-            try {
-              const fb = ensureFirebase();
-              if (!fb) {
-                Alert.alert('Exames', 'Falha ao inicializar Firebase.');
-                return;
-              }
-              const { auth, firestore, storageInstance } = fb;
-              const uid = auth?.currentUser?.uid;
-              if (!uid) {
-                Alert.alert('Exames', 'Usuário não autenticado.');
-                return;
-              }
-
-              // 1) pergunta a origem
-              const source = await chooseExamSource();
-              if (!source) return;
-
-              // 2) abre o picker conforme escolha
-              let picked = null;
-              if (source === 'camera') {
-                picked = await takePhotoAsFile();
-              } else if (source === 'gallery') {
-                picked = await pickImageAsFile();
-              } else if (source === 'document') {
-                picked = await pickDocumentAsFile();
-              }
-              if (!picked) return;
-
-              // 3) envia para storage + firestore
-              const { examId } = await uploadExamForPet({
-                firestore,
-                storage: storageInstance,
-                uid,
-                petId: String(pet.id),
-                tutorId: pet.tutor?.id ? String(pet.tutor.id) : null,
-                title: null,
-                notes: null,
-                file: picked, // { uri, name, mime, size, width?, height? }
-              });
-
-              Alert.alert('Exames', 'Arquivo salvo!', [{ text: 'OK' }]);
-            } catch (e) {
-              console.log('Erro ao salvar exame:', e);
-              Alert.alert('Exames', 'Falha ao salvar o arquivo.');
-            }
-          }}
+          onAdd={handleAdd}
         />
         <ActionCard
           title="Fotos & Vídeos"
@@ -281,6 +340,7 @@ export default function PetDetail() {
           onAdd={() => Alert.alert('Nova pesagem', 'Adicionar peso')}
         /> */}
       </View>
+      <UploadOverlay visible={uploading} progress={progress} />
     </SafeAreaView>
   );
 }

@@ -6,14 +6,14 @@ export default function PacientesLayout() {
     <Stack
       initialRouteName="index"           // ⬅ garante que entra na LISTA
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
         headerLargeTitle: false,
-        headerTitle: 'Pets',
       }}
     >
       {/* Declarar explicitamente ajuda o Router a não “pular” pro [id] */}
-      <Stack.Screen name="index" options={{ title: 'Pets' }} />
-      <Stack.Screen name="[id]" options={{ title: 'Detalhe' }} />
+      <Stack.Screen name="index" options={{ title: 'Pets', headerShown: true }} />
+      <Stack.Screen name="[id]" options={{ title: 'Detalhe', headerShown: true }} />
+      <Stack.Screen name="[id]/exam" options={{ title: 'Exames', headerShown: true }} />
     </Stack>
   );
 }

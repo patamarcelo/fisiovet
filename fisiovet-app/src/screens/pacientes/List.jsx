@@ -148,6 +148,7 @@ export default function PetsList() {
     navigation.setOptions({
       headerLargeTitle: true,
       headerTitle: 'Pets',
+      headerShow: true,
       headerTintColor: tint,
       headerLargeTitleStyle: { color: tint, fontWeight: '800' },
       headerStyle: { backgroundColor: bg },
