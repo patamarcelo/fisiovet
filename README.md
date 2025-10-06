@@ -126,9 +126,9 @@ npm run start
 - [X] Cadastro e vinculação de **Pets** a tutores  
 - [X] Exibição de Pets na tela do Tutor + navegação para detalhes do Pet  
 - [X] Agenda inteligente:
-  - Visualização diária, semanal e mensal
-  - Status de consulta (confirmado, pendente, cancelado)
-  - [ ]Lembretes automáticos para tutores
+  - [X] Visualização diária, semanal e mensal
+  - [X] Status de consulta (confirmado, pendente, cancelado)
+  - [ ] Lembretes automáticos para tutores
 - [X] Gestão de pacientes com **timeline de evolução** (anotações SOAP, fotos, vídeos)  
 - [ ] Gestão financeira:
   - Registro de faturas
@@ -144,9 +144,9 @@ npm run start
 
 ## 🔜 Próximos passos imediatos
 
-1. Finalizar integração do **mapa** nos detalhes do tutor (com coordenadas reais).  
-2. Implementar CRUD de **Pets**, vinculado ao tutor.  
-3. Iniciar protótipo da **Agenda** com dados mockados.
+1. [X] Finalizar integração do **mapa** nos detalhes do tutor (com coordenadas reais).  
+2. [X] Implementar CRUD de **Pets**, vinculado ao tutor.  
+3. [X] Iniciar protótipo da **Agenda** com dados mockados.
 
 ---
 
