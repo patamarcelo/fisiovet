@@ -14,6 +14,7 @@ export default function PacientesLayout() {
       <Stack.Screen name="index" options={{ title: 'Pets', headerShown: true }} />
       <Stack.Screen name="[id]" options={{ title: 'Detalhe', headerShown: true }} />
       <Stack.Screen name="[id]/exam" options={{ title: 'Exames', headerShown: true }} />
+      <Stack.Screen name="[id]/avaliacao" options={{ title: 'Avaliações', headerShown: true }} />
     </Stack>
   );
 }

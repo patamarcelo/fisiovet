@@ -11,7 +11,7 @@ import { IconSymbol } from '@/components/ui/IconSymbol';
 import { pickExamFile, uploadExamForPet } from '@/src/features/exams/uploadExam';
 import { ensureFirebase } from '@/firebase/firebase';
 import { chooseExamSource, takePhotoAsFile, pickImageAsFile, pickDocumentAsFile } from '@/src/features/exams/pickers';
-
+import { clearDraft, createDraft } from '@/src/store/slices/avaliacaoSlice';
 
 
 function ActionCard({ title, icon, onPress, onAdd, border }) {
@@ -219,6 +219,24 @@ export default function PetDetail() {
     }
   };
 
+  const handleAddDraft = useCallback(() => {
+    const petId = pet.id
+    try {
+      // 🔹 Garante que o Redux começa limpo
+      dispatch(clearDraft({ petId: String(petId) }));
+      dispatch(createDraft({ petId: String(petId) }));
+
+      // 🔹 Abre o formulário de nova avaliação
+      router.push({
+        pathname: '/(modals)/avaliacao-new',
+        params: { id: String(petId) },
+      });
+    } catch (e) {
+      console.log('handleAdd avaliacao error', e);
+      Alert.alert('Avaliações', 'Não foi possível iniciar uma nova avaliação.');
+    }
+  }, [dispatch, pet.id]);
+
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['left', 'right']}>
@@ -280,8 +298,13 @@ export default function PetDetail() {
           title="Avaliação"
           icon="clipboard"   // ícone de prancheta
           border={border}
-          onPress={() => Alert.alert('Avaliação', 'Abrir Página das avaliações')}
-          onAdd={() => Alert.alert('Novo registro', 'Adicionar entrada no timeline')}
+          onPress={() =>
+            router.push({
+              pathname: '/(phone)/pacientes/[id]/avaliacao',
+              params: { id: String(pet.id) },
+            })
+          }
+          onAdd={handleAddDraft}
         />
         <ActionCard
           title="Timeline"

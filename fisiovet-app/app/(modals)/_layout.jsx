@@ -69,6 +69,17 @@ export default function ModalLayout() {
                     headerRightContainerStyle: { minWidth: 72 },
                 }}
             />
+            <Stack.Screen
+                name="avaliacao-new"
+                options={{
+                    title: 'Nova Avaliação',
+                    // Nada de headerRight aqui! Deixa a própria tela controlar.
+                    headerTitleAlign: 'center',
+                    headerTitleContainerStyle: { flex: 1, alignItems: 'center' },
+                    headerLeftContainerStyle: { minWidth: 72 },
+                    headerRightContainerStyle: { minWidth: 72 },
+                }}
+            />
             {/* Adicione aqui outras telas modais, cada uma com suas opções:
         */}
         </Stack>

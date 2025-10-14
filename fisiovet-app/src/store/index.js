@@ -16,6 +16,7 @@ import tutoresReduce from './slices/tutoresSlice'
 import petsReducer from './slices/petsSlice'
 import agendaReducer from './slices/agendaSlice'
 import systemReducer from './slices/systemSlice'
+import avaliacaoReducer from './slices/avaliacaoSlice'
 
 const rootReducer = combineReducers(
 	{ 
@@ -24,6 +25,7 @@ const rootReducer = combineReducers(
 		pets: petsReducer,
 		agenda: agendaReducer,
 		system: systemReducer,
+		avaliacao: avaliacaoReducer,
 	}
 );
 
@@ -31,7 +33,7 @@ const persistConfig = {
 	key: "root",
 	storage: AsyncStorage,
 	version: 2,
-	whitelist: ["user", "tutores", 'pets', 'agenda', 'system'] // persista o que fizer sentido
+	whitelist: ["user", "tutores", 'pets', 'agenda', 'system', 'avaliacao'] // persista o que fizer sentido
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

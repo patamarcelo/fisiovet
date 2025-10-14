@@ -3,6 +3,7 @@ import { getApp } from "@react-native-firebase/app";
 import { getAuth } from "@react-native-firebase/auth";
 import { getFirestore } from "@react-native-firebase/firestore";
 import storage from '@react-native-firebase/storage';
+import firestoreModule from '@react-native-firebase/firestore'; // 👈 ADICIONE ISTO
 
 
 export function ensureFirebase() {
@@ -22,5 +23,5 @@ export function ensureFirebase() {
 	const storageInstance = storage();
 
 
-	return { app, auth, firestore, storageInstance };
+	return { app, auth, firestore, storageInstance, firestoreModule };
 }
