@@ -171,11 +171,8 @@ export default function AvaliacaoList() {
 
                 {/* Título e descrição */}
                 <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text
-                        numberOfLines={1}
-                        style={{ fontWeight: '600', fontSize: 16 }}
-                    >
-                        Avaliação
+                    <Text numberOfLines={1} style={{ fontWeight: '600', fontSize: 16 }}>
+                        {item.title?.trim() || 'Avaliação'}
                     </Text>
                     <Text
                         numberOfLines={1}

@@ -7,6 +7,7 @@ function makeDefaultDraft(petId) {
         id: nanoid(),
         petId,
         createdAt: now,
+        title: '',       
         radios: {
             grupoRadio1: 'op1',
             grupoRadio2: 'op1',

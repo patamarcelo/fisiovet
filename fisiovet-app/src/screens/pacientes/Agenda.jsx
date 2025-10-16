@@ -8,6 +8,8 @@ import { makeSelectEventosByPetGrouped } from '@/src/store/slices/agendaSlice';
 import { selectPetById } from '@/src/store/slices/petsSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { EventRow } from '@/src/screens/agenda/List'; // reuso
+import { EmptyAgendaPetCard } from './_NewAgendaPet';
+
 
 function fmtDateLabel(dateLike) {
     const d = new Date(dateLike);
@@ -52,12 +54,7 @@ export default function PetAgendaScreen() {
         });
     }, [navigation, pet?.nome, id]);
 
-    const ListEmpty = () => (
-        <View style={{ padding: 24, alignItems: 'center' }}>
-            <Text style={{ color: '#6B7280' }}>Nenhum evento para este pet</Text>
-            <Text style={{ color: '#6B7280', marginTop: 4 }}>Toque em “Novo” para agendar</Text>
-        </View>
-    );
+    
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: '#FFF' }} edges={[ 'bottom']}>
@@ -83,7 +80,7 @@ export default function PetAgendaScreen() {
                 )}
                 renderItem={({ item }) => <EventRow item={item} />}
                 ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: '#E5E7EB' }} />}
-                ListEmptyComponent={ListEmpty}
+                ListEmptyComponent={<EmptyAgendaPetCard pet={pet} />}
                 refreshControl={<RefreshControl tintColor={tint} refreshing={false} onRefresh={() => { }} />}
                 contentContainerStyle={{ paddingBottom: 24 }}
                 stickySectionHeadersEnabled

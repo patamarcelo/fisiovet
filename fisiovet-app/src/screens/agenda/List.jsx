@@ -30,6 +30,7 @@ import { shallowEqual } from "react-redux";
 import { selectPetsState } from "@/src/store/slices/petsSlice";
 
 import { Swipeable } from "react-native-gesture-handler";
+import { EmptyAgendaCard } from "./_ListEmpty";
 
 
 const STATUS_COLORS = {
@@ -335,18 +336,6 @@ export default function AgendaScreen() {
     setTimeout(() => setRefreshing(false), 600);
   }, []);
 
-  // --- EMPTY LIST ---
-  const ListEmpty = () =>
-    <View style={{ padding: 24, alignItems: "center" }}>
-      <Ionicons name="calendar-outline" size={48} color="#C0C0C0" />
-      <Text style={{ marginTop: 8, color: "#8E8E93" }}>
-        Nenhum evento encontrado
-      </Text>
-      <Text style={{ marginTop: 4, color: "#8E8E93" }}>
-        Ajuste os filtros ou toque no + para criar
-      </Text>
-    </View>;
-
   // --- HEADER DA LISTA (100% alinhado) ---
   const ListHeader = (
     <View
@@ -427,7 +416,7 @@ export default function AgendaScreen() {
         ItemSeparatorComponent={() =>
           <View style={{ height: 1, backgroundColor: "#E5E7EB" }} />}
         contentContainerStyle={{ paddingBottom: 24 }}
-        ListEmptyComponent={ListEmpty}
+        ListEmptyComponent={EmptyAgendaCard}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={tint} />
         }

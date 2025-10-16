@@ -8,6 +8,7 @@ import Avatar from '@/components/ui/Avatar';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 // import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 import { maskPhone } from '@/src/utils/masks';
+import { Ionicons } from '@expo/vector-icons';
 
 function makeSections(items, q = '') {
   const norm = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
@@ -25,6 +26,51 @@ function makeSections(items, q = '') {
   return Array.from(map.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
     .map(([title, data]) => ({ title, data: data.sort((a, b) => a.nome.localeCompare(b.nome)) }));
+}
+
+function EmptyCard({ title, subtitle, actionLabel, onAction, icon = 'person-add-outline' }) {
+  return (
+    <View style={{
+      margin: 16,
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.08)',
+      backgroundColor: 'white',
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+    }}>
+      <View style={{
+        width: 56, height: 56, borderRadius: 28,
+        backgroundColor: '#E8ECF1',
+        alignItems: 'center', justifyContent: 'center', marginBottom: 10
+      }}>
+        <Text><></></Text>
+        {/* Ícone */}
+      </View>
+      {/* Usamos o Ionicons fora da View para manter simples */}
+      <Ionicons name={icon} size={26} color="#1F2937" style={{ marginTop: -56, marginBottom: 22 }} />
+
+      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center' }}>{title}</Text>
+      {!!subtitle && (
+        <Text style={{ color: '#6B7280', textAlign: 'center', marginTop: 6 }}>{subtitle}</Text>
+      )}
+
+      {!!actionLabel && (
+        <Pressable
+          onPress={onAction}
+          style={({ pressed }) => ({
+            marginTop: 14,
+            backgroundColor: pressed ? '#1D4ED8' : '#2563EB',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 10,
+          })}
+        >
+          <Text style={{ color: 'white', fontWeight: '700' }}>{actionLabel}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 }
 
 function TutorRow({ item, tint, subtle, text }) {
@@ -91,6 +137,9 @@ export default function TutoresList() {
     if (idx >= 0) listRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
   };
 
+  const hasAny = items?.length > 0;
+  const hasResults = sections?.length > 0; // após o filtro
+
   return (
     // ❗️Sem bottom aqui, para não somar com a tab
     <SafeAreaView style={{ flex: 1 }} edges={['left', 'right']}>
@@ -105,16 +154,18 @@ export default function TutoresList() {
           </View>
         )}
         ListHeaderComponent={
-          <View style={styles.searchBox}>
-            <TextInput
-              placeholder="Buscar por nome, telefone ou e-mail"
-              placeholderTextColor={subtle}
-              value={query}
-              onChangeText={setQuery}
-              style={[styles.input, { color: text, borderColor: 'rgba(0,0,0,0.12)' }]}
-              returnKeyType="search"
-            />
-          </View>
+          hasAny && (
+            <View style={styles.searchBox}>
+              <TextInput
+                placeholder="Buscar por nome, telefone ou e-mail"
+                placeholderTextColor={subtle}
+                value={query}
+                onChangeText={setQuery}
+                style={[styles.input, { color: text, borderColor: 'rgba(0,0,0,0.12)' }]}
+                returnKeyType="search"
+              />
+            </View>
+          )
         }
         stickySectionHeadersEnabled
         contentInsetAdjustmentBehavior="automatic"
@@ -122,6 +173,29 @@ export default function TutoresList() {
         ItemSeparatorComponent={() => <View className="sep" style={styles.sep} />}
         // ✅ Usa a altura da tab + safe inset para não sobrepor e sem “gap” visível
         contentContainerStyle={{ paddingBottom: 0 + insets.bottom }}
+        ListEmptyComponent={
+          hasAny
+            ? (
+              // Tem tutores cadastrados, mas o filtro não achou nada
+              <EmptyCard
+                title="Nenhum resultado"
+                subtitle={`Não encontramos nada para “${query}”.`}
+                actionLabel="Limpar busca"
+                icon="search-outline"
+                onAction={() => setQuery('')}
+              />
+            )
+            : (
+              // Não há tutores cadastrados ainda
+              <EmptyCard
+                title="Sem tutores por aqui"
+                subtitle="Cadastre o primeiro tutor para começar."
+                actionLabel="Adicionar tutor"
+                icon="person-add-outline"
+                onAction={() => router.push('/(modals)/tutor-new')}
+              />
+            )
+        }
       />
 
       {letters.length > 0 && (

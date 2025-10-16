@@ -248,6 +248,8 @@ export default function AgendaNewScreen() {
     const eventIdParam = params?.id ? String(params.id) : null; // se vier, é visualização/edição do evento
     const tutorIdParam = params?.tutorId ? String(params.tutorId) : null;
     const tutorNomeParam = params?.tutorNome || "";
+    const preselectPetIdParam = params?.preselectPetId ? String(params.preselectPetId) : null;
+    const petNomeParam = params?.petNome || '';
 
     const [precoText, setPrecoText] = useState('');
     const [status, setStatus] = useState(eventoExistente?.status || 'pendente');
@@ -274,7 +276,14 @@ export default function AgendaNewScreen() {
 
     // ------- Form state -------
     const [isEditing, setIsEditing] = useState(() => !eventIdParam); // novo = editando; existente = só visualizar
-    const [title, setTitle] = useState("");
+
+    // const [title, setTitle] = useState("");
+    const [title, setTitle] = useState(() => {
+        if (eventIdParam) return "";
+        // sugestão de título quando veio do PET
+        return petNomeParam ? `Consulta - ${petNomeParam}` : "";
+    });
+
     const [tutorQuery, setTutorQuery] = useState("");
 
     const [tutor, setTutor] = useState(() => {
@@ -286,7 +295,10 @@ export default function AgendaNewScreen() {
         return { id: null, nome: "" };
     });
 
-    const [selectedPetIds, setSelectedPetIds] = useState([]);
+    // const [selectedPetIds, setSelectedPetIds] = useState([]);
+    const [selectedPetIds, setSelectedPetIds] = useState(() =>
+        preselectPetIdParam ? [preselectPetIdParam] : []
+    );
 
     const defaultStartDay = useSelector(selectStartOfDay); // ex.: "08:00"
     const [date, setDate] = useState(() => {
@@ -302,6 +314,15 @@ export default function AgendaNewScreen() {
 
         return d;
     });
+
+
+
+
+
+
+
+    // para controlar a aplicação do pré-selecionado depois que os pets carregarem
+    const preselectedPetIdRef = React.useRef(preselectPetIdParam);
 
 
     // const defaultDur = () => {
@@ -369,7 +390,12 @@ export default function AgendaNewScreen() {
             if (addrFormatted || fallback) setLocal((prev) => prev || addrFormatted || fallback);
 
             dispatch(fetchPetsByTutor({ tutorId: tutor.id }));
-            if (isEditing && !eventoExistente) setSelectedPetIds([]); // só limpa na criação
+            // if (isEditing && !eventoExistente) setSelectedPetIds([]); // só limpa na criação
+            // se estamos criando e NÃO temos pet pré-selecionado, limpa;
+            // se veio preselectPetId, deixamos para o próximo efeito validar/ajustar
+            if (isEditing && !eventoExistente && !preselectedPetIdRef.current) {
+                setSelectedPetIds([]);
+            }
         } else {
             if (isEditing) {
                 setSelectedPetIds([]);
@@ -377,6 +403,25 @@ export default function AgendaNewScreen() {
             }
         }
     }, [tutor?.id]);
+
+    useEffect(() => {
+        // só na criação (novo) e em modo edição
+        if (!isEditing || eventoExistente) return;
+
+        const pre = preselectedPetIdRef.current;
+        if (!pre || !tutor?.id) return;
+
+        const exists = (petsDoTutor || []).some((p) => String(p.id) === pre);
+        if (exists) {
+            setSelectedPetIds([pre]);
+        } else {
+            // se o PET passado não pertence a esse tutor, garante que não fica seleção inválida
+            setSelectedPetIds([]);
+        }
+
+        // aplica apenas uma vez
+        preselectedPetIdRef.current = null;
+    }, [petsDoTutor, tutor?.id, isEditing, eventoExistente]);
 
     // Lista de tutores conforme busca
     const tutoresBuscados = useSelector((state) =>
@@ -501,7 +546,7 @@ export default function AgendaNewScreen() {
             }
 
             // recorrência semanal: N ocorrências
-            const seriesId = `SR-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;
+            const seriesId = `SR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
             const n = Math.max(1, parseInt(recorrencias || '1', 10));
             const baseTime = Date.now();
             const payloads = Array.from({ length: n }, (_, i) => ({

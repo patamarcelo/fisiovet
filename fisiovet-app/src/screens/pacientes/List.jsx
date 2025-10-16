@@ -1,3 +1,4 @@
+// PetsList.jsx
 import React, {
   useMemo,
   useRef,
@@ -18,11 +19,10 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSelector, useDispatch } from 'react-redux';
-import { selectAllPetsJoined, fetchAllPets, clearActiveTutorId } from '@/src/store/slices/petsSlice';
+import { selectAllPetsJoined, fetchAllPets } from '@/src/store/slices/petsSlice';
 import { useFocusEffect, router, useNavigation } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-// import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
 
 const FILTERS = ['todos', 'cachorro', 'gato'];
 const ITEM_HEIGHT = 64;
@@ -30,7 +30,6 @@ const HEADER_HEIGHT = 24;
 
 /** Agrupa e “achata” em uma lista com cabeçalhos de letra */
 function groupToFlat(items) {
-  // items já devem vir filtrados/ordenados por nome
   const map = new Map();
   for (const p of items) {
     const first = (p?.nome?.[0] || '').toUpperCase();
@@ -123,7 +122,6 @@ export default function PetsList() {
   const dispatch = useDispatch();
   const allPets = useSelector(selectAllPetsJoined);
 
-  // const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
 
   const [filter, setFilter] = React.useState('todos');
@@ -144,6 +142,7 @@ export default function PetsList() {
   const listRef = useRef(null);
   const imTaskRef = useRef(null);
 
+  // Header com botão "+" no canto direito
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLargeTitle: true,
@@ -152,19 +151,29 @@ export default function PetsList() {
       headerTintColor: tint,
       headerLargeTitleStyle: { color: tint, fontWeight: '800' },
       headerStyle: { backgroundColor: bg },
+      headerRight: () => (
+        <Pressable
+          onPress={() => router.push('/(modals)/pet-new')}
+          hitSlop={10}
+          style={({ pressed }) => [{ paddingHorizontal: 6, opacity: pressed ? 0.6 : 1 }]}
+          accessibilityRole="button"
+          accessibilityLabel="Adicionar pet"
+        >
+          <IconSymbol name="plus.circle.fill" size={22} color={tint} />
+        </Pressable>
+      ),
     });
   }, [navigation, tint, bg]);
 
+  // Sempre busca do Firestore ao focar
   useFocusEffect(
     useCallback(() => {
-      dispatch(clearActiveTutorId());
-      if (allPets?.length) return;
       imTaskRef.current?.cancel?.();
       imTaskRef.current = InteractionManager.runAfterInteractions(() => {
         dispatch(fetchAllPets());
       });
       return () => imTaskRef.current?.cancel?.();
-    }, [dispatch, allPets?.length])
+    }, [dispatch])
   );
 
   // 1) Busca
@@ -212,9 +221,7 @@ export default function PetsList() {
               { backgroundColor: bannerBg, borderColor: border, borderWidth: 0.2 },
             ]}
           >
-            <Text style={[styles.sectionBannerText, { color: bannerText }]}>
-              {item.letter}
-            </Text>
+            <Text style={[styles.sectionBannerText, { color: bannerText }]}>{item.letter}</Text>
           </View>
         );
       }
@@ -225,16 +232,8 @@ export default function PetsList() {
 
   const keyExtractor = useCallback((item) => item.id, []);
 
-  // getItemLayout: cabeçalho tem altura diferente
   const getItemLayout = useCallback(
     (_, index) => {
-      // Calcula offset linear percorrendo do início até index
-      // Para manter performático, assumimos padrão (headers raros + linhas fixas):
-      // offset ≈ (#headers antes * HEADER_HEIGHT) + (#itens antes * ITEM_HEIGHT)
-      // Para precisão sem percorrer, poderíamos pré-computar cumulativos se necessário.
-      // Aqui fazemos uma aproximação O(1) usando quantidade de headers via busca simples:
-      // Dado que FlatList chama pouco, manter simples é suficiente.
-      // (Se quiser máxima precisão, dá pra pré-calcular num array cumulativo.)
       let headersBefore = 0;
       for (let i = 0; i < sticky.length; i++) {
         if (sticky[i] < index) headersBefore++;
@@ -242,57 +241,89 @@ export default function PetsList() {
       }
       const itemsBefore = index - headersBefore;
       const offset = headersBefore * HEADER_HEIGHT + itemsBefore * ITEM_HEIGHT;
-      const length =
-        sticky.includes(index) ? HEADER_HEIGHT : ITEM_HEIGHT;
+      const length = sticky.includes(index) ? HEADER_HEIGHT : ITEM_HEIGHT;
       return { length, offset, index };
     },
     [sticky]
   );
 
+  // Header (busca + filtros) — escondido se lista vazia
   const ListHeader = useMemo(
-    () => (
-      <View style={[styles.headerInner, { borderBottomColor: border }]}>
-        {/* Busca */}
-        <View style={[styles.searchBox, { borderColor: border }]}>
-          <IconSymbol name="magnifyingglass" size={14} />
-          <TextInput
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Buscar por nome, tutor ou raça"
-            placeholderTextColor={subtle}
-            style={[styles.searchInput, { color: text }]}
-            returnKeyType="search"
-          />
-          {!!query && (
-            <Pressable onPress={() => setQuery('')} hitSlop={8}>
-              <IconSymbol name="xmark.circle.fill" size={16} />
-            </Pressable>
-          )}
-        </View>
+    () =>
+      flat.length === 0 ? null : (
+        <View style={[styles.headerInner, { borderBottomColor: border }]}>
+          {/* Busca */}
+          <View style={[styles.searchBox, { borderColor: border }]}>
+            <IconSymbol name="magnifyingglass" size={14} />
+            <TextInput
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Buscar por nome, tutor ou raça"
+              placeholderTextColor={subtle}
+              style={[styles.searchInput, { color: text }]}
+              returnKeyType="search"
+            />
+            {!!query && (
+              <Pressable onPress={() => setQuery('')} hitSlop={8}>
+                <IconSymbol name="xmark.circle.fill" size={16} />
+              </Pressable>
+            )}
+          </View>
 
-        {/* Filtros */}
-        <FilterPills
-          value={filter}
-          onChange={setFilter}
-          border={border}
-          accent={accent}
-          totals={totals}
-          text={text}
-        />
-      </View>
-    ),
-    [border, query, subtle, text, filter, accent, totals]
+          {/* Filtros */}
+          <FilterPills
+            value={filter}
+            onChange={setFilter}
+            border={border}
+            accent={accent}
+            totals={totals}
+            text={text}
+          />
+        </View>
+      ),
+    [border, query, subtle, text, filter, accent, totals, flat.length]
   );
 
   const jumpTo = useCallback(
     (letter) => {
-      // encontra o índice do header dessa letra
       const idx = flat.findIndex((x) => x._type === 'header' && x.letter === letter);
       if (idx >= 0 && listRef.current) {
         listRef.current.scrollToIndex({ index: idx, animated: true });
       }
     },
     [flat]
+  );
+
+  // Card de vazio
+  const EmptyCard = useMemo(
+    () => (
+      <View style={styles.emptyWrap}>
+        <View style={[styles.emptyCard, { borderColor: border }]}>
+          <View style={styles.emptyIcon}>
+            <IconSymbol name="dog.fill" size={18} color="#fff" />
+          </View>
+          <Text style={[styles.emptyTitle, { color: text }]}>Nenhum pet por aqui ainda</Text>
+          <Text style={[styles.emptySub, { color: subtle }]}>
+            Cadastre seu primeiro pet para começar.
+          </Text>
+
+          <Pressable
+            onPress={() => router.push('/(modals)/pet-new')}
+            style={({ pressed }) => [
+              styles.emptyBtn,
+              { backgroundColor: accent },
+              pressed && { opacity: 0.9 },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar pet"
+          >
+            <IconSymbol name="plus" size={14} color="#fff" />
+            <Text style={styles.emptyBtnText}>Adicionar pet</Text>
+          </Pressable>
+        </View>
+      </View>
+    ),
+    [border, text, subtle, accent]
   );
 
   return (
@@ -303,32 +334,22 @@ export default function PetsList() {
           data={flat}
           keyExtractor={keyExtractor}
           renderItem={renderItem}
-
-          // 2) Cooperação com o header grande no iOS
           contentInsetAdjustmentBehavior="automatic"
           automaticallyAdjustContentInsets
-
-          // 3) Garanta que o header da lista não “grude” no topo transparente
           ListHeaderComponent={ListHeader}
           ListHeaderComponentStyle={{
-            backgroundColor: bg,       // evita “vazar” conteúdo atrás do header
-            paddingTop: 8,             // ajuda quando o título grande está expandido
+            backgroundColor: bg,
+            paddingTop: 8,
           }}
-
-          // Se você usa sticky headers (letras), mantenha o offset de +1
-          stickyHeaderIndices={sticky.map((i) => i + 1)}
-
-          // 4) Menos pulo de layout (iOS)
+          stickyHeaderIndices={flat.length ? sticky.map((i) => i + 1) : []}
           {...(Platform.OS === 'ios'
             ? { maintainVisibleContentPosition: { minIndexForVisible: 0 } }
             : {})}
-
           ItemSeparatorComponent={({ leadingItem }) =>
             leadingItem?._type === 'header' ? null : (
               <View style={{ height: 0.5, backgroundColor: border }} />
             )
           }
-
           removeClippedSubviews={Platform.OS === 'android'}
           initialNumToRender={22}
           maxToRenderPerBatch={22}
@@ -337,11 +358,13 @@ export default function PetsList() {
           getItemLayout={getItemLayout}
           contentContainerStyle={{
             paddingBottom: Math.max(0, insets.bottom) + 8,
+            flexGrow: 1, // ajuda o EmptyComponent a centralizar
           }}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          style={{ flex: 1 }} // ocupa o espaço inteiro
+          style={{ flex: 1 }}
+          ListEmptyComponent={EmptyCard}
         />
 
         {letters.length > 1 && (
@@ -361,7 +384,6 @@ export default function PetsList() {
 const styles = StyleSheet.create({
   safe: { flex: 1 },
 
-  // Header (busca + filtros)
   headerInner: {
     paddingHorizontal: 16,
     paddingTop: 8,
@@ -370,7 +392,6 @@ const styles = StyleSheet.create({
     gap: 10,
   },
 
-  // Busca
   searchBox: {
     height: 38,
     borderWidth: 1,
@@ -382,7 +403,6 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, paddingVertical: 6 },
 
-  // Pills
   pills: { flexDirection: 'row', gap: 8, flexWrap: 'wrap' },
   pill: {
     paddingHorizontal: 12,
@@ -392,7 +412,6 @@ const styles = StyleSheet.create({
   },
   pillText: { fontWeight: '700' },
 
-  // Cabeçalho de letra
   sectionBanner: {
     height: HEADER_HEIGHT,
     justifyContent: 'center',
@@ -400,7 +419,6 @@ const styles = StyleSheet.create({
   },
   sectionBannerText: { fontSize: 12, fontWeight: '800', letterSpacing: 0.5 },
 
-  // Linha
   row: {
     height: ITEM_HEIGHT,
     flexDirection: 'row',
@@ -420,9 +438,43 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 16, fontWeight: '700' },
 
-  empty: { alignItems: 'center', padding: 24 },
+  // vazio
+  emptyWrap: {
+    flex: 1,
+    padding: 24,
+    // justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyCard: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 18,
+    alignItems: 'center',
+    backgroundColor: 'white',
+    gap: 8,
+    marginTop: 50,
+  },
+  emptyIcon: {
+    width: 36, height: 36, borderRadius: 18,
+    backgroundColor: '#111827',
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 2,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '800' },
+  emptySub: { fontSize: 13, textAlign: 'center', marginBottom: 8 },
+  emptyBtn: {
+    marginTop: 6,
+    height: 42,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyBtnText: { color: '#fff', fontWeight: '800' },
 
-  // Índice lateral
   index: {
     position: 'absolute',
     right: 6,

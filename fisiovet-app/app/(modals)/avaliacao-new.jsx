@@ -145,8 +145,18 @@ export async function updateAvaliacao({ firestore, firestoreModule, uid, petId, 
     });
 }
 
+
+async function deleteAvaliacao({ firestore, uid, petId, avaliacaoId }) {
+    const ref = firestore
+        .collection('users').doc(String(uid))
+        .collection('pets').doc(String(petId))
+        .collection('avaliacoes').doc(String(avaliacaoId));
+    await ref.delete();
+}
+
 function normalizeDraft(petId, docData) {
     const base = {
+        title: '',                                  // ← novo
         radios: {
             grupoRadio1: 'op1',
             grupoRadio2: 'op1',
@@ -166,6 +176,7 @@ function normalizeDraft(petId, docData) {
 
     return {
         ...base,
+        title: docData?.title ?? '',                // ← novo
         radios: { ...base.radios, ...(docData.fields?.radios || {}) },
         switches: { ...base.switches, ...(docData.fields?.switches || {}) },
         notes: docData.fields?.notes ?? '',
@@ -266,6 +277,10 @@ export default function AvaliacaoFormScreen() {
         dispatch(updateDraftField({ petId: String(petId), path: ['notes'], value: text }));
     }, [dispatch, petId]);
 
+    const updateTitle = useCallback((text) => {
+        dispatch(updateDraftField({ petId: String(petId), path: ['title'], value: text }));
+    }, [dispatch, petId]);
+
     const handleSave = useCallback(async () => {
         try {
             if (!draft) return;
@@ -274,6 +289,7 @@ export default function AvaliacaoFormScreen() {
 
             setSaving(true);
             const payload = {
+                title: draft.title?.trim() || '',   // ← novo
                 fields: {
                     radios: draft.radios || {},
                     switches: draft.switches || {},
@@ -292,7 +308,7 @@ export default function AvaliacaoFormScreen() {
                     avaliacaoId: String(avaliacaoId),
                     payload,
                 });
-                setOriginal(payload.fields);     // atualiza baseline
+                setOriginal({ ...payload.fields, title: payload.title });     // atualiza baseline
                 setEditing(false);               // volta para bloqueado
                 Alert.alert('Avaliação', 'Alterações salvas!');
             } else {
@@ -306,7 +322,7 @@ export default function AvaliacaoFormScreen() {
                 Alert.alert('Avaliação', 'Registro criado!');
                 // navega para a mesma tela já populada (read-only)
             }
-            
+
             router.replace({ pathname: '/(phone)/pacientes/[id]/avaliacao', params: { id: String(petId) } });
             dispatch(clearDraft({ petId: String(petId) }));
         } catch (e) {
@@ -316,6 +332,40 @@ export default function AvaliacaoFormScreen() {
             setSaving(false);
         }
     }, [draft, isExisting, avaliacaoId, firestore, auth, petId, dispatch]);
+
+
+    const handleDelete = useCallback(() => {
+        if (!isExisting) return;
+        const uid = auth?.currentUser?.uid;
+        if (!uid) {
+            Alert.alert('Avaliação', 'Usuário não autenticado.');
+            return;
+        }
+        Alert.alert('Apagar avaliação', 'Tem certeza que deseja apagar este registro?', [
+            { text: 'Cancelar', style: 'cancel' },
+            {
+                text: 'Apagar',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        await deleteAvaliacao({
+                            firestore,
+                            uid,
+                            petId: String(petId),
+                            avaliacaoId: String(avaliacaoId),
+                        });
+                        // limpa rascunho local (se houver)
+                        dispatch(clearDraft({ petId: String(petId) }));
+                        // volta para a lista
+                        router.replace({ pathname: '/(phone)/pacientes/[id]/avaliacao', params: { id: String(petId) } });
+                    } catch (e) {
+                        console.log('delete avaliacao error', e);
+                        Alert.alert('Avaliação', 'Não foi possível apagar.');
+                    }
+                }
+            }
+        ]);
+    }, [isExisting, auth, firestore, petId, avaliacaoId, dispatch]);
 
     const radioGroups = useMemo(() => ([
         { key: 'grupoRadio1', label: 'Grupo de Rádio 1' },
@@ -373,10 +423,40 @@ export default function AvaliacaoFormScreen() {
                             </TouchableOpacity>
                         );
                     },
+                    headerRight: () =>
+                        isExisting && editing ? (
+                            <TouchableOpacity
+                                onPress={handleDelete}
+                                style={{ paddingHorizontal: 8 }}
+                                accessibilityLabel="Apagar avaliação"
+                                hitSlop={10}
+                            >
+                                <Ionicons name="trash-outline" size={22} color="#FF3B30" />
+                            </TouchableOpacity>
+                        ) : null,
                 }}
             />
 
             <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+                <SectionTitle>Título</SectionTitle>
+                <Card>
+                    <DisabledOverlay disabled={!editing}>
+                        <TextInput
+                            placeholder="Ex.: Avaliação de retorno, Avaliação ortopédica…"
+                            placeholderTextColor="#9CA3AF"
+                            value={draft?.title ?? ''}
+                            onChangeText={(t) =>
+                                dispatch(updateDraftField({ petId: String(petId), path: ['title'], value: t }))
+                            }
+                            editable={editing}
+                            style={{
+                                height: 44,
+                                color: '#111827',
+                                opacity: editing ? 1 : 0.55,
+                            }}
+                        />
+                    </DisabledOverlay>
+                </Card>
                 <SectionTitle>Seleções (Rádio)</SectionTitle>
                 <Card>
                     <DisabledOverlay disabled={disabled}>
