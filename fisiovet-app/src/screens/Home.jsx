@@ -140,8 +140,77 @@ function UpcomingEventsList({ upcoming, subtle }) {
 
     if (!upcoming?.length) {
         return (
-            <View style={{ paddingVertical: 12 }}>
-                <Text style={{ color: subtle }}>Sem eventos futuros. Que tal criar um agora?</Text>
+            <View
+                style={{
+                    marginVertical: 12,
+                    marginHorizontal: 10,
+                    padding: 16,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: '#E5E7EB',
+                    backgroundColor: '#F9FAFB',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                }}
+            >
+                <Ionicons name="calendar-outline" size={42} color="#A1A1AA" />
+
+                <Text
+                    style={{
+                        fontSize: 14,
+                        color: '#6B7280',
+                        textAlign: 'center',
+                        fontWeight: '500',
+                    }}
+                >
+                    Nenhum evento futuro encontrado
+                </Text>
+
+                <Text
+                    style={{
+                        fontSize: 12,
+                        color: '#9CA3AF',
+                        textAlign: 'center',
+                        marginBottom: 4,
+                    }}
+                >
+                    Toque abaixo para agendar um novo atendimento
+                </Text>
+
+                <Pressable
+                    onPress={() => {
+                        router.push({
+                            pathname: '/(modals)/agenda-new',
+                            params: {
+                                tutorId: '',
+                                tutorNome:  '',
+                                preselectPetId:  '',
+                                petNome: '',
+                            },
+                        });
+                    }}
+                    style={({ pressed }) => [
+                        {
+                            backgroundColor: '#007AFF',
+                            borderRadius: 8,
+                            paddingHorizontal: 20,
+                            paddingVertical: 10,
+                        },
+                        pressed && { opacity: 0.85 },
+                    ]}
+                >
+                    <Text
+                        style={{
+                            color: '#fff',
+                            fontWeight: '700',
+                            fontSize: 14,
+                            textAlign: 'center',
+                        }}
+                    >
+                        + Adicionar evento
+                    </Text>
+                </Pressable>
             </View>
         );
     }
@@ -166,7 +235,11 @@ function UpcomingEventsList({ upcoming, subtle }) {
             )}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
-            style={{ maxHeight: Math.min(height * 0.45, 360) }}
+            style={
+                { maxHeight: Math.min(height * 0.45, 360),
+                minHeight: Math.min(height * 0.25, 360)
+                }
+            }
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={true}
             indicatorStyle="black"                 // 🔹 iOS: 'white' ou 'black'

@@ -501,40 +501,38 @@ function EventRow({ item }) {
 
   const color = STATUS_COLORS[status] || "#8E8E93";
 
-  const handleSetStatus = async (newStatus) => {
+  const handleSetStatus = useCallback(async (id, newStatus) => {
+    console.log('status: id', id)
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await dispatch(updateEvento({ id: item.id, patch: { status: newStatus } })).unwrap();
+      await dispatch(
+        updateEvento({ id: String(id), patch: { status: newStatus } })
+      ).unwrap();
     } finally {
-      // Fecha o swipe
-      swipeRef.current?.close();
+      swipeRef.current?.close(); // fecha apenas este swipe
     }
-  };
+  }, [dispatch]);
 
-  const renderRightActions = () => (
+  const renderRightActions = useCallback(() => (
     <View style={{ flexDirection: "row", alignItems: "stretch", gap: 6, paddingHorizontal: 8 }}>
-      {/* Confirmar */}
       <SwipeAction
         label="Confirmar"
-        color="#16A34A" // verde
-        onPress={() => handleSetStatus("confirmado")}
+        color="#16A34A"
+        onPress={() => handleSetStatus(item.id, "confirmado")}
       />
-      {/* Pendente */}
       <SwipeAction
         label="Pendente"
-        color="#F59E0B" // amarelo
-        onPress={() => handleSetStatus("pendente")}
+        color="#F59E0B"
+        onPress={() => handleSetStatus(item.id, "pendente")}
       />
-      {/* Cancelar */}
       <SwipeAction
         label="Cancelar"
-        color="#EF4444" // vermelho
-        onPress={() => handleSetStatus("cancelado")}
+        color="#EF4444"
+        onPress={() => handleSetStatus(item.id, "cancelado")}
         last
       />
     </View>
-  );
-
+  ), [handleSetStatus, item.id]);
   return (
     // Linha full-bleed (100%)
     <Swipeable

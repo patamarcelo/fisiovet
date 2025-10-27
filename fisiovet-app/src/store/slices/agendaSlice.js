@@ -1,133 +1,19 @@
 // src/store/slices/agendaSlice.js
+// Redux + thunks usando o services/agenda (cloud-first + cache local)
+// Sem mocks e sem gerar dados iniciais
+
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-import { SEED_TUTORES } from '@/src/services/tutores';
-import { _pets } from '@/src/services/pets';
-
-const STORAGE_KEY = 'AGENDAV1_EVENTS';
-
-
-// --- helpers iguais ao slice ---
-
-const pad2 = (n) => String(n).padStart(2, "0");
-const toLocalIsoNoTZ = (d) =>
-    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
-
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const durations = [
-    { label: "00:30", min: 30 },
-    { label: "00:45", min: 45 },
-    { label: "01:00", min: 60 },
-    { label: "01:30", min: 90 },
-];
-const statuses = ["pendente", "confirmado", "cancelado"];
-
-// preço mock (R$)
-const PRECO_MIN = 80;
-const PRECO_MAX = 250;
-const randPreco = () =>
-    Math.round((PRECO_MIN + Math.random() * (PRECO_MAX - PRECO_MIN)) * 100) / 100;
-
-
-// titulo conforme tipo e pet
-const titles = ["Consulta", "Vacinação", "Revisão", "Retorno", "Avaliação", "Fisioterapia"];
-
-function addMinutes(date, mins) {
-    const d = new Date(date);
-    d.setMinutes(d.getMinutes() + mins);
-    return d;
-}
-
-function generateMockEvents(tutores, pets) {
-    // indexar pets por tutor
-    const petsByTutor = tutores.reduce((acc, t) => {
-        acc[t.id] = pets.filter((p) => p.tutor?.id === t.id);
-        return acc;
-    }, {});
-
-    const makeEvent = ({ dayOffset = 0, hour = 9, tutor }) => {
-        // pega 1..2 pets válidos do tutor (se tiver)
-        const tutorPets = petsByTutor[tutor.id] || [];
-        const chosen = tutorPets.length
-            ? [pick(tutorPets)].concat(Math.random() < 0.35 && tutorPets.length > 1 ? [pick(tutorPets.filter(p => p.id !== tutorPets[0].id))] : []).filter(Boolean)
-            : [];
-
-        const petNames = chosen.map((p) => p.nome).join(", ");
-        const petIds = chosen.map((p) => p.id);
-
-        const kind = pick(titles);
-        const dur = pick(durations);
-
-        const start = new Date();
-        start.setHours(9, 0, 0, 0);
-        start.setDate(start.getDate() + dayOffset);
-        start.setHours(hour, 0, 0, 0);
-        const end = addMinutes(start, dur.min);
-
-        const status = pick(statuses);
-
-        return {
-            id: String(Date.now()) + "-" + Math.random().toString(36).slice(2, 7),
-            title: `${kind}${petNames ? " - " + petNames.split(", ")[0] : ""}`,
-            start: toLocalIsoNoTZ(start),
-            end: toLocalIsoNoTZ(end),
-            status,
-            cliente: tutor.nome,
-            local: tutor.endereco?.formatted || "",
-            tutorId: tutor.id,
-            tutorNome: tutor.nome,
-            petIds,
-            duracao: dur.label,
-            observacoes: "",
-            financeiro: {
-                preco: randPreco(),          // R$ como número
-                pago: false,                 // pronto p/ evoluir
-                comprovanteUrl: null,
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-        };
-    };
-
-    // 2 passados (ontem e 2 dias atrás), 8 futuros (espalha próximos dias/horas)
-    const plan = [
-        { offset: -2, hour: 15 },
-        { offset: -1, hour: 10 },
-        { offset: 0, hour: 16 },
-        { offset: 1, hour: 9 },
-        { offset: 2, hour: 11 },
-        { offset: 3, hour: 14 },
-        { offset: 4, hour: 10 },
-        { offset: 5, hour: 15 },
-        { offset: 6, hour: 13 },
-        { offset: 7, hour: 9 },
-    ];
-
-    // alterna entre tutores t1/t2, garantindo pets coerentes
-    const poolTutors = tutores.filter(Boolean);
-    const events = plan.map((p, i) =>
-        makeEvent({
-            dayOffset: p.offset,
-            hour: p.hour,
-            tutor: poolTutors[i % poolTutors.length],
-        })
-    );
-
-    // mantém ordenado por start
-    events.sort((a, b) => new Date(a.start) - new Date(b.start));
-    return events;
-}
-
-// --- exemplo de uso ---
-const mockEvents = generateMockEvents(SEED_TUTORES, _pets);
+import {
+    listEventos as svcListEventos,
+    createEvento as svcCreateEvento,
+    updateEvento as svcUpdateEvento,
+    removeEvento as svcRemoveEvento,
+} from '@/src/services/agenda';
 
 /* ---------------- helpers ---------------- */
-// --- helpers internos (reuso do seu agrupador) ---
-
-// const pad2 = (n) => String(n).padStart(2, '0');
-// const toLocalIsoNoTZ = (d) =>
-//     `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+const pad2 = (n) => String(n).padStart(2, '0');
+const toLocalIsoNoTZ = (d) =>
+    `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
 
 const hhmmToMinutes = (v) => {
     const m = String(v || '').match(/^(\d{1,2}):([0-5]\d)$/);
@@ -143,7 +29,7 @@ function buildStartEndFrom(dateLike, durHHMM) {
     return { start: toLocalIsoNoTZ(startD), end: toLocalIsoNoTZ(endD) };
 }
 
-// remove `date` (Date) e normaliza campos antes de salvar no estado/AsyncStorage
+// remove `date` (Date) e normaliza campos antes de salvar no estado
 function sanitizeEvento(prev, patchOrNew) {
     const nowIso = new Date().toISOString();
     const next = { ...(prev || {}), ...(patchOrNew || {}) };
@@ -155,28 +41,22 @@ function sanitizeEvento(prev, patchOrNew) {
     if (!next.status) next.status = 'pendente';
 
     // garante objeto financeiro
-    if (!next.financeiro || typeof next.financeiro !== 'object') {
-        next.financeiro = {};
-    }
-    // back-compat: se veio preco "solto", migra
+    if (!next.financeiro || typeof next.financeiro !== 'object') next.financeiro = {};
     if (next.preco != null && next.financeiro.preco == null) {
         next.financeiro.preco = next.preco;
         delete next.preco;
     }
-    // normaliza preco em financeiro.preco (aceita "1.234,56")
     if (next.financeiro.preco != null) {
         const v = String(next.financeiro.preco).replace(/\./g, '').replace(',', '.');
         const n = Number(v);
         next.financeiro.preco = Number.isFinite(n) ? Math.max(0, n) : 0;
     }
-    // campos padrão adicionais
     if (typeof next.financeiro.pago !== 'boolean') next.financeiro.pago = false;
     if (next.financeiro.comprovanteUrl == null) next.financeiro.comprovanteUrl = next.financeiro.comprovanteUrl ?? null;
 
-    // seriesId permanece como veio (string/null)
     if (next.seriesId != null) next.seriesId = String(next.seriesId);
 
-    // (re)calcular start/end quando vier `date` (Date/ISO) e/ou `duracao`
+    // (re)calcular start/end quando vier `date` e/ou `duracao`
     if (patchOrNew?.date) {
         const base = patchOrNew.date;
         const dur = patchOrNew.duracao || next.duracao || '1:00';
@@ -192,13 +72,11 @@ function sanitizeEvento(prev, patchOrNew) {
         next.end = end;
     }
 
-    // timestamps
-    if (!prev?.createdAt) next.createdAt = nowIso;
+    // timestamps (norma do slice; Firestore também mantém createdAt/updatedAt)
+    if (!prev?.createdAt) next.createdAt = next.createdAt ?? nowIso;
     next.updatedAt = nowIso;
 
-    // nunca persistir `date` no estado
-    delete next.date;
-
+    delete next.date; // nunca persistir `date` no estado
     return next;
 }
 
@@ -215,7 +93,6 @@ function normalizeNewEvent(payload) {
         duracao: payload?.duracao || '1:00',
         observacoes: payload?.observacoes || '',
         seriesId: payload?.seriesId ?? null,
-        // aceita `payload.financeiro` inteiro OU um `preco` solto
         financeiro: {
             preco: payload?.financeiro?.preco ?? payload?.preco ?? 0,
             pago: payload?.financeiro?.pago ?? false,
@@ -223,40 +100,13 @@ function normalizeNewEvent(payload) {
         },
     };
 
-    // se veio start/end prontos, mantemos; senão, derivamos de `date` + `duracao`
     if (payload?.start && payload?.end) {
         return sanitizeEvento(null, { ...scaffold, start: payload.start, end: payload.end });
     }
     return sanitizeEvento(null, { ...scaffold, date: payload?.date });
 }
 
-const groupByDay = (list) => {
-    const map = new Map();
-    for (const e of list) {
-        const d = new Date(e.start);
-        const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
-        if (!map.has(key)) map.set(key, []);
-        map.get(key).push(e);
-    }
-    return Array.from(map.entries())
-        .sort((a, b) => new Date(a[0]) - new Date(b[0]))
-        .map(([title, data]) => ({
-            title,
-            data: data.sort((a, b) => new Date(a.start) - new Date(b.start)),
-        }));
-};
-
-/* ---------------- persistência ---------------- */
-async function readFromDevice() {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-}
-async function writeToDevice(arr) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
-}
-
-/* ---------------- estado ---------------- */
+/* ---------------- state ---------------- */
 const initialState = {
     byId: {},
     allIds: [],
@@ -265,89 +115,44 @@ const initialState = {
     lastLoadedAt: null,
 };
 
-/* ---------------- thunks ---------------- */
+/* ---------------- thunks (cloud-first + cache local no service) ---------------- */
 export const loadAgenda = createAsyncThunk('agenda/load', async () => {
-    const arr = await readFromDevice();
-    if (Array.isArray(arr) && arr.length) return arr;
-    await writeToDevice(mockEvents);
-    return mockEvents;
+    const arr = await svcListEventos();
+    return Array.isArray(arr) ? arr.map((e) => sanitizeEvento(null, e)) : [];
 });
 
 export const addEvento = createAsyncThunk('agenda/add', async (payload) => {
-    const evt = normalizeNewEvent(payload);            // <-- aqui já remove `date` e gera start/end
-    const arr = (await readFromDevice()) || [];
-    arr.push(evt);
-    arr.sort((a, b) => new Date(a.start) - new Date(b.start));
-    await writeToDevice(arr);
-    return evt;
+    // normaliza para garantir start/end/preço, etc.
+    const normalized = normalizeNewEvent(payload);
+    // o service faz dual-write (cloud + local) e retorna o salvo
+    const saved = await svcCreateEvento(normalized);
+    return sanitizeEvento(null, saved);
 });
 
 export const updateEvento = createAsyncThunk(
     'agenda/update',
-    async ({ id, patch }, { getState }) => {
-        const key = String(id);
-        const arr = (await readFromDevice()) || [];
-        let idx = arr.findIndex((e) => String(e.id) === key);
-
-        // ⚠️ fallback: se não estiver no storage, tenta buscar no Redux e injeta
-        if (idx === -1) {
-            const st = getState()?.agenda;
-            const fromRedux = st?.byId?.[key];
-            if (!fromRedux) throw new Error('Evento não encontrado');
-            arr.push(fromRedux);
-            idx = arr.length - 1;
-        }
-
-        const curr = arr[idx];
-        const merged = sanitizeEvento(curr, { ...patch, id: key });
-
-        arr[idx] = merged;
-        arr.sort((a, b) => new Date(a.start) - new Date(b.start));
-        await writeToDevice(arr);
-        return merged;
+    async ({ id, patch }) => {
+        console.log('id : ', id)
+        console.log('patch: ', patch)
+        const saved = await svcUpdateEvento(String(id), patch);
+        return saved
     }
 );
 
 export const deleteEvento = createAsyncThunk('agenda/delete', async (id) => {
-    const arr = (await readFromDevice()) || [];
-    const next = arr.filter((e) => String(e.id) !== String(id));
-    await writeToDevice(next);
-    return String(id);
+    const removedId = await svcRemoveEvento(String(id));
+    return String(removedId);
 });
-
-export const cancelEventosBySeries = createAsyncThunk(
-    'agenda/cancelBySeries',
-    async (seriesId) => {
-        const arr = (await readFromDevice()) || [];
-        const next = arr.map(e =>
-            (e.seriesId || '') === String(seriesId)
-                ? { ...e, status: 'cancelado', updatedAt: new Date().toISOString() }
-                : e
-        );
-        await writeToDevice(next);
-        return { seriesId, rows: next.filter(e => (e.seriesId || '') === String(seriesId)) };
-    }
-);
-
-export const replaceAllEventos = createAsyncThunk('agenda/replaceAll', async (list) => {
-    // garante serializável e sem `date`
-    const safe = Array.isArray(list)
-        ? list.map((e) => sanitizeEvento(null, e))
-        : [];
-    await writeToDevice(safe);
-    return safe;
-});
-
 
 export const addEventosBatch = createAsyncThunk('agenda/addBatch', async (payloadList) => {
-    const arr = (await readFromDevice()) || [];
-    const novos = (payloadList || []).map((p) => normalizeNewEvent(p));
-    arr.push(...novos);
-    arr.sort((a, b) => new Date(a.start) - new Date(b.start));
-    await writeToDevice(arr);
-    return novos;
+    const results = [];
+    for (const p of (payloadList || [])) {
+        const norm = normalizeNewEvent(p);
+        const saved = await svcCreateEvento(norm);
+        results.push(sanitizeEvento(null, saved));
+    }
+    return results;
 });
-
 
 /* ---------------- slice ---------------- */
 const agendaSlice = createSlice({
@@ -358,6 +163,7 @@ const agendaSlice = createSlice({
     },
     extraReducers: (builder) => {
         builder
+            // load
             .addCase(loadAgenda.pending, (state) => {
                 state.status = 'loading';
                 state.error = null;
@@ -370,7 +176,7 @@ const agendaSlice = createSlice({
                 state.allIds = [];
                 rows.forEach((e) => {
                     const id = String(e.id);
-                    state.byId[id] = sanitizeEvento(null, e); // segurança extra ao reidratar
+                    state.byId[id] = sanitizeEvento(null, e);
                     state.allIds.push(id);
                 });
                 state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
@@ -381,6 +187,7 @@ const agendaSlice = createSlice({
                 state.error = action.error?.message || 'Erro ao carregar agenda';
             })
 
+            // add
             .addCase(addEvento.fulfilled, (state, action) => {
                 const e = sanitizeEvento(null, action.payload);
                 const id = String(e.id);
@@ -389,33 +196,38 @@ const agendaSlice = createSlice({
                 state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
             })
 
+            // update
             .addCase(updateEvento.fulfilled, (state, action) => {
-                const e = sanitizeEvento(null, action.payload);
-                const id = String(e.id);
-                state.byId[id] = e;
+                const incoming = action.payload;            // evento COMPLETO vindo do serviço
+                const id = String(incoming.id);
+                const prev = state.byId[id] || {};
+
+                // se quiser normalizar, use prev como base
+                const merged = {
+                    ...prev,
+                    ...incoming,
+                    ...(incoming?.financeiro
+                        ? { financeiro: { ...(prev.financeiro || {}), ...incoming.financeiro } }
+                        : {}),
+                };
+
+                // opcional: sanitize sobre merged, NÃO sobre null
+                // const safe = sanitizeEvento(prev, merged);
+                const safe = merged;
+
+                state.byId[id] = safe;
                 if (!state.allIds.includes(id)) state.allIds.push(id);
                 state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
             })
 
+            // delete
             .addCase(deleteEvento.fulfilled, (state, action) => {
                 const id = String(action.payload);
                 delete state.byId[id];
                 state.allIds = state.allIds.filter((x) => x !== id);
             })
 
-            .addCase(replaceAllEventos.fulfilled, (state, action) => {
-                const rows = Array.isArray(action.payload) ? action.payload : [];
-                state.byId = {};
-                state.allIds = [];
-                rows.forEach((e) => {
-                    const id = String(e.id);
-                    state.byId[id] = sanitizeEvento(null, e);
-                    state.allIds.push(id);
-                });
-                state.allIds.sort((a, b) => new Date(state.byId[a].start) - new Date(state.byId[b].start));
-                state.lastLoadedAt = new Date().toISOString();
-            })
-
+            // add batch
             .addCase(addEventosBatch.fulfilled, (state, action) => {
                 const rows = Array.isArray(action.payload) ? action.payload : [];
                 rows.forEach((e) => {
@@ -469,7 +281,8 @@ export const selectEventosGroupedByDay = createSelector(selectAllEventos, (list)
 });
 
 export const makeSelectEventosBetween = () =>
-    createSelector([selectAllEventos, (_, start) => start, (_, __, end) => end],
+    createSelector(
+        [selectAllEventos, (_, start) => start, (_, __, end) => end],
         (list, start, end) => {
             const s = start ? new Date(start) : null;
             const e = end ? new Date(end) : null;
@@ -482,7 +295,6 @@ export const makeSelectEventosBetween = () =>
         }
     );
 
-// --- Selector: próximos eventos por tutor (futuros), limit X ---
 export const makeSelectUpcomingEventosByTutor = (tutorId, limit = 3) =>
     createSelector([selectAllEventos], (list) => {
         const now = new Date();
@@ -493,7 +305,6 @@ export const makeSelectUpcomingEventosByTutor = (tutorId, limit = 3) =>
             .slice(0, limit);
     });
 
-// NOVOS:
 export const makeSelectEventosByPetId = (petId) =>
     createSelector(selectAllEventos, (list) => {
         const pid = String(petId);
@@ -503,8 +314,21 @@ export const makeSelectEventosByPetId = (petId) =>
     });
 
 export const makeSelectEventosByPetGrouped = (petId) =>
-    createSelector(makeSelectEventosByPetId(petId), (list) => groupByDay(list));
-
+    createSelector(makeSelectEventosByPetId(petId), (list) => {
+        const map = new Map();
+        for (const e of list) {
+            const d = new Date(e.start);
+            const key = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(e);
+        }
+        return Array.from(map.entries())
+            .sort((a, b) => new Date(a[0]) - new Date(b[0]))
+            .map(([title, data]) => ({
+                title,
+                data: data.sort((a, b) => new Date(a.start) - new Date(b.start)),
+            }));
+    });
 
 export const makeSelectEventosBySeriesId = (seriesId) =>
     createSelector(selectAllEventos, (list) => {
