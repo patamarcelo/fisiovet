@@ -219,7 +219,12 @@ export default function AgendaScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   const tint = useThemeColor({}, "tint");
+  const bg = useThemeColor({}, "background");
   const eventos = useSelector(selectAllEventos);
+  
+  eventos?.forEach(element => {
+    console.log('elem: ', element)
+  });
 
 
   useEffect(() => {
@@ -233,6 +238,7 @@ export default function AgendaScreen() {
         headerLargeTitle: true,
         headerTitle: "Agenda",
         headerTitleStyle: { color: tint, fontWeight: "700" },
+        headerStyle: { backgroundColor: bg }, // 🎨 cor de fundo do header
         headerRight: () =>
           <Pressable
             accessibilityRole="button"
@@ -275,7 +281,7 @@ export default function AgendaScreen() {
           </Pressable >
       });
     },
-    [navigation]
+    []
   );
 
   // Converte diferentes formatos para Date em HORÁRIO LOCAL
@@ -389,7 +395,7 @@ export default function AgendaScreen() {
   return (
     // ⚠️ Use SafeAreaView puro aqui para NÃO aninhar VirtualizedLists dentro de ScrollView
     <SafeAreaView
-      style={{ flex: 1, backgroundColor: "#FFFFFF", marginBottom: 0 }}
+      style={{ flex: 1, backgroundColor: bg, marginBottom: 0 }}
       edges={["top"]}
     >
       <SectionList

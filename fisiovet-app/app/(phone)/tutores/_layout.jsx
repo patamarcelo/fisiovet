@@ -11,6 +11,7 @@ import * as Haptics from 'expo-haptics';
 function EditButton() {
   const { id } = useLocalSearchParams();           // <- pega dos params da rota atual
   const tint = useThemeColor({}, 'tint');
+  
 
   // pode chegar undefined na 1ª render; evite quebrar
   if (!id) return null;
@@ -49,12 +50,12 @@ function AddButton() {
 export default function TutoresLayout() {
   const card = useThemeColor({}, 'card');
   const tint = useThemeColor({}, 'tint');
+  const bg = useThemeColor({}, 'bg');
 
   return (
     <Stack
       screenOptions={{
         headerShown: true,
-        headerStyle: { backgroundColor: card },
         headerShadowVisible: false,
         headerTintColor: tint,
         headerBackTitleVisible: false,

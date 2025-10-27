@@ -22,14 +22,28 @@ const hhmmToMinutes = (v) => {
 };
 const ensureStringId = (v) => (v == null ? null : String(v));
 
+const toDateLocal = (v) => {
+    if (v?.toDate) return v.toDate(); // Firestore Timestamp
+    if (v instanceof Date) return v;
+    if (typeof v === "number") return new Date(v < 1e12 ? v * 1000 : v);
+    if (typeof v === "string") return new Date(v);
+    return new Date(v);
+};
+
+const isValidDate = (d) => d instanceof Date && !isNaN(d.getTime());
+
 function buildStartEndFrom(dateLike, durHHMM) {
-    const startD = dateLike instanceof Date ? new Date(dateLike) : new Date(dateLike);
+    const startD = toDateLocal(dateLike);
+    if (!isValidDate(startD)) {
+        console.warn("⚠️ buildStartEndFrom: data inválida recebida ->", dateLike);
+        return null;
+    }
     const endD = new Date(startD);
-    endD.setMinutes(endD.getMinutes() + hhmmToMinutes(durHHMM || '1:00'));
+    endD.setMinutes(endD.getMinutes() + hhmmToMinutes(durHHMM || "1:00"));
     return { start: toLocalIsoNoTZ(startD), end: toLocalIsoNoTZ(endD) };
 }
 
-// remove `date` (Date) e normaliza campos antes de salvar no estado
+// --------------------------
 function sanitizeEvento(prev, patchOrNew) {
     const nowIso = new Date().toISOString();
     const next = { ...(prev || {}), ...(patchOrNew || {}) };
@@ -38,38 +52,43 @@ function sanitizeEvento(prev, patchOrNew) {
     next.id = ensureStringId(next.id) || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     next.tutorId = ensureStringId(next.tutorId);
     if (Array.isArray(next.petIds)) next.petIds = next.petIds.map((x) => String(x));
-    if (!next.status) next.status = 'pendente';
+    if (!next.status) next.status = "pendente";
 
     // garante objeto financeiro
-    if (!next.financeiro || typeof next.financeiro !== 'object') next.financeiro = {};
+    if (!next.financeiro || typeof next.financeiro !== "object") next.financeiro = {};
     if (next.preco != null && next.financeiro.preco == null) {
         next.financeiro.preco = next.preco;
         delete next.preco;
     }
     if (next.financeiro.preco != null) {
-        const v = String(next.financeiro.preco).replace(/\./g, '').replace(',', '.');
+        const v = String(next.financeiro.preco).replace(/\./g, "").replace(",", ".");
         const n = Number(v);
         next.financeiro.preco = Number.isFinite(n) ? Math.max(0, n) : 0;
     }
-    if (typeof next.financeiro.pago !== 'boolean') next.financeiro.pago = false;
-    if (next.financeiro.comprovanteUrl == null) next.financeiro.comprovanteUrl = next.financeiro.comprovanteUrl ?? null;
+    if (typeof next.financeiro.pago !== "boolean") next.financeiro.pago = false;
+    if (next.financeiro.comprovanteUrl == null)
+        next.financeiro.comprovanteUrl = next.financeiro.comprovanteUrl ?? null;
 
     if (next.seriesId != null) next.seriesId = String(next.seriesId);
 
-    // (re)calcular start/end quando vier `date` e/ou `duracao`
+    // --- (re)calcular start/end SOMENTE se a base for válida ---
+    let se = null;
+
     if (patchOrNew?.date) {
-        const base = patchOrNew.date;
-        const dur = patchOrNew.duracao || next.duracao || '1:00';
-        const { start, end } = buildStartEndFrom(base, dur);
-        next.start = start;
-        next.end = end;
+        se = buildStartEndFrom(patchOrNew.date, patchOrNew.duracao || next.duracao);
     } else if (patchOrNew?.start && (patchOrNew?.duracao || next.duracao)) {
-        const dur = patchOrNew?.duracao || next.duracao || '1:00';
-        const { end } = buildStartEndFrom(patchOrNew.start, dur);
-        next.end = end;
+        se = buildStartEndFrom(patchOrNew.start, patchOrNew?.duracao || next.duracao);
     } else if (patchOrNew?.duracao && next.start) {
-        const { end } = buildStartEndFrom(next.start, patchOrNew.duracao);
-        next.end = end;
+        se = buildStartEndFrom(next.start, patchOrNew.duracao);
+    }
+
+    if (se && se.start && se.end) {
+        next.start = se.start;
+        next.end = se.end;
+    } else {
+        // mantém os valores anteriores válidos
+        if (!isValidDate(new Date(next.start))) delete next.start;
+        if (!isValidDate(new Date(next.end))) delete next.end;
     }
 
     // timestamps (norma do slice; Firestore também mantém createdAt/updatedAt)

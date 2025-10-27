@@ -80,6 +80,7 @@ export default function PhoneTabsLayout() {
                 name="tutores"
                 options={{
                     title: 'Tutores',
+                    
                     // tabBarIcon: ({ color, size }) => (
                     //     <IconSymbol size={size ?? 26} name="person.2.fill" color={color} />
                     // ),

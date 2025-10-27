@@ -258,6 +258,7 @@ export default function AgendaNewScreen() {
     const [recorrencias, setRecorrencias] = useState('0'); // string pra TextInput numérico
 
     const tint = useThemeColor({}, "tint");
+
     const [showTime, setShowTime] = useState(false);
     const isNew = !eventIdParam;
 
@@ -621,7 +622,7 @@ export default function AgendaNewScreen() {
                 keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
             >
                 <ScrollView
-                    style={{ flex: 1, backgroundColor: "#FFF" }}
+                    style={{ flex: 1, backgroundColor: bg }}
                     contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
                     keyboardShouldPersistTaps="handled"
                 >

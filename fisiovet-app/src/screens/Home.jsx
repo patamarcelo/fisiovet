@@ -265,8 +265,10 @@ export default function Home() {
     const insets = useSafeAreaInsets();
 
     const tint = useThemeColor({}, 'tint');
+    const colorIcon = useThemeColor({}, 'colorIcon');
     const bg = useThemeColor({}, 'background');
     const text = useThemeColor({}, 'text');
+    const textIcon = useThemeColor({}, 'textIcon');
     const border = '#E5E7EB';
     const subtle = '#6B7280';
 
@@ -318,7 +320,7 @@ export default function Home() {
                         )}
 
                         <View>
-                            <Text style={[styles.hello, { color: subtle }]}>Olá 👋</Text>
+                            <Text style={[styles.hello, { color: text }]}>Olá 👋</Text>
                             <Text style={[styles.userName, { color: text }]} numberOfLines={1}>
                                 {userName}
                             </Text>
@@ -335,7 +337,7 @@ export default function Home() {
                         android_ripple={{ color: '#E5E7EB', borderless: true }}
                         style={styles.gearBtn}
                     >
-                        <Ionicons name="settings-outline" size={22} color={tint} fontWeight={"bold"} />
+                        <Ionicons name="settings-outline" size={22} color={colorIcon} fontWeight={"bold"} />
                     </Pressable>
                 </View>
 
@@ -362,7 +364,7 @@ export default function Home() {
                                 style={{ position: 'absolute', right: 12, bottom: 12 }}
                             />
                         </View>
-                        <Text style={styles.storyLabel}>Pet</Text>
+                        <Text style={[styles.storyLabel,{color: textIcon }]}>Pet</Text>
                     </Pressable>
 
                     {/* Adicionar pet */}
@@ -386,7 +388,7 @@ export default function Home() {
                                 style={{ position: 'absolute', right: 12, bottom: 12 }}
                             />
                         </View>
-                        <Text style={styles.storyLabel}>Tutor</Text>
+                        <Text style={[styles.storyLabel,{color: textIcon }]}>Tutor</Text>
                     </Pressable>
                     {/* Adicionar evento */}
                     <Pressable
@@ -409,7 +411,7 @@ export default function Home() {
                                 style={{ position: 'absolute', right: 12, bottom: 12 }}
                             />
                         </View>
-                        <Text style={styles.storyLabel}>Evento</Text>
+                        <Text style={[styles.storyLabel,{color: textIcon }]}>Evento</Text>
                     </Pressable>
                 </View>
 
