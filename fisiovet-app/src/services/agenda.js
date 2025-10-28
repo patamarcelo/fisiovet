@@ -159,102 +159,130 @@ export async function createEvento(payload) {
     return item;
 }
 
+function hhmmToMinutes(v) {
+  const m = String(v || '').match(/^(\d{1,2}):([0-5]\d)$/);
+  if (!m) return 60;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+function toLocalIsoNoTZ(d) {
+  const pad2 = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+function normalizePatchDates(patch, prev) {
+  const out = { ...patch };
+  const baseDur = out.duracao || prev?.duracao || '1:00';
+
+  // Se veio 'date', calcule start/end e remova 'date'
+  if (out.date instanceof Date) {
+    const start = new Date(out.date);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + hhmmToMinutes(baseDur));
+    out.start = toLocalIsoNoTZ(start);
+    out.end = toLocalIsoNoTZ(end);
+    delete out.date;
+  } else if (out.start && (out.duracao || prev?.duracao)) {
+    // Se veio start + (duracao), recalcule end
+    const start = new Date(out.start);
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + hhmmToMinutes(baseDur));
+    out.end = toLocalIsoNoTZ(end);
+  }
+  return out;
+}
+
 export async function updateEvento(id, patch) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
-    const nowMs = Date.now();
+  const fb = ensureFirebase();
+  const uid = fb?.auth?.currentUser?.uid;
+  const nowMs = Date.now();
 
-    // nunca permita trocar o id por patch
-    const safePatch = stripUndefined({ ...patch });
-    delete safePatch.id;
+  // nunca permita trocar o id por patch
+  let safePatch = stripUndefined({ ...patch });
+  delete safePatch.id;
 
-    if (fb && uid) {
-        const col = getCol(fb.firestore, uid);
-        const fv = fb.firestoreModule.FieldValue;
+  if (fb && uid) {
+    const col = getCol(fb.firestore, uid);
+    const fv = fb.firestoreModule.FieldValue;
 
-        // 1) tenta pelo doc.id
-        let docRef = col.doc(String(id));
-        let snap = await docRef.get();
-
-        // 2) se não existe, tenta achar por campo "id" == id
-        if (!snap.exists) {
-            const q = await col.where('id', '==', String(id)).limit(1).get();
-            if (!q.empty) {
-                docRef = q.docs[0].ref;
-                snap = q.docs[0];
-            } else {
-                // Não cria outro doc silenciosamente — sinaliza para corrigir/migrar
-                throw new Error(`Evento ${id} não encontrado no Firestore (doc.id nem campo 'id').`);
-            }
-        }
-
-        // 3) atualiza com merge, carimbando timestamps
-        await docRef.set(
-            {
-                ...safePatch,
-                updatedAt: fv.serverTimestamp(),
-                updatedAtMs: nowMs,
-            },
-            { merge: true }
-        );
-
-        // 4) merge local (deep em financeiro) + realinha id local = docRef.id
-        const all = await loadAllLocal();
-
-        // priorize encontrar pelo doc.id (pode ser diferente do id original)
-        let idx = all.findIndex((e) => String(e.id) === String(docRef.id));
-        if (idx === -1) {
-            // tenta pelo id original se ainda estiver assim no cache
-            idx = all.findIndex((e) => String(e.id) === String(id));
-        }
-
-        let prev = idx !== -1 ? all[idx] : undefined;
-        if (!prev) {
-            // se não existir no cache, crie um "prev" mínimo para mesclar
-            prev = { id: docRef.id };
-            all.push(prev);
-            idx = all.length - 1;
-        }
-
-        const merged = {
-            ...prev,
-            ...safePatch,
-            // deep-merge em financeiro, se vier
-            ...(safePatch?.financeiro
-                ? { financeiro: { ...(prev.financeiro || {}), ...safePatch.financeiro } }
-                : {}),
-            id: docRef.id,       // realinha id local para o id do Firestore
-            updatedAt: nowMs,
-        };
-
-        all[idx] = merged;
-        all.sort((a, b) => new Date(a.start) - new Date(b.start));
-        await saveAllLocal(all);
-
-        return merged;
+    // localizar doc por doc.id ou por campo 'id'
+    let docRef = col.doc(String(id));
+    let snap = await docRef.get();
+    if (!snap.exists) {
+      const q = await col.where('id', '==', String(id)).limit(1).get();
+      if (!q.empty) {
+        docRef = q.docs[0].ref;
+        snap = q.docs[0];
+      } else {
+        throw new Error(`Evento ${id} não encontrado no Firestore (doc.id nem campo 'id').`);
+      }
     }
 
-    // OFFLINE: merge local profundo e ordena
-    const all = await loadAllLocal();
-    const idx = all.findIndex((e) => String(e.id) === String(id));
-    if (idx === -1) throw new Error('Evento não encontrado (offline)');
+    // normalizar datas SEMPRE aqui também
+    const prev = snap.data() || {};
+    safePatch = normalizePatchDates(safePatch, prev);
 
-    const prev = all[idx];
+    // nunca persista 'date'
+    if ('date' in safePatch) delete safePatch.date;
+
+    // persistir merge
+    await docRef.set(
+      { ...safePatch, updatedAt: fv.serverTimestamp(), updatedAtMs: nowMs },
+      { merge: true }
+    );
+
+    // atualizar cache local (deep merge em financeiro)
+    const all = await loadAllLocal();
+    let idx = all.findIndex((e) => String(e.id) === String(docRef.id));
+    if (idx === -1) idx = all.findIndex((e) => String(e.id) === String(id));
+
+    let prevLocal = idx !== -1 ? all[idx] : { id: docRef.id };
+    if (idx === -1) {
+      all.push(prevLocal);
+      idx = all.length - 1;
+    }
+
     const merged = {
-        ...prev,
-        ...safePatch,
-        ...(safePatch?.financeiro
-            ? { financeiro: { ...(prev.financeiro || {}), ...safePatch.financeiro } }
-            : {}),
-        updatedAt: nowMs,
+      ...prevLocal,
+      ...safePatch,
+      ...(safePatch?.financeiro
+        ? { financeiro: { ...(prevLocal.financeiro || {}), ...safePatch.financeiro } }
+        : {}),
+      id: docRef.id,
+      updatedAt: nowMs,
     };
 
     all[idx] = merged;
     all.sort((a, b) => new Date(a.start) - new Date(b.start));
     await saveAllLocal(all);
-    return merged;
-}
 
+    return merged;
+  }
+
+  // offline: normalize também
+  let safePatchOffline = stripUndefined({ ...patch });
+  delete safePatchOffline.id;
+
+  const all = await loadAllLocal();
+  const idx = all.findIndex((e) => String(e.id) === String(id));
+  if (idx === -1) throw new Error('Evento não encontrado (offline)');
+
+  const prevLocal = all[idx];
+  safePatchOffline = normalizePatchDates(safePatchOffline, prevLocal);
+  if ('date' in safePatchOffline) delete safePatchOffline.date;
+
+  const merged = {
+    ...prevLocal,
+    ...safePatchOffline,
+    ...(safePatchOffline?.financeiro
+      ? { financeiro: { ...(prevLocal.financeiro || {}), ...safePatchOffline.financeiro } }
+      : {}),
+    updatedAt: nowMs,
+  };
+
+  all[idx] = merged;
+  all.sort((a, b) => new Date(a.start) - new Date(b.start));
+  await saveAllLocal(all);
+  return merged;
+}
 
 
 

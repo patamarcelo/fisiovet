@@ -149,13 +149,26 @@ export const addEvento = createAsyncThunk('agenda/add', async (payload) => {
 });
 
 export const updateEvento = createAsyncThunk(
-    'agenda/update',
-    async ({ id, patch }) => {
-        console.log('id : ', id)
-        console.log('patch: ', patch)
+  'agenda/update',
+  async ({ id, patch, changeStatus }, { getState }) => {
+    
+    const state = getState();
+    const prev = selectEventoById(id)(state); // evento atual no estado
+
+    if(changeStatus){
         const saved = await svcUpdateEvento(String(id), patch);
-        return saved
+        return saved;
     }
+    
+    // Reusa sua própria normalização para gerar start/end a partir de  date/duracao
+    const normalizedPatch = sanitizeEvento(prev, patch);
+
+    // IMPORTANTE: não deixe 'date' ir para o banco
+    if ('date' in normalizedPatch) delete normalizedPatch.date;
+
+    const saved = await svcUpdateEvento(String(id), normalizedPatch);
+    return saved;
+  }
 );
 
 export const deleteEvento = createAsyncThunk('agenda/delete', async (id) => {

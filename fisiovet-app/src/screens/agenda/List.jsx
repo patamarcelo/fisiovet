@@ -33,6 +33,9 @@ import { Swipeable } from "react-native-gesture-handler";
 import { EmptyAgendaCard } from "./_ListEmpty";
 
 
+
+
+
 const STATUS_COLORS = {
   confirmado: "#1ABC9C",
   pendente: "#F39C12",
@@ -218,10 +221,20 @@ export default function AgendaScreen() {
   const [temporal, setTemporal] = useState("todos"); // 'futuros' | 'passados' | 'todos'
   const [refreshing, setRefreshing] = useState(false);
 
+  const petsState = useSelector(selectPetsState, shallowEqual);
+  const petsById = petsState?.byId || {};
+
+  // normalizador (remove acentos + lower)
+  const norm = (s) =>
+    String(s || "")
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+
   const tint = useThemeColor({}, "tint");
   const bg = useThemeColor({}, "background");
   const eventos = useSelector(selectAllEventos);
-  
+
   eventos?.forEach(element => {
     console.log('elem: ', element)
   });
@@ -291,31 +304,48 @@ export default function AgendaScreen() {
 
 
   // --- FILTER PIPELINE ---
-  const filtered = useMemo(
-    () => {
-      let list = eventos.filter(e => {
-        const haystack = `${e.title} ${e.cliente} ${e.local}`.toLowerCase();
-        return haystack.includes(query.trim().toLowerCase());
-      });
-      list = list.filter(e => {
-        const d = toDateLocal(e.start);
-        if (scope === "todos") return true;
-        if (scope === "hoje") return sameDayLocal(d, now);
-        if (scope === "semana") return inThisWeekLocal(d, now);
-        return true;
-      });
-      list = list.filter(e => {
-        const d = new Date(e.end);
-        if (temporal === "todos") return true;
-        if (temporal === "futuros") return d >= now;
-        if (temporal === "passados") return d < now;
-        return true;
-      });
-      list.sort((a, b) => new Date(a.start) - new Date(b.start));
-      return list;
-    },
-    [query, scope, temporal, now, eventos]
-  );
+  const filtered = useMemo(() => {
+    const q = norm(query);
+    const now = new Date();
+
+    // 1) busca por título/cliente/local + NOMES DOS PETS
+    let list = eventos.filter((e) => {
+      // monta nomes de pets a partir dos ids
+      const petNames = (e.petIds || [])
+        .map((id) => petsById[String(id)]?.nome)
+        .filter(Boolean)
+        .join(" ");
+
+      // inclua também tutorNome se quiser
+      const haystack = norm(
+        `${e.title} ${e.cliente} ${e.tutorNome || ""} ${e.local} ${petNames}`
+      );
+
+      return haystack.includes(q);
+    });
+
+    // 2) escopo (hoje/semana/todos)
+    list = list.filter((e) => {
+      const d = toDateLocal(e.start);
+      if (scope === "todos") return true;
+      if (scope === "hoje") return sameDayLocal(d, now);
+      if (scope === "semana") return inThisWeekLocal(d, now);
+      return true;
+    });
+
+    // 3) temporal (futuros/passados/todos)
+    list = list.filter((e) => {
+      const dEnd = toDateLocal(e.end);
+      if (temporal === "todos") return true;
+      if (temporal === "futuros") return dEnd >= now;
+      if (temporal === "passados") return dEnd < now;
+      return true;
+    });
+
+    // 4) ordenação
+    list.sort((a, b) => new Date(a.start) - new Date(b.start));
+    return list;
+  }, [eventos, query, scope, temporal, petsById]);
 
   // --- GROUP BY DAY ---
   const sections = useMemo(
@@ -469,6 +499,8 @@ function EventRow({ item }) {
 
   const dispatch = useDispatch();
   const swipeRef = React.useRef(null);
+  const [pending, setPending] = useState(false);
+
 
   const evento = useSelector((s) => selectEventoById(item.id)(s));
   const status = evento?.status ?? item.status;      // use o status atua
@@ -508,16 +540,16 @@ function EventRow({ item }) {
   const color = STATUS_COLORS[status] || "#8E8E93";
 
   const handleSetStatus = useCallback(async (id, newStatus) => {
-    console.log('status: id', id)
+    if (pending) return;
+    setPending(true);
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      await dispatch(
-        updateEvento({ id: String(id), patch: { status: newStatus } })
-      ).unwrap();
+      await dispatch(updateEvento({ id: String(id), patch: { status: newStatus }, changeStatus: true })).unwrap();
     } finally {
-      swipeRef.current?.close(); // fecha apenas este swipe
+      swipeRef.current?.close();
+      setPending(false);
     }
-  }, [dispatch]);
+  }, [dispatch, pending]);
 
   const renderRightActions = useCallback(() => (
     <View style={{ flexDirection: "row", alignItems: "stretch", gap: 6, paddingHorizontal: 8 }}>
@@ -525,17 +557,20 @@ function EventRow({ item }) {
         label="Confirmar"
         color="#16A34A"
         onPress={() => handleSetStatus(item.id, "confirmado")}
+        disabled={pending}
       />
       <SwipeAction
         label="Pendente"
         color="#F59E0B"
         onPress={() => handleSetStatus(item.id, "pendente")}
+        disabled={pending}
       />
       <SwipeAction
         label="Cancelar"
         color="#EF4444"
         onPress={() => handleSetStatus(item.id, "cancelado")}
         last
+        disabled={pending}
       />
     </View>
   ), [handleSetStatus, item.id]);
