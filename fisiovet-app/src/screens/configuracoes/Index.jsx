@@ -9,6 +9,7 @@ import {
   Switch,
   ScrollView,
   Platform,
+  ActivityIndicator
 } from 'react-native';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -27,6 +28,14 @@ import { signOut } from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setUser } from '@/src/store/slices/userSlice';
 import { ensureFirebase } from '@/firebase/firebase';
+import { GoogleSignin } from '@react-native-google-signin/google-signin';
+
+import auth from '@react-native-firebase/auth';
+import * as SecureStore from 'expo-secure-store';
+import { clearSession } from '@/src/store/sessionActions';
+
+import { persistor } from "@/src/store";
+
 
 
 
@@ -152,19 +161,42 @@ export default function ConfigIndex() {
 
   const fb = ensureFirebase()
   const dispatch = useDispatch();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+
 
   const handleLogout = async () => {
     try {
-      if (!fb) return;
-      await fb.auth.signOut();
-      dispatch(clearUser());
+      setLoggingOut(true);
+
+      const user = auth().currentUser;
+      const loggedWithGoogle = user?.providerData?.some(p => p.providerId === "google.com");
+
+      if (loggedWithGoogle) {
+        // seguro chamar mesmo sem estar logado no Google
+        await GoogleSignin.revokeAccess().catch(() => { });
+        await GoogleSignin.signOut().catch(() => { });
+      }
+
+      await auth().signOut();
+
+      // 🔒 trava persist, esvazia buffer e apaga storage
+      persistor.pause();
+      await persistor.flush();
+      // dispara reset na memória (zera todos os slices)
+      dispatch(clearSession());
+      // remove tudo do AsyncStorage
+      await persistor.purge();
+
+      // navega para login
+      router.replace("/(auth)/login");
     } catch (e) {
       console.warn("Erro ao sair:", e);
       Alert.alert("Erro", "Não foi possível sair da conta.");
+    } finally {
+      setLoggingOut(false);
     }
-
   };
-
 
   // VALORES DEFAULTS
   // TEMA
@@ -386,6 +418,7 @@ export default function ConfigIndex() {
         </Group>
         <Pressable
           onPress={handleLogout}
+          disabled={loggingOut}
           style={({ pressed }) => [
             {
               marginTop: 24,
@@ -393,14 +426,26 @@ export default function ConfigIndex() {
               paddingVertical: 14,
               borderRadius: 10,
               alignItems: "center",
-              backgroundColor: "#EF4444", // vermelho de alerta
-              opacity: pressed ? 0.85 : 1,
+              backgroundColor: "#EF4444", // vermelho alerta
+              opacity: pressed || loggingOut ? 0.8 : 1,
+              flexDirection: "row",
+              justifyContent: "center",
+              gap: 8,
             },
           ]}
         >
-          <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
-            Sair
-          </Text>
+          {loggingOut ? (
+            <>
+              <ActivityIndicator color="#FFF" size="small" />
+              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+                Saindo…
+              </Text>
+            </>
+          ) : (
+            <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
+              Sair
+            </Text>
+          )}
         </Pressable>
         {/* Rodapé opcional */}
         <Text style={{ fontSize: 12, color: subtle, textAlign: 'center', marginTop: 16 }}>

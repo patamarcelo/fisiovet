@@ -55,6 +55,7 @@ function AuthBootstrap({ children }) {
 
 function AuthGate({ children }) {
   const user = useSelector((state) => state.user.user);
+  const boot = useSelector((state) => state.bootstrap);
   const router = useRouter();
   const segments = useSegments();
   const variant = useLayoutVariant(); // "phone" | "tabletPortrait" | "tabletLandscape"
@@ -73,6 +74,10 @@ function AuthGate({ children }) {
       return;
     }
 
+    if (boot?.loading || boot?.done === false) {
+     return; // não faz replace enquanto carrega agenda/tutores/pets
+    }
+
     // Se o user está logado:
     const shouldBeTablet = variant === 'tabletLandscape';
     const target = shouldBeTablet ? '/(tablet)' : '/(phone)';
@@ -86,7 +91,7 @@ function AuthGate({ children }) {
     if (inAuth || atRoot || (shouldBeTablet && !inTablet) || (!shouldBeTablet && !inPhone)) {
       router.replace(target);
     }
-  }, [user, segments, router, variant]);
+  }, [user, segments, router, variant,  boot?.loading, boot?.done]);
 
   return children;
 }

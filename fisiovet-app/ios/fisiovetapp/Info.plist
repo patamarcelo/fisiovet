@@ -34,6 +34,12 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
+          <string>com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
           <string>exp+fisiovet-app</string>
         </array>
       </dict>

@@ -11,45 +11,46 @@ const STORAGE_KEY = 'fisiovet:tutores_v1';
 const POA = { lat: -30.0346, lng: -51.2177 };
 const jitter = (v) => v + (Math.random() - 0.5) * 0.02;
 
-export const SEED_TUTORES = [
-  {
-    id: 't1',
-    nome: 'Ana Souza',
-    telefone: '11999990001',
-    email: 'ana@example.com',
-    endereco: {
-      cep: '90010-000',
-      logradouro: 'Av. Borges de Medeiros',
-      numero: '1000',
-      bairro: 'Centro Histórico',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted:
-        'Av. Borges de Medeiros, 1000 - Centro Histórico, Porto Alegre - RS, 90010-000, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t1' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-  {
-    id: 't2',
-    nome: 'Carlos Lima',
-    telefone: '51988882222',
-    email: 'carlos@example.com',
-    endereco: {
-      cep: '90020-004',
-      logradouro: 'Rua dos Andradas',
-      numero: '55',
-      bairro: 'Centro',
-      cidade: 'Porto Alegre',
-      uf: 'RS',
-      formatted: 'Rua dos Andradas, 55 - Centro, Porto Alegre - RS, 90020-004, Brasil',
-    },
-    geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t2' },
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  },
-];
+export const SEED_TUTORES = []
+// export const SEED_TUTORES = [
+//   {
+//     id: 't1',
+//     nome: 'Ana Souza',
+//     telefone: '11999990001',
+//     email: 'ana@example.com',
+//     endereco: {
+//       cep: '90010-000',
+//       logradouro: 'Av. Borges de Medeiros',
+//       numero: '1000',
+//       bairro: 'Centro Histórico',
+//       cidade: 'Porto Alegre',
+//       uf: 'RS',
+//       formatted:
+//         'Av. Borges de Medeiros, 1000 - Centro Histórico, Porto Alegre - RS, 90010-000, Brasil',
+//     },
+//     geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t1' },
+//     createdAt: Date.now(),
+//     updatedAt: Date.now(),
+//   },
+//   {
+//     id: 't2',
+//     nome: 'Carlos Lima',
+//     telefone: '51988882222',
+//     email: 'carlos@example.com',
+//     endereco: {
+//       cep: '90020-004',
+//       logradouro: 'Rua dos Andradas',
+//       numero: '55',
+//       bairro: 'Centro',
+//       cidade: 'Porto Alegre',
+//       uf: 'RS',
+//       formatted: 'Rua dos Andradas, 55 - Centro, Porto Alegre - RS, 90020-004, Brasil',
+//     },
+//     geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t2' },
+//     createdAt: Date.now(),
+//     updatedAt: Date.now(),
+//   },
+// ];
 
 // ids locais para fallback
 function genId() {

@@ -34,14 +34,9 @@ module.exports = {
 	ios: {
 		supportsTablet: true,
 		requireFullScreen: false,
-		bundleIdentifier: `${process.env.IOS_BUNDLE_IDENTIFIER}${ID_SUFFIX}`,
+		bundleIdentifier: `${process.env.IOS_BUNDLE_IDENTIFIER}`,
 		config: { googleMapsApiKey: MAPS_KEY },
-		googleServicesFile:
-			APP_ENV === "preview"
-				? "./firebase/preview/GoogleService-Info.plist"
-				: APP_ENV === "development"
-					? "./firebase/dev/GoogleService-Info.plist"
-					: "./GoogleService-Info.plist",
+		googleServicesFile: "./GoogleService-Info.plist",
 		infoPlist: {
 			"UISupportedInterfaceOrientations~ipad": [
 				"UIInterfaceOrientationPortrait",
@@ -97,6 +92,7 @@ module.exports = {
 			backgroundColor: "#ffffff",
 		}],
 		["react-native-bottom-tabs"],
+		["@react-native-google-signin/google-signin"],
 		["expo-build-properties", { ios: { useFrameworks: "static" } }],
 		["expo-location", { locationAlwaysAndWhenInUsePermission: "Permitir que o $(PRODUCT_NAME) use sua localização." }],
 		"expo-notifications",
