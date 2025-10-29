@@ -120,7 +120,11 @@ export default function Login() {
 		router.push('/(auth)/register');
 	}
 
-	console.log('error:: ', error)
+	useEffect(() => {
+		if (error) {
+			console.log('error:: ', error)
+		}
+	}, [error]);
 
 	async function handleGoogleLogin() {
 		let googleIdToken = null;
@@ -405,7 +409,7 @@ export default function Login() {
 								backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center',
 								borderRadius: 16
 							}}>
-								<ActivityIndicator size="large" color={colors.teal}/>
+								<ActivityIndicator size="large" color={colors.teal} />
 								<Text style={{ marginTop: 8, color: '#111', fontWeight: 'bold' }}>Carregando seus dados…</Text>
 							</View>
 						)}

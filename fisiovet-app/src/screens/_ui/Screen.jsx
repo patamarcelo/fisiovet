@@ -29,7 +29,7 @@ export default function Screen({
                 // 👇 aplica paddingTop padrão (quando padded) e paddingBottom calculado
                 contentContainerStyle={[
                     styles.container,
-                    padded && { paddingTop: 16, paddingHorizontal: 16 },
+                    padded && { paddingTop: 16, paddingHorizontal: 2 },
                     { paddingBottom: bottomPadding },
                     style,
                 ]}

@@ -109,7 +109,7 @@ function RootNavigator() {
             <Stack.Screen name="(phone)" />
             <Stack.Screen name="(tablet)" />
             <Stack.Screen name="configuracoes" options={{ headerShown: false }} />
-            <Stack.Screen name="(modals)" options={{ headerShown: false, presentation: 'modal' }} />
+            <Stack.Screen name="(modals)" options={{ headerShown: false }} />
             <Stack.Screen name="(maps)" options={{ headerShown: false}} />
             {/* Suas outras rotas soltas */}
             <Stack.Screen name="testeRota" />

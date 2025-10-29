@@ -7,12 +7,15 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import auth from '@react-native-firebase/auth';
 import { useDispatch } from 'react-redux';
 import { setUser } from '@/src/store/slices/userSlice';
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
 import { router } from 'expo-router';
 import ResponsiveHero from './_resposiveHero';
+import { getAuth, createUserWithEmailAndPassword, updateProfile } from '@react-native-firebase/auth';
+import { setLogLevel } from '@react-native-firebase/app';
+setLogLevel('debug');
+
 
 import { postLoginBootstrap } from '@/src/store/bootstrapSlice';
 
@@ -86,19 +89,22 @@ export default function SignUp() {
 			setError('');
 			setSubmitting(true);
 
+			const authInstance = getAuth(); // 🔥 pega instância modular
+
 			// cria usuário
-			const cred = await auth().createUserWithEmailAndPassword(email.trim(), password);
+			const cred = await createUserWithEmailAndPassword(authInstance, email.trim(), password);
+
 			// define displayName
 			if (name.trim()) {
-				await cred.user.updateProfile({ displayName: name.trim() });
+				await updateProfile(cred.user, { displayName: name.trim() });
 				await cred.user.reload();
 			}
 
-			// despacha usuário no Redux
-			const finalUser = auth().currentUser || cred.user;
+			// usuário final
+			const finalUser = authInstance.currentUser || cred.user;
+
 			dispatch(setUser(mapFirebaseUserToDTO(finalUser)));
 
-			// bootstrap de dados iniciais (tutores, pets, agenda)
 			try {
 				setBooting(true);
 				await dispatch(
@@ -110,11 +116,16 @@ export default function SignUp() {
 				setBooting(false);
 			}
 
-			// navega para o app
 			router.replace('/');
 		} catch (e) {
 			const msg = normalizeFirebaseError(e?.code, e?.message);
 			setError(msg);
+			console.log('error: ', e)
+			console.log('error msg: ', msg)
+			console.log('code:', e?.code);
+			console.log('message:', e?.message);
+			console.log('native:', e?.nativeErrorMessage || e?.userInfo || e?.toString?.());
+
 			Alert.alert('Cadastro', msg);
 		} finally {
 			setSubmitting(false);
