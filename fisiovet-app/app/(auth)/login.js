@@ -117,7 +117,7 @@ export default function Login() {
 
 	function goToSignup() {
 		// troque pela sua rota real de cadastro
-		router.push('/signup');
+		router.push('/(auth)/register');
 	}
 
 	console.log('error:: ', error)
@@ -362,12 +362,13 @@ export default function Login() {
 						<View style={styles.hr} />
 
 						{/* Cadastro */}
-						{/* <View style={[styles.rowCenter, { marginTop: 6 }]}>
+						<View style={[styles.rowCenter, { marginBottom: 12 }]}>
 							<Text style={{ color: colors.sub }}>Não tem conta? </Text>
 							<Pressable onPress={goToSignup} hitSlop={10}>
 								<Text style={[styles.link, { fontWeight: '700' }]}>Cadastre-se</Text>
 							</Pressable>
-						</View> */}
+							<Text style={{ color: colors.sub }}> ou </Text>
+						</View>
 						{/* Divisor já existente */}
 
 						{/* Botão Google */}
