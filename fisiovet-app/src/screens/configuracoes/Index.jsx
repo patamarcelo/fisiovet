@@ -9,7 +9,8 @@ import {
   Switch,
   ScrollView,
   Platform,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { router } from 'expo-router';
 import { useThemeColor } from '@/hooks/useThemeColor';
@@ -35,6 +36,8 @@ import * as SecureStore from 'expo-secure-store';
 import { clearSession } from '@/src/store/sessionActions';
 
 import { persistor } from "@/src/store";
+import { Image } from 'expo-image';
+import { openWhatsapp } from '@/src/utils/openWhatsapp';
 
 
 
@@ -62,7 +65,11 @@ function Divider() {
 }
 
 // Célula padrão com ícone à esquerda, título, valor à direita e chevron
-function Cell({ title, subtitle, value, leftIcon, onPress, rightIcon = 'chevron.right', disabled, subtleColor, textColor }) {
+function Cell({ title, subtitle, value, leftIcon, leftImageSource, onPress, rightIcon = 'chevron.right', disabled, subtleColor, textColor, loading }) {
+  const badgeStyle = leftImageSource
+    ? [styles.iconBadge, { backgroundColor: 'transparent', padding: 0 }]
+    : [styles.iconBadge, { backgroundColor: '#25D366' }]; // verde Whats padrão p/ ícone SF, se usar
+
   return (
     <Pressable
       onPress={onPress}
@@ -72,9 +79,13 @@ function Cell({ title, subtitle, value, leftIcon, onPress, rightIcon = 'chevron.
       accessibilityLabel={title}
     >
       <View style={styles.cellLeft}>
-        {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: '#007AFF' }]}>
-            <IconSymbol name={leftIcon} size={16} color="#fff" />
+        {!!(leftIcon || leftImageSource) && (
+          <View style={badgeStyle}>
+            {leftImageSource ? (
+              <Image source={leftImageSource} style={styles.iconImage} />
+            ) : (
+              <IconSymbol name={leftIcon} size={16} color="#fff" />
+            )}
           </View>
         )}
         <View style={{ flex: 1 }}>
@@ -89,7 +100,11 @@ function Cell({ title, subtitle, value, leftIcon, onPress, rightIcon = 'chevron.
         </View>
       </View>
 
-      {!!value && <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>{value}</Text>}
+      {loading ? (
+        <ActivityIndicator size="small" />
+      ) : (
+        !!value && <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>{value}</Text>
+      )}
       {!!rightIcon && <IconSymbol name={rightIcon} size={14} color={subtleColor} />}
     </Pressable>
   );
@@ -162,6 +177,8 @@ export default function ConfigIndex() {
   const fb = ensureFirebase()
   const dispatch = useDispatch();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [loading, setLoading] = useState(false);
+
 
 
 
@@ -197,6 +214,43 @@ export default function ConfigIndex() {
       setLoggingOut(false);
     }
   };
+
+  const handleCallSupport = async () => {
+    setLoading(true);
+    try {
+      const fb = ensureFirebase();
+      if (!fb) {
+        Alert.alert('Suporte', 'Firebase não inicializado.');
+        return;
+      }
+
+      // RN Firebase (namespaced): firestoreModule().collection(...).limit(1).get()
+      const snap = await fb.firestoreModule().collection('suport').limit(1).get();
+
+      if (snap.empty) {
+        Alert.alert('Suporte', 'Nenhum número de suporte encontrado.');
+        return;
+      }
+
+      const data = snap.docs[0].data() || {};
+      const phone =
+        data.celphone ?? data.cellphone ?? data.whatsapp ?? data.phone ?? null;
+
+      if (!phone) {
+        Alert.alert('Suporte', 'Campo de telefone não encontrado.');
+        return;
+      }
+      console.log('phone: ', phone)
+      const formatPhone = `+${phone}`
+      openWhatsapp(formatPhone, 'Olá! Preciso de suporte no FisioVet.');
+    } catch (err) {
+      console.log(err);
+      Alert.alert('Suporte', 'Erro ao buscar o número de suporte.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   // VALORES DEFAULTS
   // TEMA
@@ -415,6 +469,19 @@ export default function ConfigIndex() {
             subtleColor={subtle}
             textColor={text}
           />
+          <Divider />
+          <Cell
+            title="Suporte"
+            value="Chamar"
+            subtitle="Dúvidas, Sugestões, Reports"
+            // use o seu png salvo em /assets/images/whatsapp.png (ajuste o path)
+            leftImageSource={require('@/assets/images/whatsapp.png')}
+            rightIcon="chevron.right"
+            onPress={handleCallSupport}
+            subtleColor={'#9CA3AF'}
+            textColor={'#111827'}
+            loading={loading}
+          />
         </Group>
         <Pressable
           onPress={handleLogout}
@@ -492,6 +559,11 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  iconImage: {
+    width: 26,
+    height: 26,
+    resizeMode: 'contain'
   },
 
   cellTitle: { fontSize: 16, fontWeight: '600' },
