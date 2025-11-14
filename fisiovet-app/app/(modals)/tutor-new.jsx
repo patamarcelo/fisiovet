@@ -104,6 +104,17 @@ export default function TutorForm() {
             headerLargeTitle: false,
             headerBackTitleVisible: false,
             headerTitle: id ? (tutor?.nome || 'Editar Tutor') : 'Novo Tutor',
+            headerLeft: () => (
+                <Pressable
+                    onPress={() => navigation.goBack()}
+                    hitSlop={10}
+                    accessibilityLabel="Cancelar"
+                    style={{ marginRight: 10 }}
+                >
+                    <IconSymbol name="chevron.left" size={24} />
+                </Pressable>
+            ),
+
             headerRight: () =>
                 id ? (
                     <Pressable onPress={confirmDelete} hitSlop={10} accessibilityLabel="Excluir tutor">
@@ -281,7 +292,7 @@ export default function TutorForm() {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
         >
-            <Screen>
+            <Screen style={{ paddingHorizontal: 10 }}>
                 {/* Dados básicos */}
                 <View style={{ gap: 10 }}>
                     <ThemedTextInput
