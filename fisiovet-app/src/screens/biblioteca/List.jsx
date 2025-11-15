@@ -1,6 +1,6 @@
 // screens/biblioteca/List.jsx
 // JSX (sem TypeScript). Estilo iOS Ajustes com seções, busca e navegação.
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Screen from '../_ui/Screen';
+import { useNavigation } from "expo-router";
+import { useThemeColor } from "@/hooks/useThemeColor";
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // ——————————————————
 // Dados de exemplo (você pode popular dinamicamente depois)
@@ -59,6 +62,11 @@ const SECTIONS = [
 export default function BibliotecaList() {
   const router = useRouter();
   const [query, setQuery] = useState('');
+  const navigation = useNavigation();
+
+  const tint = useThemeColor({}, "tint");
+  const bg = useThemeColor({}, "background");
+  const text = useThemeColor({}, "text");
 
   const filteredSections = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -75,6 +83,20 @@ export default function BibliotecaList() {
   const onPressRow = (item) => {
     if (item?.route) router.push(item.route);
   };
+
+
+  // useLayoutEffect(
+  //   () => {
+  //     console.log('here lib')
+  //     navigation.setOptions({
+  //       headerLargeTitle: true,
+  //       headerTitle: "Agenda",
+  //       headerTitleStyle: { color: tint, fontWeight: "700" },
+  //       headerStyle: { backgroundColor: bg }, // 🎨 cor de fundo do header  
+  //     });
+  //   },
+  //   []
+  // );
 
   const ListHeader = (
     <View style={styles.searchWrap}>
@@ -98,60 +120,65 @@ export default function BibliotecaList() {
   );
 
   return (
-    <Screen style={styles.screen}>
-      <SectionList
-        sections={filteredSections}
-        keyExtractor={(item) => item.key}
-        stickySectionHeadersEnabled={false}
-        ListHeaderComponent={
-          <>
-            <Text style={styles.title}>Biblioteca</Text>
-            {ListHeader}
-          </>
-        }
-        renderSectionHeader={({ section }) => (
-          <Text style={styles.sectionHeader}>{section.title}</Text>
-        )}
-        renderSectionFooter={() => <View style={{ height: 8 }} />}
-        renderItem={({ item, index, section }) => {
-          const total = (section.data || []).length;
-          const isFirst = index === 0;
-          const isLast = index === total - 1;
-          return (
-            <Pressable
-              onPress={() => onPressRow(item)}
-              style={({ pressed }) => [
-                styles.row,
-                isFirst && styles.rowFirst,
-                isLast && styles.rowLast,
-                pressed && styles.rowPressed,
-              ]}
-            >
-              <View style={styles.rowLeft}>
-                <View style={styles.rowIcon}>
-                  <Ionicons name={item.icon || 'document-text-outline'} size={18} color="#0F766E" />
+     <SafeAreaView
+          style={{ flex: 1, backgroundColor: bg, marginBottom: 0 }}
+          edges={["top", 'bottom']}
+        >
+      <View>
+        <SectionList
+          sections={filteredSections}
+          keyExtractor={(item) => item.key}
+          stickySectionHeadersEnabled={false}
+          ListHeaderComponent={
+            <>
+              <Text style={styles.title}>Biblioteca</Text>
+              {ListHeader}
+            </>
+          }
+          renderSectionHeader={({ section }) => (
+            <Text style={[styles.sectionHeader,{color: text}]}>{section.title}</Text>
+          )}
+          renderSectionFooter={() => <View style={{ height: 8 }} />}
+          renderItem={({ item, index, section }) => {
+            const total = (section.data || []).length;
+            const isFirst = index === 0;
+            const isLast = index === total - 1;
+            return (
+              <Pressable
+                onPress={() => onPressRow(item)}
+                style={({ pressed }) => [
+                  styles.row,
+                  isFirst && styles.rowFirst,
+                  isLast && styles.rowLast,
+                  pressed && styles.rowPressed,
+                ]}
+              >
+                <View style={styles.rowLeft}>
+                  <View style={styles.rowIcon}>
+                    <Ionicons name={item.icon || 'document-text-outline'} size={18} color="#0F766E" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                    {!!item.subtitle && (
+                      <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+                    )}
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
-                  {!!item.subtitle && (
-                    <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
-                  )}
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
-            </Pressable>
-          );
-        }}
-        contentContainerStyle={{ paddingBottom: 24 }}
-        SectionSeparatorComponent={() => null}
-        ItemSeparatorComponent={({ leadingItem, section }) => {
-          const data = section.data || [];
-          const lastKey = data.length ? data[data.length - 1].key : null;
-          const isLast = leadingItem?.key === lastKey;
-          return isLast ? null : <View style={styles.separator} />;
-        }}
-      />
-    </Screen>
+                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+              </Pressable>
+            );
+          }}
+          contentContainerStyle={{ paddingBottom: 24 }}
+          SectionSeparatorComponent={() => null}
+          ItemSeparatorComponent={({ leadingItem, section }) => {
+            const data = section.data || [];
+            const lastKey = data.length ? data[data.length - 1].key : null;
+            const isLast = leadingItem?.key === lastKey;
+            return isLast ? null : <View style={styles.separator} />;
+          }}
+        />
+      </View>
+    </SafeAreaView>
   );
 }
 
@@ -159,7 +186,7 @@ export default function BibliotecaList() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    // backgroundColor: '#F3F4F6', // cinza claro estilo iOS Settings
+    // backgroundColor: 
     // paddingTop: Platform.OS === 'ios' ? 8 : 0,
   },
   title: {

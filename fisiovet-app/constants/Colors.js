@@ -13,6 +13,7 @@ export const Colors = {
   light: {
     // Modo Claro: Cores mais claras com um toque profissional
     text: '#003366', // Azul Marinho - para textos principais e títulos
+    textAgenda: '#6B7280', // Azul Marinho - para textos principais e títulos
     textIcon: '#003366', // Cinza Claro - para textos principais: '#003366', // Azul Marinho - para textos principais e títulos
     background: 'whitesmoke', // Cinza Claro - fundo principal
     // background: '#E0E0E0', // Cinza Claro - fundo principal
@@ -27,6 +28,7 @@ export const Colors = {
   dark: {
     // Modo Escuro: Cores invertidas para conforto visual, mantendo a identidade
     text: '#E0E0E0', // Cinza Claro - para textos principais
+    textAgenda: '#E0E0E0', // Cinza Claro - para textos principais
     textIcon: '#E0E0E0', // Cinza Claro - para textos principais
     // background: '#003366', // Azul Marinho - fundo principal
     background: tintColorDarkBg, // Azul Marinho - fundo principal

@@ -500,6 +500,9 @@ function EventRow({ item }) {
   const dispatch = useDispatch();
   const swipeRef = React.useRef(null);
   const [pending, setPending] = useState(false);
+  const tint = useThemeColor({}, "tint");
+  const bg = useThemeColor({}, "background");
+  const text = useThemeColor({}, 'textAgenda')
 
 
   const evento = useSelector((s) => selectEventoById(item.id)(s));
@@ -595,7 +598,7 @@ function EventRow({ item }) {
         style={({ pressed }) => ({
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: pressed && Platform.OS === "ios" ? "#F7F8FA" : "#FFF",
+          backgroundColor: pressed && Platform.OS === "ios" ? "#F7F8FA" : bg,
           alignSelf: "stretch",
           width: "100%",
         })}
@@ -628,18 +631,18 @@ function EventRow({ item }) {
             </Text>
           </View>
 
-          <Text style={{ color: "#6B7280", fontWeight: "bold" }}>
+          <Text style={{ color: text, fontWeight: "bold" }}>
             Tutor: {cliente}
           </Text>
 
           {observacoes ? (
-            <Text style={{ marginTop: 2, color: "#6B7280" }}>
+            <Text style={{ marginTop: 2, color: text }}>
               {observacoes}
             </Text>
           ) : null}
 
           {shortAddr ? (
-            <Text style={{ marginTop: 2, color: "#6B7280" }}>
+            <Text style={{ marginTop: 2, color: text }}>
               • {shortAddr}
             </Text>
           ) : null}
@@ -647,7 +650,7 @@ function EventRow({ item }) {
         <View style={{ paddingRight: 10, alignSelf: "stretch", justifyContent: 'space-between', marginBottom: 10 }}>
           <Text
             numberOfLines={1}
-            style={{ color: "#6B7280", flexShrink: 0, marginTop: 10 }}
+            style={{ color: text, flexShrink: 0, marginTop: 10 }}
           >
             {fmtHour(start)} — {fmtHour(end)}
           </Text>

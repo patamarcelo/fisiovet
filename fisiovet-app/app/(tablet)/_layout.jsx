@@ -14,8 +14,8 @@ const NAV_ITEMS = [
     { route: 'tutores', title: 'Tutores', icon: 'person.2.fill' },
     { route: 'pacientes', title: 'Pets', icon: 'pawprint.fill' }, // renomeie p/ 'pacientes' se trocar a pasta
     { route: 'agenda', title: 'Agenda', icon: 'calendar' },
-    { route: 'financeiro', title: 'Financeiro', icon: 'banknote.fill' }
-    // { route: 'faturas', title: 'Faturas', icon: 'doc.richtext' },
+    { route: 'biblioteca', title: 'Biblioteca', icon: 'book.fill' },
+    { route: 'financeiro', title: 'Financeiro', icon: 'banknote.fill' },
     // { route: 'pagamentos', title: 'Pagamentos', icon: 'creditcard.fill' },
 ];
 
@@ -43,6 +43,7 @@ export default function TabletDrawerLayout() {
             <Drawer.Screen name="pacientes" options={{ title: 'Pets' }} />
             <Drawer.Screen name="agenda" options={{ title: 'Agenda' }} />
             <Drawer.Screen name="financeiro" options={{ title: 'Financeiro' }} />
+            <Drawer.Screen name="biblioteca" options={{ title: 'Biblioteca' }} />
             {/* Adicione esta tela se ainda não existir */}
             <Drawer.Screen name="configuracoes" options={{ title: 'Configurações' }} />
         </Drawer>

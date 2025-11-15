@@ -9,13 +9,14 @@ const MAPS_KEY =
 	process.env[`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_${APP_ENV.toUpperCase()}`] ||
 	process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
+const versionControl = '1.0.1'
 module.exports = {
 	// 🔹 TUDO NA RAIZ (sem wrapper "expo")
 	name: `fisiovet-app${NAME_SUFFIX}`,
 	slug: "fisiovet-app",
 
-	version: "1.0.0",
-	runtimeVersion: "1.0.0", // Bare exige string fixa
+	version: versionControl,
+	runtimeVersion: versionControl, // Bare exige string fixa
 
 	orientation: "portrait",
 	icon: "./assets/images/icon.png",
