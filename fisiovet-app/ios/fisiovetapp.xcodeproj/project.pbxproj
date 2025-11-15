@@ -8,27 +8,27 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		30B11FA7592842A35F5EEEFC /* Pods_fisiovetapp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 74D8D0AC5F277B4C47BD94F7 /* Pods_fisiovetapp.framework */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		62CCAD0C10A43D430224BE38 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 75579A5D145D6D549FA20268 /* PrivacyInfo.xcprivacy */; };
-		7356438104BE4AEF86EC0870 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D1FF351E8F6E4D6A803B344E /* GoogleService-Info.plist */; };
-		8705C3FD6C2238FF5ECEBD1C /* Pods_fisiovetapp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 7A2C6995B4576589F325342A /* Pods_fisiovetapp.framework */; };
+		4653537162114951A44863F5 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = D17EDC1B85EB4821A67268AD /* GoogleService-Info.plist */; };
+		B17853E0B088F756950A0355 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 8E4A6DE45958ED45F5219A5C /* PrivacyInfo.xcprivacy */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		E865650F714ED197B9A68623 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C71CF81A633F3185FD235415 /* ExpoModulesProvider.swift */; };
+		C0513B3FB5F4A97BC6FFDD52 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0487AE8DFA71C369480E9B63 /* ExpoModulesProvider.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		118CB7F7FFC2BD8EB9A974D0 /* Pods-fisiovetapp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-fisiovetapp.debug.xcconfig"; path = "Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp.debug.xcconfig"; sourceTree = "<group>"; };
+		0487AE8DFA71C369480E9B63 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-fisiovetapp/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* fisiovetapp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = fisiovetapp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = fisiovetapp/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = fisiovetapp/Info.plist; sourceTree = "<group>"; };
-		75579A5D145D6D549FA20268 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = fisiovetapp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		7A2C6995B4576589F325342A /* Pods_fisiovetapp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_fisiovetapp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		74D8D0AC5F277B4C47BD94F7 /* Pods_fisiovetapp.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_fisiovetapp.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8059302E737634382BB626EB /* Pods-fisiovetapp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-fisiovetapp.release.xcconfig"; path = "Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp.release.xcconfig"; sourceTree = "<group>"; };
+		8E4A6DE45958ED45F5219A5C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = fisiovetapp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = fisiovetapp/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C71CF81A633F3185FD235415 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-fisiovetapp/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		D1FF351E8F6E4D6A803B344E /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "fisiovetapp/GoogleService-Info.plist"; sourceTree = "<group>"; };
-		EA5F4E6826A82430CDD6EAD6 /* Pods-fisiovetapp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-fisiovetapp.release.xcconfig"; path = "Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp.release.xcconfig"; sourceTree = "<group>"; };
+		D17EDC1B85EB4821A67268AD /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "fisiovetapp/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		D8817B22DF63046319042BA8 /* Pods-fisiovetapp.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-fisiovetapp.debug.xcconfig"; path = "Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = fisiovetapp/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* fisiovetapp-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "fisiovetapp-Bridging-Header.h"; path = "fisiovetapp/fisiovetapp-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -39,7 +39,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8705C3FD6C2238FF5ECEBD1C /* Pods_fisiovetapp.framework in Frameworks */,
+				30B11FA7592842A35F5EEEFC /* Pods_fisiovetapp.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -55,27 +55,28 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				D1FF351E8F6E4D6A803B344E /* GoogleService-Info.plist */,
-				75579A5D145D6D549FA20268 /* PrivacyInfo.xcprivacy */,
+				D17EDC1B85EB4821A67268AD /* GoogleService-Info.plist */,
+				8E4A6DE45958ED45F5219A5C /* PrivacyInfo.xcprivacy */,
 			);
 			name = fisiovetapp;
+			sourceTree = "<group>";
+		};
+		2235488DFCCDF47D7829CF3A /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				D8817B22DF63046319042BA8 /* Pods-fisiovetapp.debug.xcconfig */,
+				8059302E737634382BB626EB /* Pods-fisiovetapp.release.xcconfig */,
+			);
+			path = Pods;
 			sourceTree = "<group>";
 		};
 		2D16E6871FA4F8E400B85C8A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				7A2C6995B4576589F325342A /* Pods_fisiovetapp.framework */,
+				74D8D0AC5F277B4C47BD94F7 /* Pods_fisiovetapp.framework */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		82CE963E7EDA440E206C1734 /* fisiovetapp */ = {
-			isa = PBXGroup;
-			children = (
-				C71CF81A633F3185FD235415 /* ExpoModulesProvider.swift */,
-			);
-			name = fisiovetapp;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -92,8 +93,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				ABA0FA3C64FF6CF5084B975E /* Pods */,
-				89BAFBD4A6F47BFA6609CA0E /* ExpoModulesProviders */,
+				2235488DFCCDF47D7829CF3A /* Pods */,
+				B47AEC5E8FA8991C889D84FE /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -108,21 +109,20 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		89BAFBD4A6F47BFA6609CA0E /* ExpoModulesProviders */ = {
+		9356F811429AD17F3591EB5B /* fisiovetapp */ = {
 			isa = PBXGroup;
 			children = (
-				82CE963E7EDA440E206C1734 /* fisiovetapp */,
+				0487AE8DFA71C369480E9B63 /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoModulesProviders;
+			name = fisiovetapp;
 			sourceTree = "<group>";
 		};
-		ABA0FA3C64FF6CF5084B975E /* Pods */ = {
+		B47AEC5E8FA8991C889D84FE /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				118CB7F7FFC2BD8EB9A974D0 /* Pods-fisiovetapp.debug.xcconfig */,
-				EA5F4E6826A82430CDD6EAD6 /* Pods-fisiovetapp.release.xcconfig */,
+				9356F811429AD17F3591EB5B /* fisiovetapp */,
 			);
-			path = Pods;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
 		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
@@ -142,15 +142,15 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "fisiovetapp" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				5A1EEFC9C340B682AA3A28FC /* [Expo] Configure project */,
+				E3701E4A7745F692D90CC77F /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				33D7EECDBB690ED810D345A6 /* [CP] Embed Pods Frameworks */,
-				7060B983FAF40D56B95B5F1E /* [CP-User] [RNFB] Core Configuration */,
-				EE952791C7E4E64549F76D8A /* [CP-User] [RNFB] Crashlytics Configuration */,
+				3D0545A226BEDFA281C88BF5 /* [CP] Embed Pods Frameworks */,
+				5C8AE7F3E8CA6851962ACB57 /* [CP-User] [RNFB] Core Configuration */,
+				4E46DE7875C2DD28C9745678 /* [CP-User] [RNFB] Crashlytics Configuration */,
 			);
 			buildRules = (
 			);
@@ -200,8 +200,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				7356438104BE4AEF86EC0870 /* GoogleService-Info.plist in Resources */,
-				62CCAD0C10A43D430224BE38 /* PrivacyInfo.xcprivacy in Resources */,
+				4653537162114951A44863F5 /* GoogleService-Info.plist in Resources */,
+				B17853E0B088F756950A0355 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -245,7 +245,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		33D7EECDBB690ED810D345A6 /* [CP] Embed Pods Frameworks */ = {
+		3D0545A226BEDFA281C88BF5 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -263,26 +263,23 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		5A1EEFC9C340B682AA3A28FC /* [Expo] Configure project */ = {
+		4E46DE7875C2DD28C9745678 /* [CP-User] [RNFB] Crashlytics Configuration */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
 			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
+			name = "[CP-User] [RNFB] Crashlytics Configuration";
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-fisiovetapp/expo-configure-project.sh\"\n";
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\nset -e\n\nif [[ ${PODS_ROOT} ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from Pods\"\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelse\n  echo \"info: Exec FirebaseCrashlytics Run from framework\"\n  \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\"\nfi\n";
 		};
-		7060B983FAF40D56B95B5F1E /* [CP-User] [RNFB] Core Configuration */ = {
+		5C8AE7F3E8CA6851962ACB57 /* [CP-User] [RNFB] Core Configuration */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -403,21 +400,24 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-fisiovetapp/Pods-fisiovetapp-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		EE952791C7E4E64549F76D8A /* [CP-User] [RNFB] Crashlytics Configuration */ = {
+		E3701E4A7745F692D90CC77F /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputPaths = (
-				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
-				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			inputFileListPaths = (
 			);
-			name = "[CP-User] [RNFB] Crashlytics Configuration";
+			inputPaths = (
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\nset -e\n\nif [[ ${PODS_ROOT} ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from Pods\"\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelse\n  echo \"info: Exec FirebaseCrashlytics Run from framework\"\n  \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\"\nfi\n";
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-fisiovetapp/expo-configure-project.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -427,7 +427,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				E865650F714ED197B9A68623 /* ExpoModulesProvider.swift in Sources */,
+				C0513B3FB5F4A97BC6FFDD52 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -436,7 +436,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 118CB7F7FFC2BD8EB9A974D0 /* Pods-fisiovetapp.debug.xcconfig */;
+			baseConfigurationReference = D8817B22DF63046319042BA8 /* Pods-fisiovetapp.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -462,7 +462,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fisiovet.app;
-				PRODUCT_NAME = "fisiovetapp";
+				PRODUCT_NAME = fisiovetapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "fisiovetapp/fisiovetapp-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -473,7 +473,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = EA5F4E6826A82430CDD6EAD6 /* Pods-fisiovetapp.release.xcconfig */;
+			baseConfigurationReference = 8059302E737634382BB626EB /* Pods-fisiovetapp.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -494,7 +494,7 @@
 				);
 				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
 				PRODUCT_BUNDLE_IDENTIFIER = com.fisiovet.app;
-				PRODUCT_NAME = "fisiovetapp";
+				PRODUCT_NAME = fisiovetapp;
 				SWIFT_OBJC_BRIDGING_HEADER = "fisiovetapp/fisiovetapp-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
