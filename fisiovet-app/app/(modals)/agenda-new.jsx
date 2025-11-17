@@ -10,7 +10,8 @@ import {
     ScrollView,
     Alert,
     KeyboardAvoidingView,
-    Switch
+    Switch,
+    ActionSheetIOS
 } from "react-native";
 
 import { Linking } from "react-native";
@@ -53,7 +54,7 @@ import {
     addEventosBatch
 } from "@/src/store/slices/agendaSlice";
 
-import { selectDefaultDuracao, selectStartOfDay } from "@/src/store/slices/systemSlice";
+import { selectDefaultDuracao, selectStartOfDay, selectNavPreference } from "@/src/store/slices/systemSlice";
 
 
 
@@ -346,6 +347,8 @@ export default function AgendaNewScreen() {
     // pets por tutor
     const petsDoTutor = useSelector(selectPetsByTutorId(tutor?.id || ""));
     const loadingPets = useSelector(selectLoadingPetsByTutor(tutor?.id || ""));
+    const navPreference = useSelector(selectNavPreference);
+
 
     // nomes de pets (útil para confirmar visualização)
     const petsState = useSelector(selectPetsState, shallowEqual); // pega um objeto estável (por ref)
@@ -603,15 +606,75 @@ export default function AgendaNewScreen() {
             <Pressable onPress={onPress} style={style}>{children}</Pressable>
         );
 
-    const openMaps = () => {
-        if (!tutor?.geo?.lat || !tutor?.geo?.lng) return;
+    // const openMaps = () => {
+    //     if (!tutor?.geo?.lat || !tutor?.geo?.lng) return;
+    //     const { lat, lng } = tutor.geo;
+    //     const url = Platform.select({
+    //         ios: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    //         android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(tutor?.nome || 'Local')})`,
+    //         default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+    //     });
+    //     Linking.openURL(url);
+    // };
+
+    // 👇 por ESTA:
+    const openMaps = async () => {
+        if (!tutor?.geo?.lat || !tutor?.geo?.lng) {
+            console.log('Sem geo no tutor, não dá pra abrir navegação');
+            return;
+        }
+
         const { lat, lng } = tutor.geo;
-        const url = Platform.select({
-            ios: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-            android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(tutor?.nome || 'Local')})`,
+        const label = encodeURIComponent(tutor?.nome || 'Local');
+
+        const googleURL = Platform.select({
+            ios: `comgooglemaps://?q=${lat},${lng}`,
+            android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
             default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
         });
-        Linking.openURL(url);
+
+        const wazeURL = `waze://?ll=${lat},${lng}&navigate=yes`;
+
+        const openGoogle = () => Linking.openURL(googleURL);
+        const openWaze = async () => {
+            console.log('openWaze')
+            const canOpen = await Linking.canOpenURL(wazeURL);
+            if (!canOpen) {
+                Alert.alert('Waze não encontrado', 'Parece que o Waze não está instalado neste dispositivo.');
+                return;
+            }
+            return Linking.openURL(wazeURL);
+        };
+
+        // Se app padrão está setado
+        if (navPreference === 'google') return openGoogle();
+        if (navPreference === 'waze') return openWaze();
+
+        // 'ask' → perguntar na hora
+        const options = ['Google Maps', 'Waze', 'Cancelar'];
+
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    options,
+                    cancelButtonIndex: 2,
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === 0) openGoogle();
+                    if (buttonIndex === 1) openWaze();
+                }
+            );
+        } else {
+            Alert.alert(
+                'Escolher navegação',
+                'Selecione o app:',
+                [
+                    { text: 'Google Maps', onPress: openGoogle },
+                    { text: 'Waze', onPress: openWaze },
+                    { text: 'Cancelar', style: 'cancel' },
+                ]
+            );
+        }
     };
 
     return (

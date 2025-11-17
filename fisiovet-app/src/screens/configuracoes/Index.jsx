@@ -39,6 +39,8 @@ import { persistor } from "@/src/store";
 import { Image } from 'expo-image';
 import { openWhatsapp } from '@/src/utils/openWhatsapp';
 
+import { selectNavPreference } from '@/src/store/slices/systemSlice';
+
 
 
 
@@ -137,7 +139,7 @@ function CellSwitch({ title, subtitle, value, onValueChange, leftIcon, subtleCol
 // Célula “texto à direita” (valor editável futuramente via modal)
 function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) {
   const isString = typeof value === 'string' || typeof value === 'number';
-  const getColor = title.includes("Integração") ? "#8B5CF6" : "#8E8E93"
+  const getColor = title.includes("Integração") || title.includes('Navegação') ? "#8B5CF6" : "#8E8E93"
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}>
@@ -264,6 +266,9 @@ export default function ConfigIndex() {
   // DURACAO
   const defaultDur = useSelector(selectDefaultDuracao);
   const defaultStartDay = useSelector(selectStartOfDay);
+  
+  //sistema de navegacao
+  const navPreference = useSelector(selectNavPreference);
 
 
   // estados locais (exemplo; depois pode ligar no Redux)
@@ -356,6 +361,15 @@ export default function ConfigIndex() {
         {/* INTEGRACOES */}
         <SectionLabel>INTEGRAÇÕES</SectionLabel>
         <Group bg={card}>
+          <CellValue
+            title="App de Navegação"
+            value={navPreference}
+            leftIcon="location.circle"
+            onPress={() => router.push('/configuracoes/navegador')}
+            subtleColor={subtle}
+            textColor={text}
+          />
+          <Divider />
           <CellValue
             title="Integração Google Agenda"
             value={

@@ -8,10 +8,20 @@ const pad2 = (n) => String(n).padStart(2, '0');
 const isHHMM = (v) => /^(\d{1,2}):([0-5]\d)$/.test(String(v || ''));
 const clampHHMM = (v, fallback = '01:00') => (isHHMM(v) ? v : fallback);
 
+// 🔹 helper pra garantir valor válido
+const sanitizeNavPreference = (v, fallback = 'ask') => {
+    const allowed = ['google', 'waze', 'ask'];
+    if (!v) return fallback;
+    return allowed.includes(v) ? v : fallback;
+};
+
 const defaultState = {
     // Configurações de agenda
     defaultDuracao: '01:00',  // HH:MM
     startOfDay: '08:00',      // HH:MM
+
+    // Navegação (Google / Waze / Perguntar sempre)
+    navPreference: 'ask',     // 'google' | 'waze' | 'ask'
 
     // Integrações (exemplos; expanda depois)
     integrations: {
@@ -34,7 +44,13 @@ async function writeToDevice(obj) {
 
 export const loadSystem = createAsyncThunk('system/load', async () => {
     const v = await readFromDevice();
-    if (v && typeof v === 'object') return v;
+    if (v && typeof v === 'object') {
+        return {
+            ...defaultState,      // garante campos novos
+            ...v,
+            navPreference: sanitizeNavPreference(v.navPreference, defaultState.navPreference),
+        };
+    }
     // primeira vez: grava defaults
     await writeToDevice(defaultState);
     return defaultState;
@@ -53,6 +69,9 @@ export const updateSystem = createAsyncThunk('system/update', async (patch, { ge
             ...state.integrations,
             ...(patch?.integrations || {}),
         },
+        navPreference: sanitizeNavPreference(
+            patch?.navPreference ?? state.navPreference ?? defaultState.navPreference
+        ),
         updatedAt: new Date().toISOString(),
     };
     await writeToDevice(next);
@@ -83,3 +102,9 @@ export default systemSlice.reducer;
 export const selectSystem = (s) => s.system || defaultState;
 export const selectDefaultDuracao = createSelector(selectSystem, (sys) => sys.defaultDuracao);
 export const selectStartOfDay = createSelector(selectSystem, (sys) => sys.startOfDay);
+
+// 🔹 NOVO selector
+export const selectNavPreference = createSelector(
+    selectSystem,
+    (sys) => sys.navPreference ?? 'ask'
+);

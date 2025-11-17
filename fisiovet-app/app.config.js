@@ -103,9 +103,6 @@ module.exports = {
 	experiments: { typedRoutes: true },
 
 	updates: {
-		url: "https://u.expo.dev/b5d74ed0-b6e2-497e-a9e7-b66665675e59",
-		requestHeaders: { "expo-channel-name": APP_ENV },
-		enabled: true,
-		fallbackToCacheTimeout: 0,
+		enabled: false,
 	},
 };
