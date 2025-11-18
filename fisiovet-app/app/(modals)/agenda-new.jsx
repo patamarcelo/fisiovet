@@ -11,7 +11,8 @@ import {
     Alert,
     KeyboardAvoidingView,
     Switch,
-    ActionSheetIOS
+    ActionSheetIOS,
+    Keyboard
 } from "react-native";
 
 import { Linking } from "react-native";
@@ -286,6 +287,9 @@ export default function AgendaNewScreen() {
         return petNomeParam ? `Consulta - ${petNomeParam}` : "";
     });
 
+    // 🔹 NOVO
+    const [descricao, setDescricao] = useState("");
+
     const [tutorQuery, setTutorQuery] = useState("");
 
     const [tutor, setTutor] = useState(() => {
@@ -337,6 +341,8 @@ export default function AgendaNewScreen() {
 
     const defaultDur = useSelector(selectDefaultDuracao);
     const [duracao, setDuracao] = useState(defaultDur);
+    
+
     const [local, setLocal] = useState(() => {
         if (eventoExistente?.local) return eventoExistente.local;
         if (tutor?.endereco?.formatted) return tutor.endereco.formatted;
@@ -368,6 +374,7 @@ export default function AgendaNewScreen() {
         setObservacoes(eventoExistente.observacoes || "");
         const preco = eventoExistente?.financeiro?.preco;
         setPrecoText(preco != null ? String(preco).replace('.', ',') : '');
+        setDescricao(eventoExistente.descricao || "");
         // date e duracao já vieram do constructor dos states
         // local idem
     }, [eventIdParam]);
@@ -509,6 +516,7 @@ export default function AgendaNewScreen() {
                         observacoes: (observacoes || "").trim(),
                         cliente: tutor?.nome || tutor?.name || "",
                         status,
+                        descricao: (descricao || "").trim(),
                         financeiro: {
                             ...(eventoExistente?.financeiro || {}),
                             preco: parseBRLToNumber(precoText),
@@ -534,6 +542,7 @@ export default function AgendaNewScreen() {
                 observacoes: (observacoes || "").trim(),
                 cliente: tutor?.nome || tutor?.name || "",
                 status, // do formulário
+                descricao: (descricao || "").trim(),
                 financeiro: {
                     preco: parseBRLToNumber(precoText),
                     pago: false,
@@ -583,6 +592,7 @@ export default function AgendaNewScreen() {
         recorrente,
         recorrencias,
         eventoExistente,
+        descricao,
         dispatch
     ]);
 
@@ -617,40 +627,48 @@ export default function AgendaNewScreen() {
     //     Linking.openURL(url);
     // };
 
-    // 👇 por ESTA:
-    const openMaps = async () => {
+    const openMaps = () => {
         if (!tutor?.geo?.lat || !tutor?.geo?.lng) {
-            console.log('Sem geo no tutor, não dá pra abrir navegação');
+            console.log('[openMaps] Tutor sem geo, não abre navegação');
             return;
         }
 
         const { lat, lng } = tutor.geo;
         const label = encodeURIComponent(tutor?.nome || 'Local');
 
-        const googleURL = Platform.select({
-            ios: `comgooglemaps://?q=${lat},${lng}`,
-            android: `geo:${lat},${lng}?q=${lat},${lng}(${label})`,
-            default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-        });
+        // 🔹 Google Maps (universal, funciona em iOS, Android, web)
+        const googleUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
 
-        const wazeURL = `waze://?ll=${lat},${lng}&navigate=yes`;
+        // 🔹 Waze (universal)
+        // Se o app estiver instalado, normalmente abre o app;
+        // se não, abre o site do Waze no navegador.
+        const wazeUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes&zoom=17`;
 
-        const openGoogle = () => Linking.openURL(googleURL);
-        const openWaze = async () => {
-            console.log('openWaze')
-            const canOpen = await Linking.canOpenURL(wazeURL);
-            if (!canOpen) {
-                Alert.alert('Waze não encontrado', 'Parece que o Waze não está instalado neste dispositivo.');
-                return;
-            }
-            return Linking.openURL(wazeURL);
+        const openGoogle = () => {
+            console.log('[openMaps] Abrindo Google Maps =>', googleUrl);
+            Linking.openURL(googleUrl).catch((e) => {
+                console.log('[openMaps] Erro ao abrir Google Maps:', e);
+                Alert.alert('Erro', 'Não foi possível abrir o Google Maps.');
+            });
         };
 
-        // Se app padrão está setado
-        if (navPreference === 'google') return openGoogle();
-        if (navPreference === 'waze') return openWaze();
+        const openWaze = () => {
+            console.log('[openMaps] Abrindo Waze =>', wazeUrl);
+            Linking.openURL(wazeUrl).catch((e) => {
+                console.log('[openMaps] Erro ao abrir Waze:', e);
+                Alert.alert('Erro', 'Não foi possível abrir o Waze.');
+            });
+        };
 
-        // 'ask' → perguntar na hora
+        // 🔸 Respeita o que veio do Redux
+        if (navPreference === 'google') {
+            return openGoogle();
+        }
+        if (navPreference === 'waze') {
+            return openWaze();
+        }
+
+        // 🔸 navPreference = 'ask' => perguntar
         const options = ['Google Maps', 'Waze', 'Cancelar'];
 
         if (Platform.OS === 'ios') {
@@ -660,8 +678,9 @@ export default function AgendaNewScreen() {
                     cancelButtonIndex: 2,
                 },
                 (buttonIndex) => {
-                    if (buttonIndex === 0) openGoogle();
-                    if (buttonIndex === 1) openWaze();
+                    console.log('[openMaps] iOS ActionSheet index =', buttonIndex);
+                    if (buttonIndex === 0) return openGoogle();
+                    if (buttonIndex === 1) return openWaze();
                 }
             );
         } else {
@@ -677,6 +696,7 @@ export default function AgendaNewScreen() {
         }
     };
 
+
     return (
         <SafeAreaView style={{ flex: 1 }} edges={[]}>
             <KeyboardAvoidingView
@@ -687,7 +707,8 @@ export default function AgendaNewScreen() {
                 <ScrollView
                     style={{ flex: 1, backgroundColor: bg }}
                     contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-                    keyboardShouldPersistTaps="handled"
+                    keyboardShouldPersistTaps="never"
+                    onScrollBeginDrag={Keyboard.dismiss}
                 >
                     {/* Status */}
                     <View style={{ marginTop: 14, marginBottom: 12, alignSelf: isEditing ? "flex-start" : 'flex-end' }}>
@@ -708,6 +729,22 @@ export default function AgendaNewScreen() {
                             placeholderTextColor="#9CA3AF"
                             editable={!disabled}
                         />
+                    </View>
+
+                    <View style={{ marginTop: 10 }}>
+                        <Text style={styles.label}>Descrição</Text>
+                        <View style={[styles.inputOutline, { minHeight: 60, paddingVertical: 6 }]}>
+                            <TextInput
+                                placeholderTextColor="#9CA3AF"
+                                placeholder="Ex.: Primeira sessão, retorno, pós-cirúrgico..."
+                                value={descricao}
+                                onChangeText={(t) => !disabled && setDescricao(t)}
+                                multiline
+                                textAlignVertical="top"
+                                style={{ minHeight: 48, color: disabled ? inputDisabledColor : 'black' }}
+                                editable={!disabled}
+                            />
+                        </View>
                     </View>
 
                     {/* Tutor (busca + lista) */}
@@ -862,32 +899,82 @@ export default function AgendaNewScreen() {
                     )}
 
                     {/* Data e horário */}
-                    <View style={{ marginTop: 16, alignSelf: 'center' }}>
+                    <View style={{ marginTop: 16 }}>
                         <Text style={styles.label}>Data e horário</Text>
 
-                        <DateTimePicker
-                            value={date}
-                            disabled={disabled}
-                            mode="datetime"
-                            display={Platform.OS === "ios" ? "inline" : "inline"}
-                            onChange={(_, d) => d && setDate(d)}
-                            minuteInterval={5}
-                            locale="pt-BR"
-                            themeVariant={Platform.OS === "ios" ? "light" : undefined} // força claro/escuro
-                            textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
-                            style={{
-                                opacity: disabled ? 0.6 : 1,
-                                backgroundColor: disabled ? "rgba(142,142,147,0.2)" : "rgba(107,114,128,0.05)", // evita as faixas duplas
-                                borderRadius: 12,
-                                padding: 1
+                        {disabled ? (
+                            // 🔹 Modo leitura: card compacto
+                            <View
+                                style={{
+                                    borderRadius: 10,
+                                    borderWidth: 1,
+                                    borderColor: "#E5E7EB",
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 10,
+                                    backgroundColor: "rgba(107,114,128,0.04)",
+                                }}
+                            >
+                                <View
+                                    style={{
+                                        flexDirection: "row",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                    }}
+                                >
+                                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                        <Ionicons
+                                            name="calendar-outline"
+                                            size={16}
+                                            color="#6B7280"
+                                            style={{ marginRight: 6 }}
+                                        />
+                                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#111827" }}>
+                                            {`${pad2(date.getDate())}/${pad2(date.getMonth() + 1)}/${date.getFullYear()}`}
+                                        </Text>
+                                    </View>
 
-                            }}
-                        />
-
+                                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                                        <Ionicons
+                                            name="time-outline"
+                                            size={16}
+                                            color="#6B7280"
+                                            style={{ marginRight: 6 }}
+                                        />
+                                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#111827" }}>
+                                            {`${pad2(date.getHours())}:${pad2(date.getMinutes())}`}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+                        ) : (
+                            // 🔹 Modo edição/criação: picker completo
+                            <View
+                                style={{
+                                    borderRadius: 12,
+                                    backgroundColor: "rgba(107,114,128,0.05)",
+                                    padding: 4,
+                                    alignSelf: "center",
+                                }}
+                            >
+                                <DateTimePicker
+                                    value={date}
+                                    mode="datetime"
+                                    display={Platform.OS === "ios" ? "inline" : "default"}
+                                    onChange={(_, d) => d && setDate(d)}
+                                    minuteInterval={5}
+                                    locale="pt-BR"
+                                    themeVariant={Platform.OS === "ios" ? "light" : undefined}
+                                    textColor={Platform.OS === "ios" ? "#111827" : undefined}
+                                    style={{
+                                        backgroundColor: "transparent",
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
 
                     {/* Duração */}
-                    <View style={{ marginTop: 14, justifyContent: 'center', alignContent: 'center' }}>
+                    <View style={{ marginTop: 14 }}>
                         <View style={{ flexDirection: "row", alignItems: "baseline" }}>
                             <Ionicons
                                 name="time-outline"
@@ -897,31 +984,57 @@ export default function AgendaNewScreen() {
                             />
                             <Text style={styles.label}>Duração (HH:MM)</Text>
                         </View>
-                        <View style={{ flexDirection: 'row' }}>
-                            <DateTimePicker
-                                disabled={disabled}
-                                value={hhmmToDate(duracao)}
-                                mode="time"
-                                display="default" // iOS fica inline, Android abre modal
-                                is24Hour
-                                minuteInterval={5}
-                                onChange={(_, selected) => {
-                                    if (selected) {
-                                        setDuracao(dateToHHMM(selected));
-                                    }
-                                }}
-                                themeVariant={Platform.OS === "ios" ? "light" : undefined} // força claro/escuro
-                                textColor={Platform.OS === "ios" ? "#111827" : undefined} // iOS apenas
+
+                        {disabled ? (
+                            // 🔹 Modo leitura: chip compacto
+                            <View
                                 style={{
-                                    opacity: disabled ? 0.6 : 1,
-                                    backgroundColor: disabled ? "rgba(142,142,147,0.2)" : "rgba(107,114,128,0.05)", // evita as faixas duplas
-                                    borderRadius: 12,
-                                    transform: [{ scale: 0.8 }],
-                                    height: 80, // ajusta a altura manualmente
+                                    marginTop: 4,
+                                    alignSelf: "flex-start",
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 6,
+                                    borderRadius: 999,
+                                    backgroundColor: "rgba(15,118,110,0.08)",
                                 }}
-                            />
-                        </View>
+                            >
+                                <Text
+                                    style={{
+                                        fontSize: 13,
+                                        fontWeight: "700",
+                                        color: "#0F766E",
+                                    }}
+                                >
+                                    {duracao}
+                                </Text>
+                            </View>
+                        ) : (
+                            // 🔹 Modo edição: time picker
+                            <View style={{ flexDirection: "row", marginTop: 4 }}>
+                                <DateTimePicker
+                                    value={hhmmToDate(duracao)}
+                                    mode="time"
+                                    display="default" // iOS inline, Android modal
+                                    is24Hour
+                                    minuteInterval={5}
+                                    onChange={(_, selected) => {
+                                        console.log('selected dura: ', selected)
+                                        if (selected) {
+                                            setDuracao(dateToHHMM(selected));
+                                        }
+                                    }}
+                                    themeVariant={Platform.OS === "ios" ? "light" : undefined}
+                                    textColor={Platform.OS === "ios" ? "#111827" : undefined}
+                                    style={{
+                                        backgroundColor: "rgba(107,114,128,0.05)",
+                                        borderRadius: 12,
+                                        transform: [{ scale: 0.85 }],
+                                        height: 80,
+                                    }}
+                                />
+                            </View>
+                        )}
                     </View>
+
 
                     {/* Preço */}
                     <View style={{ marginTop: 8 }}>

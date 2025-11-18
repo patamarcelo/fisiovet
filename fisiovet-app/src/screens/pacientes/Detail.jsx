@@ -1,6 +1,6 @@
 //@ts-nocheck
 import React, { useEffect, useMemo, useCallback, useLayoutEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Modal, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, ActivityIndicator, Modal, Platform, ActionSheetIOS } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, router, useNavigation } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
@@ -172,6 +172,29 @@ export default function PetDetail() {
 
   const icon = pet.especie === 'gato' ? 'cat.fill' : 'dog.fill';
 
+  const AVALIACAO_TIPOS = [
+    {
+      key: 'rota',
+      label: 'Anamnese',
+      formPath: '/avaliacao/avaliacao-anamnese',
+    },
+    {
+      key: 'avaliacao',
+      label: 'Avaliação Neurológica',
+      formPath: '/(modals)/avaliacao/avaliacao-neurologica',
+    },
+    {
+      key: 'form',
+      label: 'Avaliação Ortopédica',
+      formPath: '/(modals)/avaliacao/avaliacao-ortopedica',
+    },
+  ];
+
+  const getFormPathByTipo = (tipoKey) => {
+    const found = AVALIACAO_TIPOS.find((t) => t.key === tipoKey);
+    return found?.formPath || '/(modals)/avaliacao-new';
+  };
+
   const handleAdd = async () => {
     try {
       const fb = ensureFirebase();
@@ -220,20 +243,66 @@ export default function PetDetail() {
   };
 
   const handleAddDraft = useCallback(() => {
-    const petId = pet.id
-    try {
-      // 🔹 Garante que o Redux começa limpo
-      dispatch(clearDraft({ petId: String(petId) }));
-      dispatch(createDraft({ petId: String(petId) }));
+    const petId = String(pet.id);
 
-      // 🔹 Abre o formulário de nova avaliação
-      router.push({
-        pathname: '/(modals)/avaliacao-new',
-        params: { id: String(petId) },
-      });
-    } catch (e) {
-      console.log('handleAdd avaliacao error', e);
-      Alert.alert('Avaliações', 'Não foi possível iniciar uma nova avaliação.');
+    const startDraft = (tipoKey) => {
+      try {
+        // Limpa e cria draft já com o tipo selecionado
+        dispatch(clearDraft({ petId }));
+        dispatch(createDraft({ petId, tipo: tipoKey }));
+
+        const formPath = getFormPathByTipo(tipoKey);
+
+        router.push({
+          pathname: formPath,
+          params: {
+            id: petId,
+            tipo: tipoKey,
+          },
+        });
+      } catch (e) {
+        console.log('handleAdd avaliacao error', e);
+        Alert.alert('Avaliações', 'Não foi possível iniciar uma nova avaliação.');
+      }
+    };
+
+    const optionLabels = AVALIACAO_TIPOS.map((t) => t.label);
+    const cancelIndex = optionLabels.length;
+
+    // iOS → ActionSheet mais bonitinho
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          title: 'Nova Avaliação',
+          // message: 'Escolha o tipo de avaliação',
+          options: [...optionLabels, 'Cancelar'],
+          cancelButtonIndex: cancelIndex,
+
+        },
+        (buttonIndex) => {
+          if (buttonIndex === cancelIndex) return;
+          const chosen = AVALIACAO_TIPOS[buttonIndex];
+          if (chosen) {
+            startDraft(chosen.key);
+          }
+        }
+      );
+    } else {
+      // Android → Alert com botões
+      Alert.alert(
+        'Novo registro',
+        'Escolha o tipo de avaliação/formulário',
+        [
+          ...AVALIACAO_TIPOS.map((t) => ({
+            text: t.label,
+            onPress: () => startDraft(t.key),
+          })),
+          {
+            text: 'Cancelar',
+            style: 'cancel',
+          },
+        ]
+      );
     }
   }, [dispatch, pet.id]);
 

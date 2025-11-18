@@ -70,7 +70,7 @@ export default function ModalLayout() {
                 }}
             />
             <Stack.Screen
-                name="avaliacao-new"
+                name="avaliacao"
                 options={{
                     title: 'Nova Avaliação',
                     // Nada de headerRight aqui! Deixa a própria tela controlar.

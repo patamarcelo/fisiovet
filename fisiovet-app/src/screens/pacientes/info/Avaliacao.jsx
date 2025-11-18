@@ -33,6 +33,31 @@ function groupByDay(items) {
         .map(s => ({ title: humanDateLabel(s.date), data: s.data }));
 }
 
+
+const AVALIACAO_TIPOS = [
+    {
+        key: 'rota',
+        label: 'Anamnese',
+        formPath: '/avaliacao/avaliacao-new',
+    },
+    {
+        key: 'avaliacao',
+        label: 'Avaliação Neurológica',
+        formPath: '/(modals)/avaliacao/avaliacao-neurologica',
+    },
+    {
+        key: 'form',
+        label: 'Avaliação Ortopédica',
+        formPath: '/(modals)/avaliacao/avaliacao-ortopedica',
+    },
+];
+
+const getFormPathByTipo = (tipoKey) => {
+    const found = AVALIACAO_TIPOS.find((t) => t.key === tipoKey);
+    return found?.formPath || '/(modals)/avaliacao-new';
+};
+
+
 export default function AvaliacaoList() {
     const { firestore, auth } = ensureFirebase() || {};
     const { id: petId } = useLocalSearchParams();
@@ -68,12 +93,28 @@ export default function AvaliacaoList() {
 
     // Abrir “detalhe” (por enquanto só um alerta; depois vocês criam o modal)
     const openDetail = useCallback((item) => {
-        router.push({
-            pathname: '/(modals)/avaliacao-new/',
-            params: { id: String(petId), avaliacaoId: String(item.id) }
-        });
-        // Exemplo de navegação futura:
-        // router.push({ pathname: '/(modals)/avaliacao-detail', params: { petId: String(petId), id: String(item.id) } });
+        console.log('item: ', item)
+        const { tipo, id: avaliacaoId, petId } = item;
+
+        if (tipo === 'anamnese') {
+            router.push({
+                pathname: '/(modals)/avaliacao/avaliacao-anamnese',
+                params: { id: String(petId), avaliacaoId: String(avaliacaoId) },
+            });
+        } else if (tipo === 'neurologica') {
+            router.push({
+                pathname: '/(modals)/avaliacao/avaliacao-neurologica',
+                params: { id: String(petId), avaliacaoId: String(avaliacaoId) },
+            });
+        } else if (tipo === 'ortopedica') {
+            router.push({
+                pathname: '/(modals)/avaliacao/avaliacao-ortopedica',
+                params: { id: String(petId), avaliacaoId: String(avaliacaoId) },
+            });
+        } else {
+            // fallback se aparecer um type desconhecido
+            Alert.alert('Avaliação', 'Tipo de avaliação desconhecido.');
+        }
     }, [petId]);
 
     // Botão “...” por item (apagar, etc.)
@@ -178,6 +219,12 @@ export default function AvaliacaoList() {
                         numberOfLines={1}
                         style={{ color: '#6B7280', marginTop: 2, fontSize: 12 }}
                     >
+                        {item?.tipo || 'N/a'}
+                    </Text>
+                    <Text
+                        numberOfLines={1}
+                        style={{ color: '#6B7280', marginTop: 2, fontSize: 12 }}
+                    >
                         Radios: {radiosCount} • Switches: {switchesGroups} •{' '}
                         {item?.fields?.notes ? 'Com observações' : 'Sem observações'}
                     </Text>
@@ -196,22 +243,67 @@ export default function AvaliacaoList() {
 
 
     const handleAddDraft = useCallback(() => {
-        try {
-            // 🔹 Garante que o Redux começa limpo
-            dispatch(clearDraft({ petId: String(petId) }));
-            dispatch(createDraft({ petId: String(petId) }));
 
-            // 🔹 Abre o formulário de nova avaliação
-            router.push({
-                pathname: '/(modals)/avaliacao-new',
-                params: { id: String(petId) },
-            });
-        } catch (e) {
-            console.log('handleAdd avaliacao error', e);
-            Alert.alert('Avaliações', 'Não foi possível iniciar uma nova avaliação.');
+        const startDraft = (tipoKey) => {
+            try {
+                // Limpa e cria draft já com o tipo selecionado
+                dispatch(clearDraft({ petId }));
+                dispatch(createDraft({ petId, tipo: tipoKey }));
+
+                const formPath = getFormPathByTipo(tipoKey);
+
+                router.push({
+                    pathname: formPath,
+                    params: {
+                        id: petId,
+                        tipo: tipoKey,
+                    },
+                });
+            } catch (e) {
+                console.log('handleAdd avaliacao error', e);
+                Alert.alert('Avaliações', 'Não foi possível iniciar uma nova avaliação.');
+            }
+        };
+
+        const optionLabels = AVALIACAO_TIPOS.map((t) => t.label);
+        const cancelIndex = optionLabels.length;
+
+        // iOS → ActionSheet mais bonitinho
+        if (Platform.OS === 'ios') {
+            ActionSheetIOS.showActionSheetWithOptions(
+                {
+                    title: 'Nova Avaliação',
+                    // message: 'Escolha o tipo de avaliação',
+                    options: [...optionLabels, 'Cancelar'],
+                    cancelButtonIndex: cancelIndex,
+
+                },
+                (buttonIndex) => {
+                    if (buttonIndex === cancelIndex) return;
+                    const chosen = AVALIACAO_TIPOS[buttonIndex];
+                    if (chosen) {
+                        startDraft(chosen.key);
+                    }
+                }
+            );
+        } else {
+            // Android → Alert com botões
+            Alert.alert(
+                'Novo registro',
+                'Escolha o tipo de avaliação/formulário',
+                [
+                    ...AVALIACAO_TIPOS.map((t) => ({
+                        text: t.label,
+                        onPress: () => startDraft(t.key),
+                    })),
+                    {
+                        text: 'Cancelar',
+                        style: 'cancel',
+                    },
+                ]
+            );
         }
     }, [dispatch, petId]);
-
 
     return (
         <View style={{ flex: 1, backgroundColor: 'white' }}>
