@@ -94,14 +94,14 @@ export default function AvaliacaoList() {
     // Abrir “detalhe” (por enquanto só um alerta; depois vocês criam o modal)
     const openDetail = useCallback((item) => {
         console.log('item: ', item)
-        const { tipo, id: avaliacaoId, petId } = item;
+        const { tipo, id: avaliacaoId, petId, type } = item;
 
         if (tipo === 'anamnese') {
             router.push({
                 pathname: '/(modals)/avaliacao/avaliacao-anamnese',
                 params: { id: String(petId), avaliacaoId: String(avaliacaoId) },
             });
-        } else if (tipo === 'neurologica') {
+        } else if (tipo === 'neurologica' || type === 'neurologica') {
             router.push({
                 pathname: '/(modals)/avaliacao/avaliacao-neurologica',
                 params: { id: String(petId), avaliacaoId: String(avaliacaoId) },
