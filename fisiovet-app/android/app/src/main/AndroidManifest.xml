@@ -35,7 +35,7 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="fisiovetapp"/>
+        <data android:scheme="fisiovetappdev"/>
         <data android:scheme="exp+fisiovet-app"/>
       </intent-filter>
     </activity>

@@ -51,12 +51,7 @@ module.exports = {
 			config: {
 				googleMapsApiKey: MAPS_KEY,
 			},
-			googleServicesFile:
-				APP_ENV === "preview"
-					? "./firebase/preview/GoogleService-Info.plist"
-					: APP_ENV === "development"
-						? "./firebase/dev/GoogleService-Info.plist"
-						: "./GoogleService-Info.plist",
+			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
@@ -93,12 +88,7 @@ module.exports = {
 			},
 			edgeToEdgeEnabled: true,
 			package: `${process.env.ANDROID_PACKAGE_NAME}${ID_SUFFIX}`,
-			googleServicesFile:
-				APP_ENV === "preview"
-					? "./firebase/preview/google-services.json"
-					: APP_ENV === "development"
-						? "./firebase/dev/google-services.json"
-						: "./google-services.json",
+			googleServicesFile: "./GoogleService-Info.plist",
 		},
 
 		web: {
