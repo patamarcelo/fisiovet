@@ -235,10 +235,6 @@ export default function AgendaScreen() {
   const bg = useThemeColor({}, "background");
   const eventos = useSelector(selectAllEventos);
 
-  eventos?.forEach(element => {
-    console.log('elem: ', element)
-  });
-
 
   useEffect(() => {
     dispatch(loadAgenda());
