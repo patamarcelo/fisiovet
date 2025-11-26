@@ -17,7 +17,7 @@ const MAPS_KEY =
 	process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 // Controle de versão centralizado
-const versionControl = "1.0.3";
+const versionControl = "1.0.10";
 
 module.exports = {
 	expo: {

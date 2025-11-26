@@ -1,5 +1,6 @@
 // PetsList.jsx
-import React, {
+import React,
+{
   useMemo,
   useRef,
   useState,
@@ -132,7 +133,10 @@ export default function PetsList() {
 
   const text = useThemeColor({}, 'text');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
-  const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' }, 'border');
+  const border = useThemeColor(
+    { light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' },
+    'border'
+  );
   const bg = useThemeColor({}, 'background');
   const tint = useThemeColor({}, 'tint');
   const bannerBg = useThemeColor({ light: '#E5E7EB', dark: '#2A2A2C' }, 'card');
@@ -141,6 +145,21 @@ export default function PetsList() {
 
   const listRef = useRef(null);
   const imTaskRef = useRef(null);
+
+  const hasAnyPets = allPets?.length > 0;
+
+
+  const clearSearchAndScrollTop = useCallback(() => {
+    setQuery('');
+    setFilter('todos');
+
+    // espera um tick pra lista recalcular o conteúdo
+    requestAnimationFrame(() => {
+      if (listRef.current) {
+        listRef.current.scrollToOffset({ offset: 0, animated: false });
+      }
+    });
+  }, []);
 
   // Header com botão "+" no canto direito
   useLayoutEffect(() => {
@@ -221,7 +240,9 @@ export default function PetsList() {
               { backgroundColor: bannerBg, borderColor: border, borderWidth: 0.2 },
             ]}
           >
-            <Text style={[styles.sectionBannerText, { color: bannerText }]}>{item.letter}</Text>
+            <Text style={[styles.sectionBannerText, { color: bannerText }]}>
+              {item.letter}
+            </Text>
           </View>
         );
       }
@@ -247,10 +268,10 @@ export default function PetsList() {
     [sticky]
   );
 
-  // Header (busca + filtros) — escondido se lista vazia
+  // Header (busca + filtros) — agora depende se existem pets cadastrados
   const ListHeader = useMemo(
     () =>
-      flat.length === 0 ? null : (
+      !hasAnyPets ? null : (
         <View style={[styles.headerInner, { borderBottomColor: border }]}>
           {/* Busca */}
           <View style={[styles.searchBox, { borderColor: border }]}>
@@ -264,7 +285,7 @@ export default function PetsList() {
               returnKeyType="search"
             />
             {!!query && (
-              <Pressable onPress={() => setQuery('')} hitSlop={8}>
+              <Pressable onPress={clearSearchAndScrollTop} hitSlop={8}>
                 <IconSymbol name="xmark.circle.fill" size={16} />
               </Pressable>
             )}
@@ -281,7 +302,7 @@ export default function PetsList() {
           />
         </View>
       ),
-    [border, query, subtle, text, filter, accent, totals, flat.length]
+    [hasAnyPets, border, query, subtle, text, filter, accent, totals]
   );
 
   const jumpTo = useCallback(
@@ -292,38 +313,6 @@ export default function PetsList() {
       }
     },
     [flat]
-  );
-
-  // Card de vazio
-  const EmptyCard = useMemo(
-    () => (
-      <View style={styles.emptyWrap}>
-        <View style={[styles.emptyCard, { borderColor: border }]}>
-          <View style={styles.emptyIcon}>
-            <IconSymbol name="dog.fill" size={18} color="#fff" />
-          </View>
-          <Text style={[styles.emptyTitle, { color: text }]}>Nenhum pet por aqui ainda</Text>
-          <Text style={[styles.emptySub, { color: subtle }]}>
-            Cadastre seu primeiro pet para começar.
-          </Text>
-
-          <Pressable
-            onPress={() => router.push('/(modals)/pet-new')}
-            style={({ pressed }) => [
-              styles.emptyBtn,
-              { backgroundColor: accent },
-              pressed && { opacity: 0.9 },
-            ]}
-            accessibilityRole="button"
-            accessibilityLabel="Adicionar pet"
-          >
-            <IconSymbol name="plus" size={14} color="#fff" />
-            <Text style={styles.emptyBtnText}>Adicionar pet</Text>
-          </Pressable>
-        </View>
-      </View>
-    ),
-    [border, text, subtle, accent]
   );
 
   return (
@@ -358,13 +347,71 @@ export default function PetsList() {
           getItemLayout={getItemLayout}
           contentContainerStyle={{
             paddingBottom: Math.max(0, insets.bottom) + 8,
-            flexGrow: 1, // ajuda o EmptyComponent a centralizar
+            flexGrow: 1,
           }}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           style={{ flex: 1 }}
-          ListEmptyComponent={EmptyCard}
+          ListEmptyComponent={
+            hasAnyPets ? (
+              // 👉 Caso 2: tem pet cadastrado mas o filtro/busca não achou nada
+              <View style={styles.emptyWrap}>
+                <View style={[styles.emptyCard, { borderColor: border }]}>
+                  <View style={styles.emptyIcon}>
+                    <IconSymbol name="magnifyingglass" size={18} color="#fff" />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: text }]}>Nenhum resultado</Text>
+                  <Text style={[styles.emptySub, { color: subtle }]}>
+                    Não encontramos nada para essa busca ou filtro.
+                  </Text>
+
+                  <Pressable
+                    onPress={clearSearchAndScrollTop}
+                    style={({ pressed }) => [
+                      styles.emptyBtn,
+                      { backgroundColor: accent },
+                      pressed && { opacity: 0.9 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Limpar busca e filtros"
+                  >
+                    <IconSymbol name="arrow.counterclockwise" size={14} color="#fff" />
+                    <Text style={styles.emptyBtnText}>Limpar busca e filtros</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : (
+              // 👉 Caso 1: nenhum pet cadastrado ainda
+              <View style={styles.emptyWrap}>
+                <View style={[styles.emptyCard, { borderColor: border }]}>
+                  <View style={styles.emptyIcon}>
+                    <IconSymbol name="dog.fill" size={18} color="#fff" />
+                  </View>
+                  <Text style={[styles.emptyTitle, { color: text }]}>
+                    Nenhum pet por aqui ainda
+                  </Text>
+                  <Text style={[styles.emptySub, { color: subtle }]}>
+                    Cadastre seu primeiro pet para começar.
+                  </Text>
+
+                  <Pressable
+                    onPress={() => router.push('/(modals)/pet-new')}
+                    style={({ pressed }) => [
+                      styles.emptyBtn,
+                      { backgroundColor: accent },
+                      pressed && { opacity: 0.9 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel="Adicionar pet"
+                  >
+                    <IconSymbol name="plus" size={14} color="#fff" />
+                    <Text style={styles.emptyBtnText}>Adicionar pet</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )
+          }
         />
 
         {letters.length > 1 && (
@@ -442,7 +489,6 @@ const styles = StyleSheet.create({
   emptyWrap: {
     flex: 1,
     padding: 24,
-    // justifyContent: 'center',
     alignItems: 'center',
   },
   emptyCard: {
@@ -457,9 +503,12 @@ const styles = StyleSheet.create({
     marginTop: 50,
   },
   emptyIcon: {
-    width: 36, height: 36, borderRadius: 18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#111827',
-    alignItems: 'center', justifyContent: 'center',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 2,
   },
   emptyTitle: { fontSize: 16, fontWeight: '800' },

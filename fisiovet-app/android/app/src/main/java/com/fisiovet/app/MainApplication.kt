@@ -1,4 +1,4 @@
-package com.fisiovet.app.dev
+package com.fisiovet.app
 
 import android.app.Application
 import android.content.res.Configuration

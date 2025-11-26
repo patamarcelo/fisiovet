@@ -263,7 +263,7 @@ export default function TutorForm() {
                             observacoes: observacoes?.trim() || null,
                         },
                     })
-                );
+                ).unwrap();
                 Alert.alert('Sucesso', 'Tutor atualizado!');
             } else {
                 await dispatch(
@@ -275,12 +275,18 @@ export default function TutorForm() {
                         geo: geoEnriched,
                         observacoes: observacoes?.trim() || null,
                     })
-                );
+                ).unwrap();
                 Alert.alert('Sucesso', 'Tutor cadastrado!');
             }
 
             // ✅ fecha o modal
             router.back();
+        } catch (err) {
+            console.error('Erro ao salvar tutor:', err);
+            Alert.alert(
+                'Erro',
+                err?.message || 'Não foi possível salvar o tutor. Tente novamente ou verifique sua conexão.'
+            );
         } finally {
             setSubmitting(false);
         }

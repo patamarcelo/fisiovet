@@ -1,5 +1,5 @@
 // src/screens/financeiro/Index.jsx
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -14,7 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 
 import { listEventos } from '@/src/services/agenda';
@@ -22,6 +22,8 @@ import { listPets } from '@/src/services/pets';
 
 import { useDispatch } from 'react-redux';
 import { updateEvento as updateEventoAction } from '@/src/store/slices/agendaSlice';
+
+import { useThemeColor } from "@/hooks/useThemeColor";
 
 /* =======================
    Helpers
@@ -172,7 +174,10 @@ const COLORS = {
 
 export default function FinanceiroScreen() {
   const dispatch = useDispatch();
+  const navigation = useNavigation();
+
   const hoje = new Date();
+
 
   const [eventos, setEventos] = useState([]);
   const [pets, setPets] = useState([]);
@@ -195,6 +200,11 @@ export default function FinanceiroScreen() {
   const [updatingStatusId, setUpdatingStatusId] = useState(null);
   const [updatingValorId, setUpdatingValorId] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  const tint = useThemeColor({}, "tint");
+  const bg = useThemeColor({}, "background");
+  const text = useThemeColor({}, "text");
+
 
   const triggerHaptic = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -220,6 +230,23 @@ export default function FinanceiroScreen() {
   // - filtro "todos"
   // - valores ocultos
   // - dispara loadData()
+
+  // 🔹 callback do botão voltar do header
+  useEffect(() => {
+    const blurSub = navigation.addListener('blur', () => {
+      setValoresVisiveis(false);
+    });
+
+    const removeSub = navigation.addListener('beforeRemove', () => {
+      setValoresVisiveis(false);
+    });
+
+    return () => {
+      blurSub();
+      removeSub();
+    };
+  }, [navigation]);
+
   useFocusEffect(
     useCallback(() => {
       const now = new Date();
@@ -452,7 +479,7 @@ export default function FinanceiroScreen() {
       {/* Header com botão olho */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Financeiro</Text>
+          <Text style={[styles.headerTitle, { color: tint }]}>Financeiro</Text>
           <Text style={styles.headerSubtitle}>Visão geral dos atendimentos</Text>
         </View>
         <TouchableOpacity
@@ -779,8 +806,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
+    fontSize: 24,
+    fontWeight: 'bold',
     color: COLORS.text,
   },
   headerSubtitle: {

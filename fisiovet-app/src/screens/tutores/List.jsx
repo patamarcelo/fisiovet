@@ -5,16 +5,18 @@ import { fetchTutores } from '@/src/store/slices/tutoresSlice';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { router } from 'expo-router';
 import Avatar from '@/components/ui/Avatar';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-// import { useBottomTabBarHeight } from '@react-navigation/bottom-tabs';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { maskPhone } from '@/src/utils/masks';
 import { Ionicons } from '@expo/vector-icons';
-
 import { useNavigation } from 'expo-router';
 
-
 function makeSections(items, q = '') {
-  const norm = (s) => (s || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+  const norm = (s) =>
+    (s || '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .toLowerCase();
+
   const query = norm(q);
   const filtered = query
     ? items.filter((t) => norm(`${t.nome} ${t.telefone} ${t.email}`).includes(query))
@@ -26,34 +28,55 @@ function makeSections(items, q = '') {
     if (!map.has(letter)) map.set(letter, []);
     map.get(letter).push(t);
   }
+
   return Array.from(map.entries())
     .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([title, data]) => ({ title, data: data.sort((a, b) => a.nome.localeCompare(b.nome)) }));
+    .map(([title, data]) => ({
+      title,
+      data: data.sort((a, b) => a.nome.localeCompare(b.nome)),
+    }));
 }
 
 function EmptyCard({ title, subtitle, actionLabel, onAction, icon = 'person-add-outline' }) {
   return (
-    <View style={{
-      margin: 16,
-      borderWidth: 1,
-      borderColor: 'rgba(0,0,0,0.08)',
-      backgroundColor: 'white',
-      borderRadius: 16,
-      padding: 16,
-      alignItems: 'center',
-    }}>
-      <View style={{
-        width: 56, height: 56, borderRadius: 28,
-        backgroundColor: '#E8ECF1',
-        alignItems: 'center', justifyContent: 'center', marginBottom: 10
-      }}>
-        <Text><></></Text>
-        {/* Ícone */}
+    <View
+      style={{
+        margin: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.08)',
+        backgroundColor: 'white',
+        borderRadius: 16,
+        padding: 16,
+        alignItems: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 56,
+          height: 56,
+          borderRadius: 28,
+          backgroundColor: '#E8ECF1',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 10,
+        }}
+      >
+        <Text>
+          <></>
+        </Text>
       </View>
-      {/* Usamos o Ionicons fora da View para manter simples */}
-      <Ionicons name={icon} size={26} color="#1F2937" style={{ marginTop: -56, marginBottom: 22 }} />
+      <Ionicons
+        name={icon}
+        size={26}
+        color="#1F2937"
+        style={{ marginTop: -56, marginBottom: 22 }}
+      />
 
-      <Text style={{ fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center' }}>{title}</Text>
+      <Text
+        style={{ fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center' }}
+      >
+        {title}
+      </Text>
       {!!subtitle && (
         <Text style={{ color: '#6B7280', textAlign: 'center', marginTop: 6 }}>{subtitle}</Text>
       )}
@@ -76,19 +99,27 @@ function EmptyCard({ title, subtitle, actionLabel, onAction, icon = 'person-add-
   );
 }
 
-function TutorRow({ item, tint, subtle, text }) {
+function TutorRow({ item, tint, subtle, text, index }) {
+  // zebra: linhas pares com fundo diferente
+  const isEven = index % 2 === 0;
+  const baseBg = isEven ? 'transparent' : 'rgba(148,163,184,0.06)';
+
   return (
     <Pressable
       onPress={() => router.push(`/(phone)/tutores/${item.id}`)}
       style={({ pressed }) => [
         styles.row,
-        { backgroundColor: pressed ? 'rgba(0,0,0,0.04)' : 'transparent' },
+        {
+          backgroundColor: pressed ? 'rgba(0,0,0,0.04)' : baseBg,
+        },
       ]}
     >
       <Avatar name={item.nome} size={48} bg="#E8ECF1" color="#1F2937" />
       <View style={{ flex: 1 }}>
         <Text style={{ color: text, fontSize: 16, fontWeight: '600' }}>{item.nome}</Text>
-        {!!item.telefone && <Text style={{ color: subtle, marginTop: 2 }}>{maskPhone(item.telefone)}</Text>}
+        {!!item.telefone && (
+          <Text style={{ color: subtle, marginTop: 2 }}>{maskPhone(item.telefone)}</Text>
+        )}
       </View>
 
       <Pressable
@@ -119,33 +150,29 @@ export default function TutoresList() {
   const { items } = useSelector((s) => s.tutores);
   const navigation = useNavigation();
 
-
   const text = useThemeColor({}, 'text');
   const textIcon = useThemeColor({}, 'textIcon');
   const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
   const tint = useThemeColor({}, 'tint');
 
-  const border = useThemeColor({ light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' }, 'border');
+  const border = useThemeColor(
+    { light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' },
+    'border'
+  );
   const bg = useThemeColor({}, 'background');
-  const bannerBg = useThemeColor({ light: '#E5E7EB', dark: '#2A2A2C' }, 'card');
-  const bannerText = useThemeColor({ light: '#111827', dark: '#F3F4F6' }, 'text');
-  const accent = useThemeColor({ light: '#10B981', dark: '#10B981' }, 'tint');
 
   const [query, setQuery] = useState('');
   const listRef = useRef(null);
 
-  // const tabBarHeight = useBottomTabBarHeight();
-  // const insets = useSafeAreaInsets();
-
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      headerStyle: { backgroundColor: bg },     // 🎨 fundo do header
-      headerTintColor: tint,                    // 🎨 ícones/botão voltar
+      headerStyle: { backgroundColor: bg },
+      headerTintColor: tint,
       headerTitleStyle: { color: tint, fontWeight: '700' },
       headerLargeTitle: true,
-      headerLargeTitleStyle: { color: tint },   // iOS large title
-      headerTransparent: false,                 // garanta que não está transparente
+      headerLargeTitleStyle: { color: tint },
+      headerTransparent: false,
     });
   }, [navigation, bg, tint]);
 
@@ -158,34 +185,53 @@ export default function TutoresList() {
 
   const jumpTo = (letter) => {
     const idx = sections.findIndex((s) => s.title === letter);
-    if (idx >= 0) listRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, animated: true });
+    if (idx >= 0) {
+      listRef.current?.scrollToLocation({
+        sectionIndex: idx,
+        itemIndex: 0,
+        animated: true,
+      });
+    }
   };
 
   const hasAny = items?.length > 0;
-  const hasResults = sections?.length > 0; // após o filtro
 
   return (
-    // ❗️Sem bottom aqui, para não somar com a tab
     <SafeAreaView style={{ flex: 1, backgroundColor: bg }} edges={['left', 'right']}>
       <SectionList
         ref={listRef}
         sections={sections}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <TutorRow item={item} tint={tint} subtle={subtle} text={text} />}
+        renderItem={({ item, index }) => (
+          <TutorRow item={item} tint={tint} subtle={subtle} text={text} index={index} />
+        )}
         renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionHeaderText}>{title}</Text>
+          <View style={styles.sectionHeaderContainer}>
+            {/* Divider grosso por letra */}
+            <View style={styles.sectionLetterDivider} />
+            {/* Header da letra */}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionHeaderText}>{title}</Text>
+            </View>
           </View>
         )}
         ListHeaderComponent={
           hasAny && (
-            <View style={[styles.searchBox, { borderBottomColor: border, backgroundColor: bg }]}>
+            <View
+              style={[
+                styles.searchBox,
+                { borderBottomColor: border, backgroundColor: bg },
+              ]}
+            >
               <TextInput
                 placeholder="Buscar por nome, telefone ou e-mail"
                 placeholderTextColor={textIcon}
                 value={query}
                 onChangeText={setQuery}
-                style={[styles.input, { color: textIcon, borderColor: 'rgba(0,0,0,0.12)' }]}
+                style={[
+                  styles.input,
+                  { color: textIcon, borderColor: 'rgba(0,0,0,0.12)' },
+                ]}
                 returnKeyType="search"
               />
             </View>
@@ -194,31 +240,26 @@ export default function TutoresList() {
         stickySectionHeadersEnabled
         contentInsetAdjustmentBehavior="automatic"
         automaticallyAdjustContentInsets={false}
-        ItemSeparatorComponent={() => <View className="sep" style={styles.sep} />}
-        // ✅ Usa a altura da tab + safe inset para não sobrepor e sem “gap” visível
-        // contentContainerStyle={{ paddingBottom: 0 }}
+        // Divider fino entre nomes
+        ItemSeparatorComponent={() => <View style={styles.sep} />}
         ListEmptyComponent={
-          hasAny
-            ? (
-              // Tem tutores cadastrados, mas o filtro não achou nada
-              <EmptyCard
-                title="Nenhum resultado"
-                subtitle={`Não encontramos nada para “${query}”.`}
-                actionLabel="Limpar busca"
-                icon="search-outline"
-                onAction={() => setQuery('')}
-              />
-            )
-            : (
-              // Não há tutores cadastrados ainda
-              <EmptyCard
-                title="Sem tutores por aqui"
-                subtitle="Cadastre o primeiro tutor para começar."
-                actionLabel="Adicionar tutor"
-                icon="person-add-outline"
-                onAction={() => router.push('/(modals)/tutor-new')}
-              />
-            )
+          hasAny ? (
+            <EmptyCard
+              title="Nenhum resultado"
+              subtitle={`Não encontramos nada para “${query}”.`}
+              actionLabel="Limpar busca"
+              icon="search-outline"
+              onAction={() => setQuery('')}
+            />
+          ) : (
+            <EmptyCard
+              title="Sem tutores por aqui"
+              subtitle="Cadastre o primeiro tutor para começar."
+              actionLabel="Adicionar tutor"
+              icon="person-add-outline"
+              onAction={() => router.push('/(modals)/tutor-new')}
+            />
+          )
         }
       />
 
@@ -237,12 +278,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     height: 42,
   },
+
+  // HEADER DA LETRA
+  sectionHeaderContainer: {
+    marginTop: 4,
+  },
+  sectionLetterDivider: {
+    height: 3,
+    borderRadius: 999,
+    backgroundColor: 'rgba(15,23,42,0.12)', // barra mais grossa entre grupos
+    marginHorizontal: 16,
+    marginBottom: 2,
+  },
   sectionHeader: {
     backgroundColor: '#F3F4F6',
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingVertical: 4,
   },
-  sectionHeaderText: { fontSize: 12, fontWeight: '700', color: '#6B7280' },
+  sectionHeaderText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+
   row: {
     paddingHorizontal: 16,
     paddingVertical: 10,
@@ -250,12 +308,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  sep: { height: 1, backgroundColor: 'rgba(0,0,0,0.06)', marginLeft: 76 },
+
+  // Divider entre nomes
+  sep: {
+    height: 1,
+    backgroundColor: 'rgba(148,163,184,0.35)',
+    marginLeft: 76, // depois do avatar
+  },
+
   alphaBar: {
     position: 'absolute',
     right: 4,
     top: 90,
-    // bottom ajustado via prop
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 2,
