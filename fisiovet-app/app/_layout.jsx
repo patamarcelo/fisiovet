@@ -105,7 +105,6 @@ function RootNavigator() {
 
           <Stack screenOptions={{ headerShown: false }}>
             {/* Grupos principais */}
-            <Stack.Screen name="(tabs)" />
             <Stack.Screen name="(phone)" />
             <Stack.Screen name="(tablet)" />
             <Stack.Screen name="configuracoes" options={{ headerShown: false }} />
