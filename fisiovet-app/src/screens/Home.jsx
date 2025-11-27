@@ -9,6 +9,7 @@ import {
     Platform,
     SectionList,
     useWindowDimensions,
+    ScrollView,
 } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
@@ -19,14 +20,13 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 import { selectAllEventos } from '@/src/store/slices/agendaSlice';
-import { selectUserName } from '@/src/store/slices/userSlice';
-
-import { selectUserPhoto } from '@/src/store/slices/userSlice';
+import { selectUserName, selectUserPhoto } from '@/src/store/slices/userSlice';
 
 import { Image } from 'expo-image';
 
-import { getMetadata, ref } from "firebase/storage";
+import { getMetadata, ref, getDownloadURL } from 'firebase/storage'; // ajuste se já estiver em outro lugar
 import { getCachedAvatar } from '../utils/avatarCache';
+import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';
 
 /* ---------- Consts & helpers ---------- */
 
@@ -34,6 +34,17 @@ const STATUS_COLORS = {
     confirmado: '#16A34A',
     pendente: '#F59E0B',
     cancelado: '#EF4444',
+};
+
+const CARD_ELEVATION = {
+    // ANDROID
+    elevation: 3,
+
+    // iOS
+    shadowColor: '#000',
+    shadowOpacity: 0.10,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
 };
 
 const fmtHour = (iso) => {
@@ -105,7 +116,7 @@ function MiniEventRow({ item }) {
             style={({ pressed }) => [
                 styles.row,
                 pressed && Platform.OS === 'ios' ? { backgroundColor: '#F7F8FA' } : null,
-                { paddingLeft: 4, alignItems: 'center', marginVertical: 4 }
+                { paddingLeft: 4, alignItems: 'center', marginVertical: 4 },
             ]}
         >
             {/* barra de status */}
@@ -184,8 +195,8 @@ function UpcomingEventsList({ upcoming, subtle }) {
                             pathname: '/(modals)/agenda-new',
                             params: {
                                 tutorId: '',
-                                tutorNome:  '',
-                                preselectPetId:  '',
+                                tutorNome: '',
+                                preselectPetId: '',
                                 petNome: '',
                             },
                         });
@@ -226,8 +237,6 @@ function UpcomingEventsList({ upcoming, subtle }) {
                         backgroundColor: '#F3F4F6',
                         paddingVertical: 6,
                         paddingHorizontal: 6,
-                        // borderRadius: 8,
-                        // marginHorizontal: 4
                     }}
                 >
                     <Text style={{ fontWeight: '700', color: '#374151' }}>{section.title}</Text>
@@ -235,15 +244,14 @@ function UpcomingEventsList({ upcoming, subtle }) {
             )}
             ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
             contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
-            style={
-                { maxHeight: Math.min(height * 0.45, 360),
-                minHeight: Math.min(height * 0.25, 360)
-                }
-            }
+            style={{
+                maxHeight: Math.min(height * 0.45, 360),
+                minHeight: Math.min(height * 0.25, 360),
+            }}
             stickySectionHeadersEnabled={false}
             showsVerticalScrollIndicator={true}
-            indicatorStyle="black"                 // 🔹 iOS: 'white' ou 'black'
-            persistentScrollbar={true}             // 🔹 Android: deixa barra sempre visível
+            indicatorStyle="black"
+            persistentScrollbar={true}
         />
     );
 }
@@ -257,7 +265,7 @@ async function getVersionedPhotoURL(storage, path) {
         getMetadata(storageRef),
     ]);
     const version = meta?.generation || Date.now();
-    return `${url}${url.includes("?") ? "&" : "?"}v=${version}`;
+    return `${url}${url.includes('?') ? '&' : '?'}v=${version}`;
 }
 
 export default function Home() {
@@ -277,12 +285,10 @@ export default function Home() {
     const eventos = useSelector(selectAllEventos);
     const [localAvatar, setLocalAvatar] = useState(null);
 
-
     useEffect(() => {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
 
-    // sempre que o path mudar, busca a URL versionada
     useEffect(() => {
         let alive = true;
         (async () => {
@@ -291,9 +297,10 @@ export default function Home() {
             if (!alive) return;
             setLocalAvatar(res.localUri);
         })();
-        return () => { alive = false; };
+        return () => {
+            alive = false;
+        };
     }, [photoURL]);
-
 
     // Próximos eventos (somente futuros)
     const upcoming = useMemo(() => {
@@ -305,135 +312,181 @@ export default function Home() {
     }, [eventos]);
 
     return (
-        <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['top', 'left', 'right']}>
-            <View style={[styles.container, { paddingBottom: 12 + insets.bottom }]}>
-                {/* topo: saudação + engrenagem */}
-                {/* topo: avatar + saudação + engrenagem */}
-                <View style={styles.topBar}>
-                    <View style={styles.topLeft}>
-                        {photoURL ? (
-                            <Image source={{ uri: photoURL }} style={styles.avatar} cachePolicy='memory-disk' />
-                        ) : (
-                            <View style={[styles.avatar, { backgroundColor: '#E5E7EB' }]}>
-                                <Ionicons name="person" size={20} color="#9CA3AF" />
+        <SafeAreaView
+            style={[styles.safe, { backgroundColor: bg }]}
+            edges={['top', 'left', 'right']}
+        >
+            <View style={{ flex: 1 }}>
+                {/* 🔹 Cabeçalho fixo (não rola) */}
+                <View
+                    style={[
+                        styles.headerContainer,
+                        { paddingTop: 16, paddingHorizontal: 16 },
+                    ]}
+                >
+                    {/* topo: avatar + saudação + engrenagem */}
+                    <View style={styles.topBar}>
+                        <View style={styles.topLeft}>
+                            {photoURL ? (
+                                <View style={[styles.avatarWrapper, CARD_ELEVATION]}>
+                                    <Image
+                                        source={{ uri: photoURL }}
+                                        style={styles.avatar}
+                                        cachePolicy="memory-disk"
+                                    />
+                                </View>
+                            ) : (
+                                <View style={[styles.avatarWrapper, CARD_ELEVATION]}>
+                                    <View style={[styles.avatar, { backgroundColor: '#E5E7EB', alignItems: 'center', justifyContent: 'center' }]}>
+                                        <Ionicons name="person" size={20} color="#9CA3AF" />
+                                    </View>
+                                </View>
+                            )}
+
+                            <View>
+                                <Text style={[styles.hello, { color: text }]}>Olá 👋</Text>
+                                <Text style={[styles.userName, { color: text }]} numberOfLines={1}>
+                                    {userName}
+                                </Text>
                             </View>
-                        )}
-
-                        <View>
-                            <Text style={[styles.hello, { color: text }]}>Olá 👋</Text>
-                            <Text style={[styles.userName, { color: text }]} numberOfLines={1}>
-                                {userName}
-                            </Text>
                         </View>
-                    </View>
 
-                    <Pressable
-                        onPress={async () => {
-                            await Haptics.selectionAsync();
-                            router.push('/configuracoes');
-                        }}
-                        hitSlop={10}
-                        accessibilityLabel="Configurações"
-                        android_ripple={{ color: '#E5E7EB', borderless: true }}
-                        style={styles.gearBtn}
-                    >
-                        <Ionicons name="settings-outline" size={22} color={colorIcon} fontWeight={"bold"} />
-                    </Pressable>
-                </View>
-
-                {/* atalhos (stories) */}
-                <View style={styles.shortcuts}>
-                    {/* Adicionar tutor */}
-                    <Pressable
-                        onPress={async () => {
-                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push('/(modals)/pet-new');
-                        }}
-                        android_ripple={{ color: '#E5E7EB' }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Adicionar tutor"
-                        hitSlop={8}
-                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
-                    >
-                        <View style={styles.storyCircle}>
-                            <MaterialIcons name="pets" size={24} color={tint} />
-                            <Ionicons
-                                name="add-circle-sharp"
-                                size={18}
-                                color={tint}
-                                style={{ position: 'absolute', right: 12, bottom: 12 }}
-                            />
-                        </View>
-                        <Text style={[styles.storyLabel,{color: textIcon }]}>Pet</Text>
-                    </Pressable>
-
-                    {/* Adicionar pet */}
-                    <Pressable
-                        onPress={async () => {
-                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push('/(modals)/tutor-new');
-                        }}
-                        android_ripple={{ color: '#E5E7EB' }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Adicionar tutor"
-                        hitSlop={8}
-                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
-                    >
-                        <View style={styles.storyCircle}>
-                            <Ionicons name="person-sharp" size={26} color={tint} />
-                            <Ionicons
-                                name="add-circle-sharp"
-                                size={18}
-                                color={tint}
-                                style={{ position: 'absolute', right: 12, bottom: 12 }}
-                            />
-                        </View>
-                        <Text style={[styles.storyLabel,{color: textIcon }]}>Tutor</Text>
-                    </Pressable>
-                    {/* Adicionar evento */}
-                    <Pressable
-                        onPress={async () => {
-                            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push('/(modals)/agenda-new');
-                        }}
-                        android_ripple={{ color: '#E5E7EB' }}
-                        accessibilityRole="button"
-                        accessibilityLabel="Adicionar evento"
-                        hitSlop={8}
-                        style={({ pressed }) => [styles.storyItem, pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] }]}
-                    >
-                        <View style={styles.storyCircle}>
-                            <Ionicons name="calendar-outline" size={26} color={tint} />
-                            <Ionicons
-                                name="add-circle-sharp"
-                                size={18}
-                                color={tint}
-                                style={{ position: 'absolute', right: 12, bottom: 12 }}
-                            />
-                        </View>
-                        <Text style={[styles.storyLabel,{color: textIcon }]}>Evento</Text>
-                    </Pressable>
-                </View>
-
-                {/* próximos eventos */}
-                <View style={[styles.card, { borderColor: border }]}>
-                    <View style={styles.cardHeader}>
-                        <Text style={styles.cardTitle}>Próximos eventos</Text>
                         <Pressable
                             onPress={async () => {
                                 await Haptics.selectionAsync();
-                                router.push('/(phone)/agenda');
+                                router.push('/configuracoes');
                             }}
-                            hitSlop={8}
+                            hitSlop={10}
+                            accessibilityLabel="Configurações"
                             android_ripple={{ color: '#E5E7EB', borderless: true }}
-                            style={{ paddingHorizontal: 6, paddingVertical: 2 }}
+                            style={styles.gearBtn}
                         >
-                            <Text style={{ color: tint, fontWeight: '700' }}>Ver tudo</Text>
+                            <Ionicons name="settings-outline" size={22} color={colorIcon} fontWeight={'bold'} />
                         </Pressable>
                     </View>
 
-                    <UpcomingEventsList upcoming={upcoming} subtle={subtle} />
+                    {/* atalhos (stories) */}
+                    <View style={styles.shortcuts}>
+                        {/* Adicionar pet */}
+                        <Pressable
+                            onPress={async () => {
+                                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                router.push('/(modals)/pet-new');
+                            }}
+                            android_ripple={{ color: '#E5E7EB' }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar pet"
+                            hitSlop={8}
+                            style={({ pressed }) => [
+                                styles.storyItem,
+                                CARD_ELEVATION,
+                                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+                            ]}
+                        >
+                            <View style={styles.storyCircle}>
+                                <MaterialIcons name="pets" size={24} color={tint} />
+                                <Ionicons
+                                    name="add-circle-sharp"
+                                    size={18}
+                                    color={tint}
+                                    style={{ position: 'absolute', right: 12, bottom: 12 }}
+                                />
+                            </View>
+                            <Text style={[styles.storyLabel, { color: textIcon }]}>Pet</Text>
+                        </Pressable>
+
+                        {/* Adicionar tutor */}
+                        <Pressable
+                            onPress={async () => {
+                                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                router.push('/(modals)/tutor-new');
+                            }}
+                            android_ripple={{ color: '#E5E7EB' }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar tutor"
+                            hitSlop={8}
+                            style={({ pressed }) => [
+                                styles.storyItem,
+                                CARD_ELEVATION,
+                                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+                            ]}
+                        >
+                            <View style={styles.storyCircle}>
+                                <Ionicons name="person-sharp" size={26} color={tint} />
+                                <Ionicons
+                                    name="add-circle-sharp"
+                                    size={18}
+                                    color={tint}
+                                    style={{ position: 'absolute', right: 12, bottom: 12 }}
+                                />
+                            </View>
+                            <Text style={[styles.storyLabel, { color: textIcon }]}>Tutor</Text>
+                        </Pressable>
+
+                        {/* Adicionar evento */}
+                        <Pressable
+                            onPress={async () => {
+                                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                router.push('/(modals)/agenda-new');
+                            }}
+                            android_ripple={{ color: '#E5E7EB' }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar evento"
+                            hitSlop={8}
+                            style={({ pressed }) => [
+                                styles.storyItem,
+                                CARD_ELEVATION,
+                                pressed && { opacity: 0.9, transform: [{ scale: 0.97 }] },
+                            ]}
+                        >
+                            <View style={styles.storyCircle}>
+                                <Ionicons name="calendar-outline" size={26} color={tint} />
+                                <Ionicons
+                                    name="add-circle-sharp"
+                                    size={18}
+                                    color={tint}
+                                    style={{ position: 'absolute', right: 12, bottom: 12 }}
+                                />
+                            </View>
+                            <Text style={[styles.storyLabel, { color: textIcon }]}>Evento</Text>
+                        </Pressable>
+                    </View>
                 </View>
+
+                {/* 🔹 Área rolável: cards (próximos eventos + financeiro) */}
+                <ScrollView
+                    style={styles.scrollArea}
+                    contentContainerStyle={{
+                        paddingHorizontal: 16,
+                        paddingBottom: 12 + insets.bottom + 50,
+                        paddingTop: 8,
+                        gap: 16,
+                    }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* próximos eventos */}
+                    <View style={[styles.card, CARD_ELEVATION, { borderColor: border }]}>
+                        <View style={styles.cardHeader}>
+                            <Text style={styles.cardTitle}>Próximos eventos</Text>
+                            <Pressable
+                                onPress={async () => {
+                                    await Haptics.selectionAsync();
+                                    router.push('/(phone)/agenda');
+                                }}
+                                hitSlop={8}
+                                android_ripple={{ color: '#E5E7EB', borderless: true }}
+                                style={{ paddingHorizontal: 6, paddingVertical: 2 }}
+                            >
+                                <Text style={{ color: tint, fontWeight: '700' }}>Ver tudo</Text>
+                            </Pressable>
+                        </View>
+
+                        <UpcomingEventsList upcoming={upcoming} subtle={subtle} />
+                    </View>
+
+                    {/* card financeiro pendente */}
+                    <FinanceiroPendentesCard cardelevation={CARD_ELEVATION} />
+                </ScrollView>
             </View>
         </SafeAreaView>
     );
@@ -442,7 +495,14 @@ export default function Home() {
 /* ---------- Styles ---------- */
 const styles = StyleSheet.create({
     safe: { flex: 1 },
-    container: { flex: 1, padding: 16, gap: 16 },
+
+    headerContainer: {
+        // só organização do topo, sem flex:1 pra não disputar com o ScrollView
+    },
+
+    scrollArea: {
+        flex: 1,
+    },
 
     topBar: {
         flexDirection: 'row',
@@ -460,6 +520,7 @@ const styles = StyleSheet.create({
     },
 
     shortcuts: {
+        marginTop: 16,
         flexDirection: 'row',
         alignItems: 'flex-start',
         justifyContent: 'flex-end',
@@ -479,12 +540,10 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        // iOS shadow
         shadowColor: '#000',
         shadowOpacity: 0.12,
         shadowRadius: 6,
         shadowOffset: { width: 0, height: 3 },
-        // Android shadow
         elevation: 4,
         position: 'relative',
     },
@@ -507,7 +566,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 6,
-        paddingHorizontal: 12
+        paddingHorizontal: 12,
     },
     cardTitle: { fontSize: 16, fontWeight: '800' },
 
@@ -538,17 +597,32 @@ const styles = StyleSheet.create({
     rowTitle: { fontWeight: '700', fontSize: 15, flex: 1 },
     rowHour: { color: '#6B7280' },
     rowSub: { color: '#6B7280' },
+
     topLeft: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
     },
-    avatar: {
+    avatarWrapper: {
         width: 60,
         height: 60,
         borderRadius: 40,
+        backgroundColor: '#FFF',
         alignItems: 'center',
         justifyContent: 'center',
+
+        // importantíssimo pra sombra ficar arredondada visualmente
+        shadowColor: '#000',
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 4,
+    },
+
+    avatar: {
+        width: 54,
+        height: 54,
+        borderRadius: 40,
         overflow: 'hidden',
     },
 });
