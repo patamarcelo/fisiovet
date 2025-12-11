@@ -3,19 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>629108942932-007fumq46arg3rohrnp18bgrj0o3d3r1.apps.googleusercontent.com</string>
+	<string>629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.629108942932-007fumq46arg3rohrnp18bgrj0o3d3r1</string>
-	<key>ANDROID_CLIENT_ID</key>
-	<string>629108942932-v8971ntqkr49bfkfl1cfpt68hcguqc84.apps.googleusercontent.com</string>
+	<string>com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8</string>
 	<key>API_KEY</key>
-	<string>AIzaSyBwwwv_k7ssZHBYb9gbaPrwQaK1POdBzbI</string>
+	<string>AIzaSyBe61npjWlb-KtkeBbhxKL-Sf8LQztJdk4</string>
 	<key>GCM_SENDER_ID</key>
 	<string>629108942932</string>
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.fisiovet.app.dev</string>
+	<string>com.fisiovet.app</string>
 	<key>PROJECT_ID</key>
 	<string>fisiovet-41089</string>
 	<key>STORAGE_BUCKET</key>
@@ -31,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:629108942932:ios:41f5c0ce468f846823e5c1</string>
+	<string>1:629108942932:ios:acb72d1851fefe2e23e5c1</string>
 </dict>
 </plist>
