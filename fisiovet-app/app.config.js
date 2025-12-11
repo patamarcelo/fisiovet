@@ -16,8 +16,10 @@ const MAPS_KEY =
 	process.env[`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_${APP_ENV.toUpperCase()}`] ||
 	process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
+
 // Controle de versão centralizado
-const versionControl = "1.0.11";
+const versionControl = "1.0.12";
+
 
 module.exports = {
 	expo: {
@@ -51,7 +53,10 @@ module.exports = {
 			config: {
 				googleMapsApiKey: MAPS_KEY,
 			},
-			googleServicesFile: "./GoogleService-Info.plist",
+			googleServicesFile:
+				APP_ENV === "development"
+					? "./firebase/dev/GoogleService-Info.plist"
+					: "./GoogleService-Info.plist",
 			infoPlist: {
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
@@ -88,7 +93,7 @@ module.exports = {
 			},
 			edgeToEdgeEnabled: true,
 			package: `${process.env.ANDROID_PACKAGE_NAME}${ID_SUFFIX}`,
-			googleServicesFile: "./GoogleService-Info.plist",
+			googleServicesFile: "./google-services.json",
 		},
 
 		web: {
@@ -113,7 +118,14 @@ module.exports = {
 				},
 			],
 			["react-native-bottom-tabs"],
-			["@react-native-google-signin/google-signin"],
+			["@react-native-google-signin/google-signin",
+				{
+					iosUrlScheme:
+						APP_ENV === "development"
+							? "com.googleusercontent.apps.629108942932-007fumq46arg3rohrnp18bgrj0o3d3r1"
+							: "com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8",
+				},
+			],
 			["expo-build-properties", { ios: { useFrameworks: "static" } }],
 			[
 				"expo-location",

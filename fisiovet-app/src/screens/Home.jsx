@@ -27,6 +27,8 @@ import { Image } from 'expo-image';
 import { getMetadata, ref, getDownloadURL } from 'firebase/storage'; // ajuste se já estiver em outro lugar
 import { getCachedAvatar } from '../utils/avatarCache';
 import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';
+import { BlurView } from 'expo-blur';
+
 
 /* ---------- Consts & helpers ---------- */
 
@@ -314,15 +316,14 @@ export default function Home() {
     return (
         <SafeAreaView
             style={[styles.safe, { backgroundColor: bg }]}
-            edges={['top', 'left', 'right']}
+            edges={[ 'left', 'right']}
         >
             <View style={{ flex: 1 }}>
                 {/* 🔹 Cabeçalho fixo (não rola) */}
-                <View
-                    style={[
-                        styles.headerContainer,
-                        { paddingTop: 16, paddingHorizontal: 16 },
-                    ]}
+                <BlurView
+                    intensity={10}
+                    tint="light"
+                    style={[styles.headerContainer, { paddingTop: insets.top + 16, paddingHorizontal: 16 }]}
                 >
                     {/* topo: avatar + saudação + engrenagem */}
                     <View style={styles.topBar}>
@@ -365,6 +366,20 @@ export default function Home() {
                         </Pressable>
                     </View>
 
+                </BlurView>
+
+                {/* 🔹 Área rolável: cards (próximos eventos + financeiro) */}
+                <ScrollView
+                    style={styles.scrollArea}
+                    contentContainerStyle={{
+                        paddingHorizontal: 16,
+                        paddingBottom: 12 + insets.bottom + 50,
+                        paddingTop: 12,
+                        marginTop: 100,
+                        gap: 16,
+                    }}
+                    showsVerticalScrollIndicator={false}
+                >
                     {/* atalhos (stories) */}
                     <View style={styles.shortcuts}>
                         {/* Adicionar pet */}
@@ -451,19 +466,6 @@ export default function Home() {
                             <Text style={[styles.storyLabel, { color: textIcon }]}>Evento</Text>
                         </Pressable>
                     </View>
-                </View>
-
-                {/* 🔹 Área rolável: cards (próximos eventos + financeiro) */}
-                <ScrollView
-                    style={styles.scrollArea}
-                    contentContainerStyle={{
-                        paddingHorizontal: 16,
-                        paddingBottom: 12 + insets.bottom + 50,
-                        paddingTop: 8,
-                        gap: 16,
-                    }}
-                    showsVerticalScrollIndicator={false}
-                >
                     {/* próximos eventos */}
                     <View style={[styles.card, CARD_ELEVATION, { borderColor: border }]}>
                         <View style={styles.cardHeader}>
@@ -497,7 +499,13 @@ const styles = StyleSheet.create({
     safe: { flex: 1 },
 
     headerContainer: {
-        // só organização do topo, sem flex:1 pra não disputar com o ScrollView
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        // opcional: se quiser uma base mais clara
+        // backgroundColor: 'transparent',
     },
 
     scrollArea: {

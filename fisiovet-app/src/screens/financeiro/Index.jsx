@@ -3,7 +3,6 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   FlatList,
-  SafeAreaView,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,6 +12,8 @@ import {
   TextInput,
   RefreshControl,
 } from 'react-native';
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
@@ -28,12 +29,25 @@ import { useThemeColor } from "@/hooks/useThemeColor";
 /* =======================
    Helpers
 ======================= */
+// formatter criado uma vez só (melhor performance)
+const currencyFormatterBR = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+  minimumFractionDigits: 2,
+});
 
-function formatCurrency(v) {
-  const num = Number(v || 0);
-  if (Number.isNaN(num)) return 'R$ 0,00';
-  return `R$ ${num.toFixed(2).replace('.', ',')}`;
+function formatCurrency(value) {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return currencyFormatterBR.format(0);
+  return currencyFormatterBR.format(num);
 }
+
+
+// function formatCurrency(v) {
+//   const num = Number(v || 0);
+//   if (Number.isNaN(num)) return 'R$ 0,00';
+//   return `R$ ${num.toFixed(2).replace('.', ',')}`;
+// }
 
 function isSameMonthYear(date, monthIndex, year) {
   if (!date) return false;
@@ -475,7 +489,7 @@ export default function FinanceiroScreen() {
     : `Pago em ${MES_LABELS[filtroMesIndex]} ${filtroAno}`;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
       {/* Header com botão olho */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -794,6 +808,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.bg,
+    marginTop: 35
   },
   header: {
     paddingHorizontal: 16,
@@ -943,7 +958,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 8,
-    paddingBottom: 24,
+    paddingBottom: 90,
   },
   lancamentoCard: {
     backgroundColor: COLORS.card,
