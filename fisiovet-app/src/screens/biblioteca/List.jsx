@@ -80,9 +80,19 @@ export default function BibliotecaList() {
     }).filter(sec => (sec.data || []).length > 0);
   }, [query]);
 
+  // const onPressRow = (item) => {
+  //   if (item?.route) router.push(item.route);
+  // };
+
   const onPressRow = (item) => {
-    if (item?.route) router.push(item.route);
+    return false
+    if (item?.route) {
+      router.push(item.route);
+      return true;
+    }
+    return false;
   };
+
 
 
   // useLayoutEffect(
@@ -120,10 +130,10 @@ export default function BibliotecaList() {
   );
 
   return (
-     <SafeAreaView
-          style={{ flex: 1, backgroundColor: bg, marginBottom: 0 }}
-          edges={["top", 'bottom']}
-        >
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: bg, marginBottom: 0 }}
+      edges={["top", 'bottom']}
+    >
       <View>
         <SectionList
           sections={filteredSections}
@@ -136,38 +146,98 @@ export default function BibliotecaList() {
             </>
           }
           renderSectionHeader={({ section }) => (
-            <Text style={[styles.sectionHeader,{color: text}]}>{section.title}</Text>
+            <Text style={[styles.sectionHeader, { color: text }]}>{section.title}</Text>
           )}
           renderSectionFooter={() => <View style={{ height: 8 }} />}
+          // renderItem={({ item, index, section }) => {
+          //   const total = (section.data || []).length;
+          //   const isFirst = index === 0;
+          //   const isLast = index === total - 1;
+          //   return (
+          //     <Pressable
+          //       onPress={() => onPressRow(item)}
+          //       style={({ pressed }) => [
+          //         styles.row,
+          //         isFirst && styles.rowFirst,
+          //         isLast && styles.rowLast,
+          //         pressed && styles.rowPressed,
+          //       ]}
+          //     >
+          //       <View style={styles.rowLeft}>
+          //         <View style={styles.rowIcon}>
+          //           <Ionicons name={item.icon || 'document-text-outline'} size={18} color="#0F766E" />
+          //         </View>
+          //         <View style={{ flex: 1 }}>
+          //           <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+          //           {!!item.subtitle && (
+          //             <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+          //           )}
+          //         </View>
+          //       </View>
+          //       <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+          //     </Pressable>
+          //   );
+          // }}
+
           renderItem={({ item, index, section }) => {
             const total = (section.data || []).length;
             const isFirst = index === 0;
             const isLast = index === total - 1;
+
+            // const enabled = !!item?.route;
+            const enabled = false
+
             return (
               <Pressable
-                onPress={() => onPressRow(item)}
+                disabled={!enabled}
+                onPress={enabled ? () => onPressRow(item) : undefined}
                 style={({ pressed }) => [
                   styles.row,
                   isFirst && styles.rowFirst,
                   isLast && styles.rowLast,
-                  pressed && styles.rowPressed,
+                  pressed && enabled && styles.rowPressed,
+                  !enabled && styles.rowDisabled,
                 ]}
+                accessibilityRole={enabled ? "button" : "text"}
+                accessibilityState={{ disabled: !enabled }}
               >
                 <View style={styles.rowLeft}>
-                  <View style={styles.rowIcon}>
-                    <Ionicons name={item.icon || 'document-text-outline'} size={18} color="#0F766E" />
+                  <View style={[styles.rowIcon, !enabled && styles.rowIconDisabled]}>
+                    <Ionicons
+                      name={item.icon || "document-text-outline"}
+                      size={18}
+                      color={enabled ? "#0F766E" : "#9CA3AF"}
+                    />
                   </View>
+
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>{item.title}</Text>
+                    <Text style={[styles.rowTitle, !enabled && styles.textDisabled]} numberOfLines={1}>
+                      {item.title}
+                    </Text>
+
                     {!!item.subtitle && (
-                      <Text style={styles.rowSubtitle} numberOfLines={1}>{item.subtitle}</Text>
+                      <Text style={[styles.rowSubtitle, !enabled && styles.textDisabled]} numberOfLines={1}>
+                        {item.subtitle}
+                      </Text>
+                    )}
+
+                    {!enabled && (
+                      <Text style={styles.comingSoon} numberOfLines={1}>
+                        Em breve
+                      </Text>
                     )}
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+
+                {enabled ? (
+                  <Ionicons name="chevron-forward" size={18} color="#9CA3AF" />
+                ) : (
+                  <View style={{ width: 18 }} />
+                )}
               </Pressable>
             );
           }}
+
           contentContainerStyle={{ paddingBottom: 24 }}
           SectionSeparatorComponent={() => null}
           ItemSeparatorComponent={({ leadingItem, section }) => {
@@ -283,4 +353,20 @@ const styles = StyleSheet.create({
     marginLeft: 16 + 12 + 28 + 12, // alinhado após o ícone
     marginRight: 16,
   },
+  rowDisabled: {
+    opacity: 0.55,
+  },
+  rowIconDisabled: {
+    backgroundColor: "#F3F4F6",
+  },
+  textDisabled: {
+    color: "#6B7280",
+  },
+  comingSoon: {
+    marginTop: 4,
+    fontSize: 12,
+    color: "#9CA3AF",
+    fontWeight: "600",
+  },
+
 });

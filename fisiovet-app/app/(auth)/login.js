@@ -16,6 +16,12 @@ import { router } from 'expo-router';
 import ResponsiveHero from './_resposiveHero';
 import { Image } from 'expo-image';
 
+import * as AppleAuthentication from "expo-apple-authentication";
+import * as Crypto from "expo-crypto";
+
+import Constants from "expo-constants";
+
+
 const colors = {
 	teal: '#159E9C',
 	tealDark: '#0F7E7C',
@@ -48,12 +54,60 @@ export default function Login() {
 	const [googleLoading, setGoogleLoading] = useState(false);
 	const booting = useSelector(selectBootstrapLoading);
 
+	const [appleLoading, setAppleLoading] = useState(false);
+
+
 
 
 
 	const currentYear = new Date().getFullYear();
 
 	useEffect(() => { configureGoogle(); }, []);
+
+	function randomNonce(length = 32) {
+		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+		let out = "";
+		for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+		return out;
+	}
+
+	const getDisplayName = ({ displayName, fullName, email, fallback }) => {
+		// 1) Nome salvo no Firebase
+		if (displayName && displayName.trim()) return displayName.trim();
+
+		// 2) Nome retornado pela Apple (só vem na 1ª vez)
+		const given = fullName?.givenName?.trim();
+		const family = fullName?.familyName?.trim();
+		const appleName = [given, family].filter(Boolean).join(" ").trim();
+		if (appleName) return appleName;
+
+		// 3) Se tiver email (mesmo relay), mostra a parte antes do @
+		if (email && email.includes("@")) {
+			const local = email.split("@")[0];
+			// local do privaterelay costuma ser feio; vamos suavizar
+			if (email.endsWith("@privaterelay.appleid.com")) return "Usuário Apple";
+			return local;
+		}
+
+		// 4) Fallback final (nunca use credential.user)
+		return fallback || "Usuário";
+	};
+
+	const isBadAppleName = (name) => {
+		if (!name) return true;
+		const n = String(name).trim();
+
+		// UUID típico do Apple cred.user (ex: "A1B2C3D4-....")
+		const looksLikeUuid = /^[0-9a-fA-F-]{20,}$/.test(n) && n.includes("-");
+		if (looksLikeUuid) return true;
+
+		// Nomes com cara de token
+		if (n.length >= 22 && !n.includes(" ")) return true;
+
+		return false;
+	};
+
+
 
 	// restaura e-mail lembrado
 	useEffect(() => {
@@ -86,7 +140,9 @@ export default function Login() {
 			// redirecione como preferir (home):
 			try {
 				// Passe o que precisar para filtrar os dados do usuário
+				const finalUser = auth().currentUser || user;
 				await dispatch(postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })).unwrap();
+
 			} catch (e) {
 				// não bloqueie a navegação por erro de uma das listas; só sinalize
 				console.warn('Bootstrap pós-login falhou:', e);
@@ -119,6 +175,131 @@ export default function Login() {
 		// troque pela sua rota real de cadastro
 		router.push('/(auth)/register');
 	}
+
+	async function handleAppleLogin() {
+		let appleEmail = null;
+
+		try {
+			await Haptics.selectionAsync();
+			setError("");
+			setAppleLoading(true);
+
+			const rawNonce = randomNonce(32);
+			const hashedNonce = await Crypto.digestStringAsync(
+				Crypto.CryptoDigestAlgorithm.SHA256,
+				rawNonce
+			);
+
+			const appleCred = await AppleAuthentication.signInAsync({
+				requestedScopes: [
+					AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+					AppleAuthentication.AppleAuthenticationScope.EMAIL,
+				],
+				nonce: hashedNonce,
+			});
+
+			// identityToken é obrigatório para Firebase
+			if (!appleCred?.identityToken) {
+				setError("Não foi possível obter o token da Apple.");
+				return;
+			}
+
+			appleEmail = appleCred?.email || null;
+
+			const appleAuthCredential = auth.AppleAuthProvider.credential(
+				appleCred.identityToken,
+				rawNonce
+			);
+
+			let fbUser;
+
+			try {
+				const res = await auth().signInWithCredential(appleAuthCredential);
+				fbUser = res.user;
+			} catch (err) {
+				// Se a conta já existir com outro provedor, trate como você já faz no Google.
+				if (err?.code === "auth/account-exists-with-different-credential") {
+					const emailToCheck = err?.email || appleEmail;
+
+					if (emailToCheck) {
+						const methods = await auth().fetchSignInMethodsForEmail(emailToCheck);
+
+						// Se existir senha, peça para entrar com email/senha e depois vincular
+						if (methods?.includes("password") && password) {
+							const emailLogin = await auth().signInWithEmailAndPassword(emailToCheck, password);
+							await emailLogin.user.linkWithCredential(appleAuthCredential);
+							fbUser = emailLogin.user;
+						} else {
+							Alert.alert(
+								"Conta já existente",
+								"Este e-mail já possui cadastro. Entre com e-mail e senha e depois toque em “Entrar com Apple” para vincular."
+							);
+							return;
+						}
+					} else {
+						Alert.alert(
+							"Conta já existente",
+							"Esta conta já existe com outro método. Entre com e-mail e senha e depois vincule o login da Apple."
+						);
+						return;
+					}
+				} else if (err?.code === "auth/operation-not-allowed") {
+					setError("Login com Apple não está habilitado no Firebase.");
+					return;
+				} else {
+					throw err;
+				}
+			}
+
+			const finalUser = auth().currentUser || fbUser;
+
+			if (finalUser) {
+				// Calcula um nome decente (sem usar appleCred.user)
+				const computedName = getDisplayName({
+					displayName: finalUser.displayName,
+					fullName: appleCred?.fullName,
+					email: appleCred?.email,
+					fallback: "Usuário Apple",
+				});
+
+				// Se o nome atual for vazio ou “ruim”, atualiza no Firebase Auth
+				if (!finalUser.displayName || isBadAppleName(finalUser.displayName)) {
+					try {
+						await finalUser.updateProfile({ displayName: computedName });
+						await finalUser.reload();
+					} catch (e) {
+						console.log("[APPLE] Falha ao atualizar displayName (ignorado):", e?.message);
+					}
+				}
+
+				// Agora sim, use o usuário recarregado
+				const reloaded = auth().currentUser || finalUser;
+
+				dispatch(setUser(mapFirebaseUserToDTO(reloaded)));
+
+				try {
+					await dispatch(postLoginBootstrap({ uid: reloaded.uid, clinicId: reloaded.clinicId })).unwrap();
+				} catch (e) {
+					console.warn("Bootstrap pós-login falhou:", e);
+				}
+
+				router.replace("/");
+			} else {
+				setError("Não foi possível concluir o login com Apple.");
+			}
+		} catch (e) {
+			// cancelou
+			console.log("APPLE ERROR RAW:", e);
+			console.log("APPLE ERROR JSON:", JSON.stringify(e, null, 2));
+			console.log("APPLE ERROR KEYS:", Object.keys(e || {}));
+			setError(e?.message || "Falha no login com Apple.");
+			if (e?.code === "ERR_REQUEST_CANCELED") return;
+			setError((e?.message || "Falha no login com Apple.").replace("Firebase:", "").trim());
+		} finally {
+			setAppleLoading(false);
+		}
+	}
+
 
 	useEffect(() => {
 		if (error) {
@@ -394,6 +575,27 @@ export default function Login() {
 							)}
 						</Pressable>
 
+						{Platform.OS === "ios" && AppleAuthentication.isAvailableAsync && (
+							<Pressable
+								onPress={handleAppleLogin}
+								disabled={appleLoading}
+								style={({ pressed }) => [
+									styles.appleBtn,
+									{ opacity: appleLoading || pressed ? 0.9 : 1 },
+								]}
+							>
+								{appleLoading ? (
+									<ActivityIndicator color="#fff" />
+								) : (
+									<View style={styles.appleContent}>
+										<Ionicons name="logo-apple" size={20} color="#fff" />
+										<Text style={styles.appleText}>Entrar com Apple</Text>
+									</View>
+								)}
+							</Pressable>
+						)}
+
+
 						{/* Rodapé */}
 						<Text style={styles.footer}>FisioVet • {currentYear}</Text>
 
@@ -538,4 +740,25 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: '600',
 	},
+
+	appleBtn: {
+		backgroundColor: "#000",
+		borderRadius: 10,
+		paddingVertical: 12,
+		alignItems: "center",
+		justifyContent: "center",
+		marginTop: 10,
+	},
+	appleContent: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 8,
+	},
+	appleText: {
+		color: "#fff",
+		fontSize: 16,
+		fontWeight: "700",
+	},
+
 });

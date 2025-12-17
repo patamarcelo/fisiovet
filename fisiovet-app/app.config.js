@@ -23,7 +23,7 @@ const versionControl = "1.0.12";
 
 module.exports = {
 	expo: {
-		name: `fisiovet-app${NAME_SUFFIX}`,
+		name: `FisioVet`,
 		slug: "fisiovet-app",
 
 		version: versionControl,
@@ -48,15 +48,14 @@ module.exports = {
 
 		ios: {
 			supportsTablet: true,
+			usesAppleSignIn: true,
 			requireFullScreen: false,
-			bundleIdentifier: `${process.env.IOS_BUNDLE_IDENTIFIER}${ID_SUFFIX}`,
+			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER, // SEM SUFIXO
+			scheme: "fisiovetapp", // FIXO
 			config: {
 				googleMapsApiKey: MAPS_KEY,
 			},
-			googleServicesFile:
-				APP_ENV === "development"
-					? "./firebase/dev/GoogleService-Info.plist"
-					: "./GoogleService-Info.plist",
+			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
@@ -70,9 +69,9 @@ module.exports = {
 				NSCameraUsageDescription:
 					"Permitir que o app use a câmera para fotos dos pets.",
 				NSPhotoLibraryUsageDescription:
-					"Permitir acessar a galeria para anexos e imagens.",
+					"Precisamos acessar sua galeria para você selecionar e anexar fotos de pacientes, exames ou exercícios ao prontuário (ex.: foto de uma radiografia).",
 				NSPhotoLibraryAddUsageDescription:
-					"Permitir salvar imagens e anexos no rolo da câmera.",
+					"Precisamos salvar imagens geradas no app (ex.: relatório ou foto editada) no seu rolo de câmera, caso você escolha exportar.",
 				NSCalendarsUsageDescription:
 					"Permitir adicionar eventos ao calendário.",
 				NSContactsUsageDescription:
@@ -118,14 +117,13 @@ module.exports = {
 				},
 			],
 			["react-native-bottom-tabs"],
-			["@react-native-google-signin/google-signin",
+			[
+				"@react-native-google-signin/google-signin",
 				{
-					iosUrlScheme:
-						APP_ENV === "development"
-							? "com.googleusercontent.apps.629108942932-007fumq46arg3rohrnp18bgrj0o3d3r1"
-							: "com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8",
+					iosUrlScheme: "com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8",
 				},
 			],
+
 			["expo-build-properties", { ios: { useFrameworks: "static" } }],
 			[
 				"expo-location",

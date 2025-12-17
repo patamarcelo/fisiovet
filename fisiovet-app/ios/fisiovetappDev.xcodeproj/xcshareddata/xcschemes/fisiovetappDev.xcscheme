@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "fisiovetapp.app"
-               BlueprintName = "fisiovetapp"
-               ReferencedContainer = "container:fisiovetapp.xcodeproj">
+               BuildableName = "fisiovetappDev.app"
+               BlueprintName = "fisiovetappDev"
+               ReferencedContainer = "container:fisiovetappDev.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "fisiovetappTests.xctest"
-               BlueprintName = "fisiovetappTests"
-               ReferencedContainer = "container:fisiovetapp.xcodeproj">
+               BuildableName = "fisiovetappDevTests.xctest"
+               BlueprintName = "fisiovetappDevTests"
+               ReferencedContainer = "container:fisiovetappDev.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "fisiovetapp.app"
-            BlueprintName = "fisiovetapp"
-            ReferencedContainer = "container:fisiovetapp.xcodeproj">
+            BuildableName = "fisiovetappDev.app"
+            BlueprintName = "fisiovetappDev"
+            ReferencedContainer = "container:fisiovetappDev.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "fisiovetapp.app"
-            BlueprintName = "fisiovetapp"
-            ReferencedContainer = "container:fisiovetapp.xcodeproj">
+            BuildableName = "fisiovetappDev.app"
+            BlueprintName = "fisiovetappDev"
+            ReferencedContainer = "container:fisiovetappDev.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

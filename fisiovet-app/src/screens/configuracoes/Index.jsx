@@ -67,18 +67,39 @@ function Divider() {
 }
 
 // Célula padrão com ícone à esquerda, título, valor à direita e chevron
-function Cell({ title, subtitle, value, leftIcon, leftImageSource, onPress, rightIcon = 'chevron.right', disabled, subtleColor, textColor, loading }) {
+function Cell({
+  title,
+  subtitle,
+  value,
+  leftIcon,
+  leftImageSource,
+  onPress,
+  rightIcon = 'chevron.right',
+  disabled,
+  subtleColor,
+  textColor,
+  loading,
+  destructive, // NOVO
+}) {
   const badgeStyle = leftImageSource
     ? [styles.iconBadge, { backgroundColor: 'transparent', padding: 0 }]
-    : [styles.iconBadge, { backgroundColor: '#25D366' }]; // verde Whats padrão p/ ícone SF, se usar
+    : [styles.iconBadge, { backgroundColor: destructive ? '#EF4444' : '#25D366' }];
+
+  const titleColor = destructive ? '#EF4444' : textColor;
+  const finalSubtle = destructive ? '#FCA5A5' : subtleColor;
 
   return (
     <Pressable
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
       disabled={disabled}
-      style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}
-      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.cell,
+        (pressed && !disabled) && { opacity: 0.85 },
+        disabled && { opacity: 0.55 },
+      ]}
+      accessibilityRole={disabled ? "text" : "button"}
       accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
     >
       <View style={styles.cellLeft}>
         {!!(leftIcon || leftImageSource) && (
@@ -90,6 +111,56 @@ function Cell({ title, subtitle, value, leftIcon, leftImageSource, onPress, righ
             )}
           </View>
         )}
+
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.cellTitle, { color: titleColor }]} numberOfLines={1}>
+            {title}
+          </Text>
+          {!!subtitle && (
+            <Text style={[styles.cellSubtitle, { color: finalSubtle }]} numberOfLines={1}>
+              {subtitle}
+            </Text>
+          )}
+          {disabled && (
+            <Text style={[styles.cellSubtitle, { color: finalSubtle }]} numberOfLines={1}>
+              Em breve
+            </Text>
+          )}
+        </View>
+      </View>
+
+      {loading ? (
+        <ActivityIndicator size="small" />
+      ) : (
+        !!value && <Text style={[styles.cellValue, { color: finalSubtle }]} numberOfLines={1}>{value}</Text>
+      )}
+
+      {/* Se disabled, não mostra chevron (não parece navegável) */}
+      {!disabled && !!rightIcon && <IconSymbol name={rightIcon} size={14} color={finalSubtle} />}
+    </Pressable>
+  );
+}
+
+
+// Célula com Switch (sem navegação)
+function CellSwitch({
+  title,
+  subtitle,
+  value,
+  onValueChange,
+  leftIcon,
+  subtleColor,
+  textColor,
+  disabled,
+}) {
+  return (
+    <View style={[styles.cell, disabled && styles.cellDisabled]}>
+      <View style={styles.cellLeft}>
+        {!!leftIcon && (
+          <View style={[styles.iconBadge, { backgroundColor: '#34C759' }]}>
+            <IconSymbol name={leftIcon} size={16} color="#fff" />
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
             {title}
@@ -99,53 +170,89 @@ function Cell({ title, subtitle, value, leftIcon, leftImageSource, onPress, righ
               {subtitle}
             </Text>
           )}
-        </View>
-      </View>
-
-      {loading ? (
-        <ActivityIndicator size="small" />
-      ) : (
-        !!value && <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>{value}</Text>
-      )}
-      {!!rightIcon && <IconSymbol name={rightIcon} size={14} color={subtleColor} />}
-    </Pressable>
-  );
-}
-
-// Célula com Switch (sem navegação)
-function CellSwitch({ title, subtitle, value, onValueChange, leftIcon, subtleColor, textColor }) {
-  return (
-    <View style={styles.cell}>
-      <View style={styles.cellLeft}>
-        {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: '#34C759' }]}>
-            <IconSymbol name={leftIcon} size={16} color="#fff" />
-          </View>
-        )}
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>{title}</Text>
-          {!!subtitle && (
+          {disabled && (
             <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
-              {subtitle}
+              Em breve
             </Text>
           )}
         </View>
       </View>
-      <Switch value={value} onValueChange={onValueChange} />
+
+      <Switch
+        value={value}
+        onValueChange={disabled ? undefined : onValueChange}
+        disabled={!!disabled}
+      />
     </View>
   );
 }
 
+
 // Célula “texto à direita” (valor editável futuramente via modal)
-function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) {
-  const isString = typeof value === 'string' || typeof value === 'number';
-  const getColor = title.includes("Integração") || title.includes('Navegação') ? "#8B5CF6" : "#8E8E93"
+function CellValue({
+  title,
+  value,
+  onPress,
+  leftIcon,
+  subtleColor,
+  textColor,
+  disabled,
+}) {
+  const isString = typeof value === "string" || typeof value === "number";
+  const badgeColor =
+    title.includes("Integração") || title.includes("Navegação") ? "#8B5CF6" : "#8E8E93";
+
+  const RightValue = isString ? (
+    <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>
+      {value}
+    </Text>
+  ) : (
+    <View style={{ marginRight: 6 }}>{value}</View>
+  );
+
+  if (disabled) {
+    return (
+      <View
+        style={[styles.cell, styles.cellDisabled]}
+        accessibilityRole="text"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled: true }}
+      >
+        <View style={styles.cellLeft}>
+          {!!leftIcon && (
+            <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
+              <IconSymbol name={leftIcon} size={16} color="#fff" />
+            </View>
+          )}
+
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
+              {title}
+            </Text>
+
+            <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
+              Em breve
+            </Text>
+          </View>
+        </View>
+
+        {RightValue}
+        {/* sem chevron quando disabled */}
+      </View>
+    );
+  }
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: false }}
+    >
       <View style={styles.cellLeft}>
         {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: getColor }]}>
+          <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
             <IconSymbol name={leftIcon} size={16} color="#fff" />
           </View>
         )}
@@ -154,18 +261,12 @@ function CellValue({ title, value, onPress, leftIcon, subtleColor, textColor }) 
         </Text>
       </View>
 
-      {isString ? (
-        <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>
-          {value}
-        </Text>
-      ) : (
-        <View style={{ marginRight: 6 }}>{value}</View>
-      )}
-
+      {RightValue}
       <IconSymbol name="chevron.right" size={14} color={subtleColor} />
     </Pressable>
   );
 }
+
 
 export default function ConfigIndex() {
   // cores do tema
@@ -266,7 +367,7 @@ export default function ConfigIndex() {
   // DURACAO
   const defaultDur = useSelector(selectDefaultDuracao);
   const defaultStartDay = useSelector(selectStartOfDay);
-  
+
   //sistema de navegacao
   const navPreference = useSelector(selectNavPreference);
 
@@ -307,6 +408,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/assinatura')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
         </Group>
 
@@ -333,6 +435,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/fonte')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
         </Group>
 
@@ -368,6 +471,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/navegador')}
             subtleColor={subtle}
             textColor={text}
+
           />
           <Divider />
           <CellValue
@@ -387,6 +491,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/agenda')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
           <Divider />
           <CellValue
@@ -406,6 +511,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/asaas')}
             subtleColor={subtle}
             textColor={text}
+          disabled
           />
         </Group>
 
@@ -420,6 +526,7 @@ export default function ConfigIndex() {
             onValueChange={setNotifAgenda}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
           <Divider />
           <CellSwitch
@@ -430,6 +537,7 @@ export default function ConfigIndex() {
             onValueChange={setNotifLembretes}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
         </Group>
 
@@ -443,6 +551,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/backup')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
           <Divider />
           <Cell
@@ -452,6 +561,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/restaurar')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
           <Divider />
           <Cell
@@ -461,6 +571,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/limpar')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
         </Group>
 
@@ -473,16 +584,20 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/termos')}
             subtleColor={subtle}
             textColor={text}
+            disabled
           />
           <Divider />
           <Cell
             title="Versão"
-            value="1.0.0"
+            value="1.0.12" // ideal: puxar do versionControl
             leftIcon="info.circle.fill"
-            onPress={() => { }}
+            onPress={undefined}
+            rightIcon={null}
+            disabled={true} // opcional, ou só remova onPress e rightIcon
             subtleColor={subtle}
             textColor={text}
           />
+
           <Divider />
           <Cell
             title="Suporte"
@@ -496,6 +611,17 @@ export default function ConfigIndex() {
             textColor={'#111827'}
             loading={loading}
           />
+          <Divider />
+          <Cell
+            title="Deletar a conta"
+            subtitle="Remover permanentemente sua conta e dados"
+            leftIcon="trash.fill"
+            onPress={() => router.push('/configuracoes/deleteaccount')}
+            subtleColor={subtle}
+            textColor={text}
+            destructive
+          />
+
         </Group>
         <Pressable
           onPress={handleLogout}
@@ -583,4 +709,5 @@ const styles = StyleSheet.create({
   cellTitle: { fontSize: 16, fontWeight: '600' },
   cellSubtitle: { fontSize: 12, marginTop: 2 },
   cellValue: { fontSize: 14, marginRight: 6, maxWidth: 130, textAlign: 'right' },
+  cellDisabled: { opacity: 0.55 },
 });

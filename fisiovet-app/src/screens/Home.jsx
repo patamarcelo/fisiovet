@@ -316,7 +316,7 @@ export default function Home() {
     return (
         <SafeAreaView
             style={[styles.safe, { backgroundColor: bg }]}
-            edges={[ 'left', 'right']}
+            edges={['left', 'right']}
         >
             <View style={{ flex: 1 }}>
                 {/* 🔹 Cabeçalho fixo (não rola) */}
@@ -346,9 +346,14 @@ export default function Home() {
 
                             <View>
                                 <Text style={[styles.hello, { color: text }]}>Olá 👋</Text>
-                                <Text style={[styles.userName, { color: text }]} numberOfLines={1}>
-                                    {userName}
+                                <Text
+                                    style={[styles.userName, { color: text, flexShrink: 1, maxWidth: "100%" }]}
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
+                                >
+                                    {userName || "Usuário"}
                                 </Text>
+
                             </View>
                         </View>
 
