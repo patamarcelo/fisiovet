@@ -1,4 +1,4 @@
-package com.fisiovet.app.dev
+package com.fisiovet.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

@@ -7,7 +7,7 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
-    <string>fisiovet-app Dev</string>
+    <string>Fisioet</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
@@ -27,7 +27,7 @@
       <dict>
         <key>CFBundleURLSchemes</key>
         <array>
-          <string>fisiovetappdev</string>
+          <string>fisiovetapp</string>
           <string>fisiovetapp</string>
           <string>com.fisiovet.app</string>
         </array>
@@ -71,11 +71,11 @@
     <key>NSFaceIDUsageDescription</key>
     <string>Permitir autenticar com Face ID.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Permitir que o $(PRODUCT_NAME) use sua localização.</string>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationAlwaysUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Permitir que o app use sua localização para rotas e mapa.</string>
+    <string>Permitir que o app use sua localização para rotas e mapa enquanto estiver em uso.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
@@ -89,10 +89,6 @@
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
-    </array>
-    <key>UIBackgroundModes</key>
-    <array>
-      <string>location</string>
     </array>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>

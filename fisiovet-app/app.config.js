@@ -23,7 +23,7 @@ const versionControl = "1.0.12";
 
 module.exports = {
 	expo: {
-		name: `FisioVet`,
+		name: `Fisioet`,
 		slug: "fisiovet-app",
 
 		version: versionControl,
@@ -64,21 +64,22 @@ module.exports = {
 				],
 				NSLocationWhenInUseUsageDescription:
 					"Permitir que o app use sua localização para rotas e mapa.",
-				NSLocationAlwaysAndWhenInUseUsageDescription:
-					"Permitir localização em segundo plano para rotas.",
+
 				NSCameraUsageDescription:
 					"Permitir que o app use a câmera para fotos dos pets.",
+
 				NSPhotoLibraryUsageDescription:
 					"Precisamos acessar sua galeria para você selecionar e anexar fotos de pacientes, exames ou exercícios ao prontuário (ex.: foto de uma radiografia).",
 				NSPhotoLibraryAddUsageDescription:
 					"Precisamos salvar imagens geradas no app (ex.: relatório ou foto editada) no seu rolo de câmera, caso você escolha exportar.",
+
 				NSCalendarsUsageDescription:
 					"Permitir adicionar eventos ao calendário.",
 				NSContactsUsageDescription:
 					"Permitir acesso aos contatos para vincular tutores.",
+
 				NSFaceIDUsageDescription:
 					"Permitir autenticar com Face ID.",
-				UIBackgroundModes: ["location"],
 			},
 		},
 
@@ -128,10 +129,11 @@ module.exports = {
 			[
 				"expo-location",
 				{
-					locationAlwaysAndWhenInUsePermission:
-						"Permitir que o $(PRODUCT_NAME) use sua localização.",
+					locationWhenInUsePermission:
+						"Permitir que o app use sua localização para rotas e mapa enquanto estiver em uso.",
 				},
 			],
+
 			"expo-notifications",
 			"expo-updates", // mesmo com updates.disabled, deixa plugin configurado
 		],
