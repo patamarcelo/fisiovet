@@ -15,9 +15,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-               BuildableName = "Fisioet.app"
-               BlueprintName = "Fisioet"
-               ReferencedContainer = "container:Fisioet.xcodeproj">
+               BuildableName = "FisioVet.app"
+               BlueprintName = "FisioVet"
+               ReferencedContainer = "container:FisioVet.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -33,9 +33,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "00E356ED1AD99517003FC87E"
-               BuildableName = "FisioetTests.xctest"
-               BlueprintName = "FisioetTests"
-               ReferencedContainer = "container:Fisioet.xcodeproj">
+               BuildableName = "FisioVetTests.xctest"
+               BlueprintName = "FisioVetTests"
+               ReferencedContainer = "container:FisioVet.xcodeproj">
             </BuildableReference>
          </TestableReference>
       </Testables>
@@ -55,9 +55,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Fisioet.app"
-            BlueprintName = "Fisioet"
-            ReferencedContainer = "container:Fisioet.xcodeproj">
+            BuildableName = "FisioVet.app"
+            BlueprintName = "FisioVet"
+            ReferencedContainer = "container:FisioVet.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -72,9 +72,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "13B07F861A680F5B00A75B9A"
-            BuildableName = "Fisioet.app"
-            BlueprintName = "Fisioet"
-            ReferencedContainer = "container:Fisioet.xcodeproj">
+            BuildableName = "FisioVet.app"
+            BlueprintName = "FisioVet"
+            ReferencedContainer = "container:FisioVet.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

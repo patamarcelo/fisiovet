@@ -23,7 +23,7 @@ const versionControl = "1.0.12";
 
 module.exports = {
 	expo: {
-		name: `Fisioet`,
+		name: `FisioVet`,
 		slug: "fisiovet-app",
 
 		version: versionControl,
