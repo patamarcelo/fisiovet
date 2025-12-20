@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import {
 	View, Text, TextInput, Pressable, StyleSheet,
-	KeyboardAvoidingView, Platform, ScrollView, ImageBackground, Alert, ActivityIndicator
+	KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -18,9 +18,6 @@ import { Image } from 'expo-image';
 
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
-
-import Constants from "expo-constants";
-
 
 const colors = {
 	teal: '#159E9C',
@@ -38,12 +35,9 @@ import { configureGoogle } from '@/firebase/google_login';
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
 import { postLoginBootstrap, selectBootstrapLoading } from '@/src/store/bootstrapSlice';
 
-
-
-
-
 export default function Login() {
 	const dispatch = useDispatch();
+
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [secure, setSecure] = useState(true);
@@ -55,14 +49,29 @@ export default function Login() {
 	const booting = useSelector(selectBootstrapLoading);
 
 	const [appleLoading, setAppleLoading] = useState(false);
-
-
-
-
+	const [appleAvailable, setAppleAvailable] = useState(false);
 
 	const currentYear = new Date().getFullYear();
 
 	useEffect(() => { configureGoogle(); }, []);
+
+	// Verifica disponibilidade REAL do Sign in with Apple (não use isAvailableAsync como boolean)
+	useEffect(() => {
+		let mounted = true;
+		(async () => {
+			try {
+				if (Platform.OS !== "ios") {
+					if (mounted) setAppleAvailable(false);
+					return;
+				}
+				const available = await AppleAuthentication.isAvailableAsync();
+				if (mounted) setAppleAvailable(!!available);
+			} catch (e) {
+				if (mounted) setAppleAvailable(false);
+			}
+		})();
+		return () => { mounted = false; };
+	}, []);
 
 	function randomNonce(length = 32) {
 		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -72,42 +81,29 @@ export default function Login() {
 	}
 
 	const getDisplayName = ({ displayName, fullName, email, fallback }) => {
-		// 1) Nome salvo no Firebase
 		if (displayName && displayName.trim()) return displayName.trim();
 
-		// 2) Nome retornado pela Apple (só vem na 1ª vez)
 		const given = fullName?.givenName?.trim();
 		const family = fullName?.familyName?.trim();
 		const appleName = [given, family].filter(Boolean).join(" ").trim();
 		if (appleName) return appleName;
 
-		// 3) Se tiver email (mesmo relay), mostra a parte antes do @
 		if (email && email.includes("@")) {
-			const local = email.split("@")[0];
-			// local do privaterelay costuma ser feio; vamos suavizar
 			if (email.endsWith("@privaterelay.appleid.com")) return "Usuário Apple";
-			return local;
+			return email.split("@")[0];
 		}
 
-		// 4) Fallback final (nunca use credential.user)
 		return fallback || "Usuário";
 	};
 
 	const isBadAppleName = (name) => {
 		if (!name) return true;
 		const n = String(name).trim();
-
-		// UUID típico do Apple cred.user (ex: "A1B2C3D4-....")
 		const looksLikeUuid = /^[0-9a-fA-F-]{20,}$/.test(n) && n.includes("-");
 		if (looksLikeUuid) return true;
-
-		// Nomes com cara de token
 		if (n.length >= 22 && !n.includes(" ")) return true;
-
 		return false;
 	};
-
-
 
 	// restaura e-mail lembrado
 	useEffect(() => {
@@ -128,7 +124,6 @@ export default function Login() {
 			setLoading(true);
 			setError('');
 
-			// lembra/deslembra antes do login
 			if (remember && email.trim()) {
 				await SecureStore.setItemAsync(REMEMBER_KEY, email.trim());
 			} else {
@@ -137,17 +132,14 @@ export default function Login() {
 
 			const { user } = await auth().signInWithEmailAndPassword(email.trim(), password);
 			dispatch(setUser(mapFirebaseUserToDTO(user)));
-			// redirecione como preferir (home):
+
 			try {
-				// Passe o que precisar para filtrar os dados do usuário
 				const finalUser = auth().currentUser || user;
 				await dispatch(postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })).unwrap();
-
 			} catch (e) {
-				// não bloqueie a navegação por erro de uma das listas; só sinalize
 				console.warn('Bootstrap pós-login falhou:', e);
-			} finally {
 			}
+
 			router.replace('/');
 		} catch (err) {
 			setError(err?.message?.replace('Firebase:', '').trim() || 'Falha no login.');
@@ -172,7 +164,6 @@ export default function Login() {
 	}
 
 	function goToSignup() {
-		// troque pela sua rota real de cadastro
 		router.push('/(auth)/register');
 	}
 
@@ -183,6 +174,12 @@ export default function Login() {
 			await Haptics.selectionAsync();
 			setError("");
 			setAppleLoading(true);
+
+			// Blindagem: se não estiver disponível, não tenta (evita falha em review)
+			if (!appleAvailable) {
+				Alert.alert("Entrar com Apple", "Sign in with Apple não está disponível neste dispositivo.");
+				return;
+			}
 
 			const rawNonce = randomNonce(32);
 			const hashedNonce = await Crypto.digestStringAsync(
@@ -198,7 +195,6 @@ export default function Login() {
 				nonce: hashedNonce,
 			});
 
-			// identityToken é obrigatório para Firebase
 			if (!appleCred?.identityToken) {
 				setError("Não foi possível obter o token da Apple.");
 				return;
@@ -217,29 +213,28 @@ export default function Login() {
 				const res = await auth().signInWithCredential(appleAuthCredential);
 				fbUser = res.user;
 			} catch (err) {
-				// Se a conta já existir com outro provedor, trate como você já faz no Google.
 				if (err?.code === "auth/account-exists-with-different-credential") {
 					const emailToCheck = err?.email || appleEmail;
 
-					if (emailToCheck) {
-						const methods = await auth().fetchSignInMethodsForEmail(emailToCheck);
+					// Blindagem: se não há email para checar, não falha silenciosamente
+					if (!emailToCheck) {
+						Alert.alert(
+							"Conta já existente",
+							"Esta conta já existe com outro método. Entre com o método usado no cadastro e depois vincule o login da Apple."
+						);
+						return;
+					}
 
-						// Se existir senha, peça para entrar com email/senha e depois vincular
-						if (methods?.includes("password") && password) {
-							const emailLogin = await auth().signInWithEmailAndPassword(emailToCheck, password);
-							await emailLogin.user.linkWithCredential(appleAuthCredential);
-							fbUser = emailLogin.user;
-						} else {
-							Alert.alert(
-								"Conta já existente",
-								"Este e-mail já possui cadastro. Entre com e-mail e senha e depois toque em “Entrar com Apple” para vincular."
-							);
-							return;
-						}
+					const methods = await auth().fetchSignInMethodsForEmail(emailToCheck);
+
+					if (methods?.includes("password") && password) {
+						const emailLogin = await auth().signInWithEmailAndPassword(emailToCheck, password);
+						await emailLogin.user.linkWithCredential(appleAuthCredential);
+						fbUser = emailLogin.user;
 					} else {
 						Alert.alert(
 							"Conta já existente",
-							"Esta conta já existe com outro método. Entre com e-mail e senha e depois vincule o login da Apple."
+							"Este e-mail já possui cadastro. Entre com e-mail e senha e depois toque em “Entrar com Apple” para vincular."
 						);
 						return;
 					}
@@ -254,7 +249,6 @@ export default function Login() {
 			const finalUser = auth().currentUser || fbUser;
 
 			if (finalUser) {
-				// Calcula um nome decente (sem usar appleCred.user)
 				const computedName = getDisplayName({
 					displayName: finalUser.displayName,
 					fullName: appleCred?.fullName,
@@ -262,7 +256,6 @@ export default function Login() {
 					fallback: "Usuário Apple",
 				});
 
-				// Se o nome atual for vazio ou “ruim”, atualiza no Firebase Auth
 				if (!finalUser.displayName || isBadAppleName(finalUser.displayName)) {
 					try {
 						await finalUser.updateProfile({ displayName: computedName });
@@ -272,7 +265,6 @@ export default function Login() {
 					}
 				}
 
-				// Agora sim, use o usuário recarregado
 				const reloaded = auth().currentUser || finalUser;
 
 				dispatch(setUser(mapFirebaseUserToDTO(reloaded)));
@@ -288,23 +280,24 @@ export default function Login() {
 				setError("Não foi possível concluir o login com Apple.");
 			}
 		} catch (e) {
-			// cancelou
+			// Cancelamento: NÃO deixe silencioso (review marca como falha)
+			if (e?.code === "ERR_REQUEST_CANCELED") {
+				Alert.alert("Login cancelado", "Você pode tentar novamente quando quiser.");
+				return;
+			}
+
 			console.log("APPLE ERROR RAW:", e);
-			console.log("APPLE ERROR JSON:", JSON.stringify(e, null, 2));
-			console.log("APPLE ERROR KEYS:", Object.keys(e || {}));
-			setError(e?.message || "Falha no login com Apple.");
-			if (e?.code === "ERR_REQUEST_CANCELED") return;
+			try {
+				console.log("APPLE ERROR JSON:", JSON.stringify(e, null, 2));
+			} catch { }
 			setError((e?.message || "Falha no login com Apple.").replace("Firebase:", "").trim());
 		} finally {
 			setAppleLoading(false);
 		}
 	}
 
-
 	useEffect(() => {
-		if (error) {
-			console.log('error:: ', error)
-		}
+		if (error) console.log('error:: ', error);
 	}, [error]);
 
 	async function handleGoogleLogin() {
@@ -318,26 +311,22 @@ export default function Login() {
 
 			console.log('[GOOGLE] Início do login');
 
-			// Evita sessão presa
 			try {
-				const cur = await GoogleSignin.getCurrentUser(); // pode vir null
+				const cur = await GoogleSignin.getCurrentUser();
 				if (cur) {
 					await GoogleSignin.revokeAccess().catch(() => { });
 					await GoogleSignin.signOut().catch(() => { });
 					console.log('[GOOGLE] Sessão anterior revogada');
 				} else {
-					// mesmo sem usuário, chamamos signOut por via das dúvidas
 					await GoogleSignin.signOut().catch(() => { });
 				}
 			} catch (e) {
 				console.log('[GOOGLE] Ignorando erro ao limpar sessão:', e?.message);
 			}
 
-			// Play Services (Android)
 			await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
 			console.log('[GOOGLE] Play Services OK');
 
-			// Abre conta
 			const googleResponse = await GoogleSignin.signIn();
 			console.log('[GOOGLE] signIn retornou:', {
 				hasUser: !!googleResponse?.user,
@@ -347,7 +336,6 @@ export default function Login() {
 			googleIdToken = googleResponse?.idToken || null;
 			googlePhoto = googleResponse?.user?.photo || null;
 
-			// Fallback: alguns iOS retornam tokens somente via getTokens()
 			if (!googleIdToken) {
 				try {
 					const tokens = await GoogleSignin.getTokens();
@@ -359,12 +347,11 @@ export default function Login() {
 			}
 
 			if (!googleIdToken) {
-				console.log('[GOOGLE] idToken segue nulo → configuração incorreta');
 				Alert.alert(
 					'Login Google',
 					'Não foi possível obter o token do Google.\n\nVerifique:\n• EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (tipo Web) do MESMO projeto\n• iOS: URL scheme (REVERSED_CLIENT_ID) no Info.plist\n• Android: SHA-1/SHA-256 cadastrados no Firebase'
 				);
-				return; // sai sem erro visual além do alerta
+				return;
 			}
 
 			console.log('[GOOGLE] idToken OK, autenticando no Firebase...');
@@ -404,7 +391,6 @@ export default function Login() {
 				}
 			}
 
-			// Atualiza foto se não houver
 			if (fbUser && !fbUser.photoURL && googlePhoto) {
 				try {
 					await fbUser.updateProfile({ photoURL: googlePhoto });
@@ -420,16 +406,12 @@ export default function Login() {
 				dispatch(setUser(mapFirebaseUserToDTO(finalUser)));
 				console.log('[GOOGLE] Redux atualizado, navegando...');
 				try {
-					// Passe o que precisar para filtrar os dados do usuário
 					await dispatch(postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })).unwrap();
 				} catch (e) {
-					// não bloqueie a navegação por erro de uma das listas; só sinalize
 					console.warn('Bootstrap pós-login falhou:', e);
-				} finally {
 				}
 				router.replace('/');
 			} else {
-				console.log('[GOOGLE] finalUser ausente inesperadamente');
 				setError('Não foi possível concluir o login.');
 			}
 		} catch (e) {
@@ -456,18 +438,15 @@ export default function Login() {
 			<ResponsiveHero
 				source={require('@/assets/images/fisiovet-hero.png')}
 				fullScreen
-				overlay // melhora contraste atrás do card
+				overlay
 			>
 				<ScrollView
 					contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 2 }}
 					keyboardShouldPersistTaps="handled"
 				>
-					{/* Cartão */}
 					<View style={styles.card}>
-						{/* Logo + título */}
 						<View style={styles.brandRow}>
 							<View style={styles.brandIcon}>
-								{/* <Ionicons name="shield" size={22} color={colors.tier} style={{ position: 'absolute' }} /> */}
 								<Ionicons name="paw" size={18} color={'whitesmoke'} />
 							</View>
 							<Text style={styles.brandText}>
@@ -477,7 +456,6 @@ export default function Login() {
 
 						<Text style={styles.subtitle}>Acesse sua conta</Text>
 
-						{/* E-mail */}
 						<View style={styles.inputOuter}>
 							<View style={styles.inputRow}>
 								<TextInput
@@ -494,7 +472,6 @@ export default function Login() {
 							</View>
 						</View>
 
-						{/* Senha */}
 						<View style={[styles.inputOuter, { marginTop: 10 }]}>
 							<View style={styles.inputRow}>
 								<TextInput
@@ -513,7 +490,6 @@ export default function Login() {
 							</View>
 						</View>
 
-						{/* Lembrar-me + Esqueci */}
 						<View style={styles.rowBetween}>
 							<Pressable
 								onPress={() => setRemember(v => !v)}
@@ -531,7 +507,6 @@ export default function Login() {
 							</Pressable>
 						</View>
 
-						{/* Entrar */}
 						<Pressable
 							onPress={handleLogin}
 							disabled={loading}
@@ -543,10 +518,8 @@ export default function Login() {
 							<Text style={styles.buttonText}>{loading ? 'Entrando…' : 'Entrar'}</Text>
 						</Pressable>
 
-						{/* Divisor */}
 						<View style={styles.hr} />
 
-						{/* Cadastro */}
 						<View style={[styles.rowCenter, { marginBottom: 12 }]}>
 							<Text style={{ color: colors.sub }}>Não tem conta? </Text>
 							<Pressable onPress={goToSignup} hitSlop={10}>
@@ -554,9 +527,7 @@ export default function Login() {
 							</Pressable>
 							<Text style={{ color: colors.sub }}> ou </Text>
 						</View>
-						{/* Divisor já existente */}
 
-						{/* Botão Google */}
 						<Pressable
 							onPress={handleGoogleLogin}
 							disabled={googleLoading}
@@ -575,7 +546,7 @@ export default function Login() {
 							)}
 						</Pressable>
 
-						{Platform.OS === "ios" && AppleAuthentication.isAvailableAsync && (
+						{Platform.OS === "ios" && appleAvailable && (
 							<Pressable
 								onPress={handleAppleLogin}
 								disabled={appleLoading}
@@ -595,16 +566,14 @@ export default function Login() {
 							</Pressable>
 						)}
 
-
-						{/* Rodapé */}
 						<Text style={styles.footer}>FisioVet • {currentYear}</Text>
 
-						{/* Erro */}
 						{!!error && (
 							<View style={styles.errBox}>
 								<Text style={styles.errText}>{error}</Text>
 							</View>
 						)}
+
 						{booting && (
 							<View style={{
 								position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
@@ -706,6 +675,7 @@ const styles = StyleSheet.create({
 		backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5'
 	},
 	errText: { color: '#B91C1C', textAlign: 'center' },
+
 	googleBtn: {
 		backgroundColor: '#fff',
 		borderColor: '#E5E7EB',
@@ -714,27 +684,22 @@ const styles = StyleSheet.create({
 		borderRadius: 10,
 		alignItems: 'center',
 		justifyContent: 'center',
-		// marginTop: 8,
 		shadowColor: 'rgba(0, 0, 0, 0.08)',
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 1,
 		shadowRadius: 3,
 		elevation: 2,
-		// width: 300
 	},
-
 	googleContent: {
 		flexDirection: 'row',
 		alignItems: 'center',
 		justifyContent: 'center',
 		gap: 8,
 	},
-
 	googleIcon: {
 		width: 30,
 		height: 30,
 	},
-
 	googleText: {
 		color: '#3C4043',
 		fontSize: 16,
@@ -760,5 +725,4 @@ const styles = StyleSheet.create({
 		fontSize: 16,
 		fontWeight: "700",
 	},
-
 });
