@@ -4,6 +4,8 @@
   <dict>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>CFBundleAllowMixedLocalizations</key>
+    <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
@@ -61,7 +63,7 @@
       <true/>
     </dict>
     <key>NSCalendarsFullAccessUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your calendars</string>
+    <string>Permitir adicionar eventos ao calendário.</string>
     <key>NSCalendarsUsageDescription</key>
     <string>Permitir adicionar eventos ao calendário.</string>
     <key>NSCameraUsageDescription</key>
@@ -76,16 +78,14 @@
     <string>Allow $(PRODUCT_NAME) to access your location</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Permitir que o app use sua localização para rotas e mapa enquanto estiver em uso.</string>
-    <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryAddUsageDescription</key>
     <string>Precisamos salvar imagens geradas no app (ex.: relatório ou foto editada) no seu rolo de câmera, caso você escolha exportar.</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Precisamos acessar sua galeria para você selecionar e anexar fotos de pacientes, exames ou exercícios ao prontuário (ex.: foto de uma radiografia).</string>
     <key>NSRemindersFullAccessUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your reminders</string>
+    <string>Permitir acesso aos lembretes para criar e gerenciar eventos e tarefas relacionados ao atendimento.</string>
     <key>NSRemindersUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your reminders</string>
+    <string>Permitir acesso aos lembretes para criar e gerenciar eventos e tarefas relacionados ao atendimento.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>

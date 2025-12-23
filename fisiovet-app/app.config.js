@@ -72,7 +72,8 @@ module.exports = {
 					"Precisamos acessar sua galeria para você selecionar e anexar fotos de pacientes, exames ou exercícios ao prontuário (ex.: foto de uma radiografia).",
 				NSPhotoLibraryAddUsageDescription:
 					"Precisamos salvar imagens geradas no app (ex.: relatório ou foto editada) no seu rolo de câmera, caso você escolha exportar.",
-
+				NSRemindersUsageDescription:
+					"Permitir acesso aos lembretes para criar e gerenciar eventos e tarefas relacionados ao atendimento.",
 				NSCalendarsUsageDescription:
 					"Permitir adicionar eventos ao calendário.",
 				NSContactsUsageDescription:
@@ -107,6 +108,7 @@ module.exports = {
 			"@react-native-firebase/auth",
 			"@react-native-firebase/crashlytics",
 			"expo-router",
+			"expo-apple-authentication",
 			[
 				"expo-splash-screen",
 				{
@@ -131,6 +133,14 @@ module.exports = {
 				{
 					locationWhenInUsePermission:
 						"Permitir que o app use sua localização para rotas e mapa enquanto estiver em uso.",
+				},
+			],
+			[
+				"expo-calendar",
+				{
+					calendarPermission: "Permitir adicionar eventos ao calendário.",
+					remindersPermission:
+						"Permitir acesso aos lembretes para criar e gerenciar eventos e tarefas relacionados ao atendimento.",
 				},
 			],
 
