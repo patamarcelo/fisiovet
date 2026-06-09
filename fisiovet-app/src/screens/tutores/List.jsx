@@ -8,6 +8,7 @@ import React, {
 	useRef,
 	useState,
 } from "react";
+
 import {
 	View,
 	Text,
@@ -17,11 +18,13 @@ import {
 	StyleSheet,
 	Platform,
 	RefreshControl,
+	InteractionManager,
 } from "react-native";
+
 import { useDispatch, useSelector } from "react-redux";
 import { fetchTutores } from "@/src/store/slices/tutoresSlice";
 import { useThemeColor } from "@/hooks/useThemeColor";
-import { router, useNavigation } from "expo-router";
+import { router, useNavigation, useFocusEffect } from "expo-router";
 import Avatar from "@/components/ui/Avatar";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { maskPhone } from "@/src/utils/masks";
@@ -138,6 +141,7 @@ function SearchHeader({
 	subtle,
 	tint,
 	border,
+	onClear,
 }) {
 	return (
 		<View style={[styles.headerArea, { backgroundColor: bg }]}>
@@ -150,20 +154,6 @@ function SearchHeader({
 							: `${total} tutor${total === 1 ? "" : "es"} cadastrado${total === 1 ? "" : "s"}`}
 					</Text>
 				</View>
-
-				<Pressable
-					onPress={async () => {
-						await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-						router.push("/(modals)/tutor-new");
-					}}
-					style={({ pressed }) => [
-						styles.headerAddButton,
-						{ backgroundColor: tint },
-						pressed && { opacity: 0.85 },
-					]}
-				>
-					<Ionicons name="add" size={20} color="#fff" />
-				</Pressable>
 			</View>
 
 			<View
@@ -191,7 +181,7 @@ function SearchHeader({
 
 				{!!query && (
 					<Pressable
-						onPress={() => setQuery("")}
+						onPress={onClear}
 						hitSlop={8}
 						style={({ pressed }) => [
 							styles.clearSearchButton,
@@ -317,15 +307,68 @@ export default function TutoresList() {
 
 	const listRef = useRef(null);
 
+	const sections = useMemo(() => makeSections(items, query), [items, query]);
+	const letters = useMemo(() => sections.map((s) => s.title), [sections]);
+	const filteredTotal = useMemo(
+		() => sections.reduce((acc, section) => acc + section.data.length, 0),
+		[sections]
+	);
+
+	const scrollToTop = useCallback((animated = false) => {
+		const run = () => {
+			try {
+				const responder = listRef.current?.getScrollResponder?.();
+
+				if (responder?.scrollTo) {
+					responder.scrollTo({
+						x: 0,
+						y: 0,
+						animated,
+					});
+					return;
+				}
+
+				// fallback: vai para o primeiro item se o responder não existir
+				if (sections.length > 0) {
+					listRef.current?.scrollToLocation?.({
+						sectionIndex: 0,
+						itemIndex: 0,
+						animated,
+						viewPosition: 0,
+					});
+				}
+			} catch { }
+		};
+
+		requestAnimationFrame(() => {
+			InteractionManager.runAfterInteractions(run);
+		});
+	}, [sections.length]);
+
+
 	useLayoutEffect(() => {
 		navigation.setOptions({
 			headerShown: true,
 			headerStyle: { backgroundColor: bg },
 			headerTintColor: tint,
-			headerTitleStyle: { color: tint, fontWeight: "700" },
+			headerTitleStyle: { color: tint, fontWeight: "800" },
 			headerLargeTitle: false,
 			headerTransparent: false,
 			title: "Tutores",
+			headerRight: () => (
+				<Pressable
+					onPress={() => router.push("/(modals)/tutor-new")}
+					hitSlop={10}
+					style={({ pressed }) => [
+						styles.navAddButton,
+						{ opacity: pressed ? 0.6 : 1 },
+					]}
+					accessibilityRole="button"
+					accessibilityLabel="Adicionar tutor"
+				>
+					<Ionicons name="add-circle" size={24} color={tint} />
+				</Pressable>
+			),
 		});
 	}, [navigation, bg, tint]);
 
@@ -333,12 +376,8 @@ export default function TutoresList() {
 		dispatch(fetchTutores());
 	}, [dispatch]);
 
-	const sections = useMemo(() => makeSections(items, query), [items, query]);
-	const letters = useMemo(() => sections.map((s) => s.title), [sections]);
-	const filteredTotal = useMemo(
-		() => sections.reduce((acc, section) => acc + section.data.length, 0),
-		[sections]
-	);
+
+
 
 	const hasAny = items?.length > 0;
 
@@ -364,7 +403,7 @@ export default function TutoresList() {
 					animated: true,
 					viewPosition: 0,
 				});
-			} catch {}
+			} catch { }
 		},
 		[sections]
 	);
@@ -397,6 +436,8 @@ export default function TutoresList() {
 		[bg, subtle]
 	);
 
+
+
 	const listHeader = useMemo(
 		() =>
 			hasAny ? (
@@ -410,9 +451,19 @@ export default function TutoresList() {
 					subtle={subtle}
 					tint={tint}
 					border={border}
+					onClear={() => {
+						setQuery("");
+						scrollToTop(false);
+					}}
 				/>
 			) : null,
 		[hasAny, query, items.length, filteredTotal, bg, text, subtle, tint, border]
+	);
+
+	useFocusEffect(
+		useCallback(() => {
+			scrollToTop(false);
+		}, [scrollToTop])
 	);
 
 	return (
@@ -431,7 +482,10 @@ export default function TutoresList() {
 							subtitle={`Não encontramos nada para “${query}”.`}
 							actionLabel="Limpar busca"
 							icon="search-outline"
-							onAction={() => setQuery("")}
+							onAction={() => {
+								setQuery("");
+								scrollToTop(false);
+							}}
 						/>
 					) : (
 						<EmptyCard
@@ -465,7 +519,7 @@ export default function TutoresList() {
 				windowSize={10}
 				removeClippedSubviews={Platform.OS === "android"}
 				showsVerticalScrollIndicator={false}
-				onScrollToIndexFailed={() => {}}
+				onScrollToIndexFailed={() => { }}
 			/>
 
 			{letters.length > 1 && (
@@ -704,18 +758,8 @@ const styles = StyleSheet.create({
 		color: "#64748B",
 	},
 
-	fab: {
-		position: "absolute",
-		right: 18,
-		width: 56,
-		height: 56,
-		borderRadius: 28,
-		alignItems: "center",
-		justifyContent: "center",
-		shadowColor: "#000",
-		shadowOpacity: 0.22,
-		shadowRadius: 12,
-		shadowOffset: { width: 0, height: 8 },
-		elevation: 5,
+	navAddButton: {
+		paddingHorizontal: 6,
+		paddingVertical: 4,
 	},
 });

@@ -34,7 +34,7 @@ export default function ModalLayout() {
                 headerTintColor: tint,
             }}
         >
-        
+
             {/* <Stack.Screen name="pet-form" options={{ title: 'Novo pet', headerRight: () => <CloseButton /> }} /> */}
             <Stack.Screen
                 name="agenda-new"
@@ -70,12 +70,33 @@ export default function ModalLayout() {
                 }}
             />
             <Stack.Screen
-                name="avaliacao"
+                name="avaliacao/avaliacao-anamnese"
                 options={{
-                    title: 'Nova Avaliação',
-                    // Nada de headerRight aqui! Deixa a própria tela controlar.
-                    headerTitleAlign: 'center',
-                    headerTitleContainerStyle: { flex: 1, alignItems: 'center' },
+                    title: "Anamnese",
+                    headerTitleAlign: "center",
+                    headerTitleContainerStyle: { flex: 1, alignItems: "center" },
+                    headerLeftContainerStyle: { minWidth: 72 },
+                    headerRightContainerStyle: { minWidth: 72 },
+                }}
+            />
+
+            <Stack.Screen
+                name="avaliacao/avaliacao-neurologica"
+                options={{
+                    title: "Avaliação Neurológica",
+                    headerTitleAlign: "center",
+                    headerTitleContainerStyle: { flex: 1, alignItems: "center" },
+                    headerLeftContainerStyle: { minWidth: 72 },
+                    headerRightContainerStyle: { minWidth: 72 },
+                }}
+            />
+
+            <Stack.Screen
+                name="avaliacao/avaliacao-ortopedica"
+                options={{
+                    title: "Avaliação Ortopédica",
+                    headerTitleAlign: "center",
+                    headerTitleContainerStyle: { flex: 1, alignItems: "center" },
                     headerLeftContainerStyle: { minWidth: 72 },
                     headerRightContainerStyle: { minWidth: 72 },
                 }}

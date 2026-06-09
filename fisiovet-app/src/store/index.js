@@ -10,6 +10,7 @@ import agendaReducer from './slices/agendaSlice';
 import systemReducer from './slices/systemSlice';
 import avaliacaoReducer from './slices/avaliacaoSlice';
 import bootstrapReducer from './bootstrapSlice';
+import subscriptionReducer from "./slices/subscriptionSlice";
 
 import { clearSession } from "./sessionActions";
 
@@ -21,6 +22,7 @@ const appReducer = combineReducers({
 	system: systemReducer,
 	avaliacao: avaliacaoReducer,
 	bootstrap: bootstrapReducer, // ⬅️ novo
+	subscription: subscriptionReducer,
 
 });
 
@@ -28,7 +30,7 @@ const persistConfig = {
 	key: "root",
 	storage: AsyncStorage,
 	version: 2,
-	whitelist: ["user", "tutores", "pets", "agenda", "system", "avaliacao"],
+	whitelist: ["user", "tutores", "pets", "agenda", "system", "avaliacao", "subscription"],
 };
 
 // ⬇️ rootReducer que zera tudo quando receber session/clear

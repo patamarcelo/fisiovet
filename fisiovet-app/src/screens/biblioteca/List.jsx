@@ -265,6 +265,7 @@ const styles = StyleSheet.create({
     color: '#111827',
     paddingHorizontal: 16,
     paddingTop: 12,
+    marginTop: 36,
     paddingBottom: 6,
   },
   searchWrap: {

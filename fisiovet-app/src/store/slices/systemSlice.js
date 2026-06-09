@@ -28,6 +28,9 @@ const defaultState = {
         google: { connected: false, token: null },
         asaas: { enabled: false, apiKey: null },
     },
+    financeiro: {
+        showValues: false,
+    },
 
     // Metadados
     updatedAt: null,
@@ -68,6 +71,10 @@ export const updateSystem = createAsyncThunk('system/update', async (patch, { ge
         integrations: {
             ...state.integrations,
             ...(patch?.integrations || {}),
+        },
+        financeiro: {
+            ...state.financeiro,
+            ...(patch?.financeiro || {}),
         },
         navPreference: sanitizeNavPreference(
             patch?.navPreference ?? state.navPreference ?? defaultState.navPreference

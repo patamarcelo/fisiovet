@@ -18,7 +18,7 @@ const MAPS_KEY =
 
 
 // Controle de versão centralizado
-const versionControl = "1.0.12";
+const versionControl = "1.0.14";
 
 
 module.exports = {
@@ -39,12 +39,6 @@ module.exports = {
 		extra: {
 			eas: { projectId: "b5d74ed0-b6e2-497e-a9e7-b66665675e59" },
 			APP_ENV,
-		},
-
-		splash: {
-			image: "./assets/images/splash-icon.png",
-			resizeMode: "contain",
-			backgroundColor: "#ffffff",
 		},
 
 		ios: {
@@ -111,15 +105,16 @@ module.exports = {
 			[
 				"expo-splash-screen",
 				{
-					image: "./assets/images/splash-icon.png",
-					tabletImage: "./assets/images/splash-icon-tablet.png",
-					imageWidth: 200,
+					image: "./assets/images/splash-fisiovet.png",
+					imageWidth: 178,
 					resizeMode: "contain",
-					backgroundColor: "#ffffff",
-				},
+					backgroundColor: "#F7F8FA",
+					dark: {
+						image: "./assets/images/splash-fisiovet.png",
+						backgroundColor: "#0B1220"
+					}
+				}
 			],
-
-			["react-native-bottom-tabs"],
 
 			[
 				"@react-native-google-signin/google-signin",

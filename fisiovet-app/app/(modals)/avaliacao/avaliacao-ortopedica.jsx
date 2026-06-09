@@ -731,18 +731,78 @@ export default function AvaliacaoOrtopedica() {
 		dispatch,
 	]);
 
+	const goBackToAvaliacaoList = useCallback(() => {
+		dispatch(clearDraft({ petId: String(petId) }));
+
+		if (router.canGoBack?.()) {
+			router.back();
+			return;
+		}
+
+		router.replace({
+			pathname: "/(phone)/pacientes/[id]/avaliacao",
+			params: { id: String(petId) },
+		});
+	}, [dispatch, petId]);
+
+	const cancelEditing = useCallback(() => {
+		setEditing(false);
+
+		if (original) {
+			dispatch(
+				replaceDraft({
+					petId: String(petId),
+					draft: original,
+				})
+			);
+		}
+	}, [dispatch, petId, original]);
+
+	const cancelNew = useCallback(() => {
+		dispatch(clearDraft({ petId: String(petId) }));
+
+		if (router.canGoBack?.()) {
+			router.back();
+			return;
+		}
+
+		router.replace({
+			pathname: "/(phone)/pacientes/[id]/avaliacao",
+			params: { id: String(petId) },
+		});
+	}, [dispatch, petId]);
+
 	if (loading) {
 		return (
-			<View
-				style={{
-					flex: 1,
-					alignItems: "center",
-					justifyContent: "center",
-					backgroundColor: "#F3F4F6",
-				}}
-			>
-				<ActivityIndicator />
-			</View>
+			<>
+				<Stack.Screen
+					options={{
+						title: "Avaliação Ortopédica",
+						headerBackTitleVisible: false,
+						headerLargeTitle: false,
+					}}
+				/>
+
+				<View
+					style={{
+						flex: 1,
+						alignItems: "center",
+						justifyContent: "center",
+						backgroundColor: "#F3F4F6",
+					}}
+				>
+					<ActivityIndicator />
+					<Text
+						style={{
+							marginTop: 10,
+							color: "#6B7280",
+							fontWeight: "600",
+						}}
+					>
+						Carregando avaliação…
+					</Text>
+				</View>
+			</>
 		);
 	}
 
@@ -769,40 +829,37 @@ export default function AvaliacaoOrtopedica() {
 				options={{
 					title: "Avaliação Ortopédica",
 					headerLeft: () => {
-						if (isExisting) {
-							if (!editing) {
-								return (
-									<TouchableOpacity
-										onPress={() => setEditing(true)}
-										style={{ paddingHorizontal: 8 }}
-									>
-										<Text
-											style={{
-												color: "#2563EB",
-												fontWeight: "700",
-											}}
-										>
-											Editar
-										</Text>
-									</TouchableOpacity>
-								);
-							}
-
+						if (isExisting && !editing) {
 							return (
 								<TouchableOpacity
-									onPress={() => {
-										setEditing(false);
-
-										if (original) {
-											dispatch(
-												replaceDraft({
-													petId: String(petId),
-													draft: original,
-												})
-											);
-										}
+									onPress={goBackToAvaliacaoList}
+									style={{
+										paddingHorizontal: 8,
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 4,
 									}}
+									hitSlop={10}
+								>
+									<Ionicons name="chevron-back" size={22} color="#2563EB" />
+									<Text
+										style={{
+											color: "#2563EB",
+											fontWeight: "700",
+										}}
+									>
+										Voltar
+									</Text>
+								</TouchableOpacity>
+							);
+						}
+
+						if (isExisting && editing) {
+							return (
+								<TouchableOpacity
+									onPress={cancelEditing}
 									style={{ paddingHorizontal: 8 }}
+									hitSlop={10}
 								>
 									<Text
 										style={{
@@ -818,11 +875,9 @@ export default function AvaliacaoOrtopedica() {
 
 						return (
 							<TouchableOpacity
-								onPress={() => {
-									dispatch(clearDraft({ petId: String(petId) }));
-									router.back();
-								}}
+								onPress={cancelNew}
 								style={{ paddingHorizontal: 8 }}
+								hitSlop={10}
 							>
 								<Text
 									style={{
@@ -835,21 +890,41 @@ export default function AvaliacaoOrtopedica() {
 							</TouchableOpacity>
 						);
 					},
-					headerRight: () =>
-						isExisting && editing ? (
-							<TouchableOpacity
-								onPress={handleDelete}
-								style={{ paddingHorizontal: 8 }}
-								accessibilityLabel="Apagar avaliação"
-								hitSlop={10}
-							>
-								<Ionicons
-									name="trash-outline"
-									size={22}
-									color="#FF3B30"
-								/>
-							</TouchableOpacity>
-						) : null,
+					headerRight: () => {
+						if (isExisting && !editing) {
+							return (
+								<TouchableOpacity
+									onPress={() => setEditing(true)}
+									style={{ paddingHorizontal: 8 }}
+									hitSlop={10}
+								>
+									<Text
+										style={{
+											color: "#2563EB",
+											fontWeight: "700",
+										}}
+									>
+										Editar
+									</Text>
+								</TouchableOpacity>
+							);
+						}
+
+						if (isExisting && editing) {
+							return (
+								<TouchableOpacity
+									onPress={handleDelete}
+									style={{ paddingHorizontal: 8 }}
+									accessibilityLabel="Apagar avaliação"
+									hitSlop={10}
+								>
+									<Ionicons name="trash-outline" size={22} color="#FF3B30" />
+								</TouchableOpacity>
+							);
+						}
+
+						return null;
+					},
 				}}
 			/>
 

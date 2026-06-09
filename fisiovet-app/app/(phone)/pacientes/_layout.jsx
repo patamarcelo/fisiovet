@@ -1,20 +1,53 @@
-import React from 'react';
-import { Stack } from 'expo-router';
+// app/(phone)/pacientes/_layout.jsx
+// @ts-nocheck
+import React from "react";
+import { Stack } from "expo-router";
 
 export default function PacientesLayout() {
-  return (
-    <Stack
-      initialRouteName="index"           // ⬅ garante que entra na LISTA
-      screenOptions={{
-        headerShown: false,
-        headerLargeTitle: false,
-      }}
-    >
-      {/* Declarar explicitamente ajuda o Router a não “pular” pro [id] */}
-      <Stack.Screen name="index" options={{ title: 'Pets', headerShown: true }} />
-      <Stack.Screen name="[id]" options={{ title: 'Detalhe', headerShown: true }} />
-      <Stack.Screen name="[id]/exam" options={{ title: 'Exames', headerShown: true }} />
-      <Stack.Screen name="[id]/avaliacao" options={{ title: 'Avaliações', headerShown: true }} />
-    </Stack>
-  );
+	return (
+		<Stack
+			initialRouteName="index"
+			screenOptions={{
+				headerShown: false,
+				headerLargeTitle: false,
+				animation: "slide_from_right",
+			}}
+		>
+			<Stack.Screen
+				name="index"
+				options={{
+					title: "Pets",
+					headerShown: true,
+					headerLargeTitle: false,
+				}}
+			/>
+
+			<Stack.Screen
+				name="[id]"
+				options={{
+					title: "Detalhe",
+					headerShown: true,
+					headerLargeTitle: false,
+				}}
+			/>
+
+			<Stack.Screen
+				name="[id]/exam"
+				options={{
+					title: "Exames",
+					headerShown: true,
+					headerLargeTitle: false,
+				}}
+			/>
+
+			<Stack.Screen
+				name="[id]/avaliacao"
+				options={{
+					title: "Avaliações",
+					headerShown: true,
+					headerLargeTitle: false,
+				}}
+			/>
+		</Stack>
+	);
 }

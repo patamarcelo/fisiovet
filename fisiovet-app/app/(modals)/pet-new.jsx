@@ -1,537 +1,1091 @@
 // app/(modals)/pet-new.jsx
-import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, Alert, KeyboardAvoidingView, Platform, Switch } from 'react-native';
-import { Stack, useLocalSearchParams, router } from 'expo-router';
-import { useDispatch, useSelector } from 'react-redux';
-import { addPet, updatePet, fetchPet, selectPetById } from '@/src/store/slices/petsSlice';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { ScrollView } from 'react-native';
-import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
-
-import { Ionicons } from '@expo/vector-icons';
-import { Linking } from 'react-native';
-
-// tutores
+// @ts-nocheck
+import React, {
+	useMemo,
+	useState,
+	useEffect,
+	useCallback,
+	useRef,
+} from "react";
 import {
-    selectTutores,
-    makeSelectTutoresByQuery,
-    selectTutorById,
-} from '@/src/store/slices/tutoresSlice';
+	View,
+	Text,
+	TextInput,
+	Pressable,
+	StyleSheet,
+	Alert,
+	KeyboardAvoidingView,
+	Platform,
+	Switch,
+	ActivityIndicator,
+	Linking,
+} from "react-native";
+import { Stack, useLocalSearchParams, router } from "expo-router";
+import { useDispatch, useSelector } from "react-redux";
+import {
+	addPet,
+	updatePet,
+	fetchPet,
+	selectPetById,
+} from "@/src/store/slices/petsSlice";
+import { useThemeColor } from "@/hooks/useThemeColor";
+import { ScrollView } from "react-native";
+import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
-const ESPECIES = ['cachorro', 'gato'];
-const SEXOS = ['M', 'F'];
+import {
+	fetchTutores,
+	makeSelectTutoresByQuery,
+} from "@/src/store/slices/tutoresSlice";
+
+const ESPECIES = ["cachorro", "gato"];
+const SEXOS = ["M", "F"];
+
+function trimOrNull(value) {
+	const s = String(value ?? "").trim();
+	return s ? s : null;
+}
+
+function normalizeDecimalInput(value) {
+	let v = String(value || "").replace(/[^\d.,]/g, "");
+
+	const parts = v.split(/[.,]/);
+
+	if (parts.length > 2) {
+		v = parts[0] + "," + parts.slice(1).join("");
+	}
+
+	return v;
+}
+
+function parseDecimalBR(value) {
+	if (value == null) return null;
+
+	const raw = String(value).trim();
+	if (!raw) return null;
+
+	const clean = raw
+		.replace(/[^\d,.-]/g, "")
+		.replace(/\./g, "")
+		.replace(",", ".");
+
+	if (!clean || clean === "-" || clean === "." || clean === "-.") return null;
+
+	const n = Number(clean);
+
+	return Number.isFinite(n) ? n : null;
+}
+
+function parseAge(value) {
+	const raw = String(value || "").replace(/[^\d]/g, "");
+	if (!raw) return null;
+
+	const n = parseInt(raw, 10);
+
+	if (!Number.isFinite(n)) return null;
+
+	return Math.max(0, n);
+}
+
+function tutorAddressFallback(tutor) {
+	const endereco = tutor?.endereco || {};
+
+	const line1 = [endereco?.logradouro, endereco?.numero].filter(Boolean).join(", ");
+	const line2 = [endereco?.bairro, endereco?.cidade, endereco?.uf].filter(Boolean).join(" • ");
+	const cep = endereco?.cep ? `CEP ${endereco.cep}` : "";
+
+	return [line1, line2, cep].filter(Boolean).join(" · ");
+}
+
+function FormSection({ title, helper, children }) {
+	return (
+		<View style={styles.section}>
+			<View style={styles.sectionHeader}>
+				<Text style={styles.sectionTitle}>{title}</Text>
+				{!!helper && <Text style={styles.sectionHelper}>{helper}</Text>}
+			</View>
+
+			<View style={styles.sectionCard}>{children}</View>
+		</View>
+	);
+}
+
+function Field({ label, helper, error, children }) {
+	return (
+		<View style={styles.field}>
+			{!!label && <Text style={styles.fieldLabel}>{label}</Text>}
+
+			{children}
+
+			{!!error ? (
+				<Text style={styles.fieldError}>{error}</Text>
+			) : helper ? (
+				<Text style={styles.fieldHelper}>{helper}</Text>
+			) : null}
+		</View>
+	);
+}
+
+function Divider() {
+	return <View style={styles.divider} />;
+}
+
+function SegmentedOption({ active, label, icon, onPress, tint }) {
+	return (
+		<Pressable
+			onPress={onPress}
+			style={({ pressed }) => [
+				styles.segmentOption,
+				active && {
+					backgroundColor: tint,
+					borderColor: tint,
+				},
+				pressed && { opacity: 0.88 },
+			]}
+		>
+			{!!icon && (
+				<Ionicons
+					name={icon}
+					size={16}
+					color={active ? "#FFFFFF" : "#6B7280"}
+				/>
+			)}
+
+			<Text
+				style={[
+					styles.segmentText,
+					{
+						color: active ? "#FFFFFF" : "#111827",
+					},
+				]}
+			>
+				{label}
+			</Text>
+		</Pressable>
+	);
+}
+
+function TutorSearchBox({
+	tutor,
+	tutorQuery,
+	setTutorQuery,
+	setTutor,
+	tutoresBuscados,
+	text,
+	subtle,
+	border,
+	tint,
+	openMaps,
+}) {
+	const hasSelected = !!tutor?.id;
+
+	return (
+		<FormSection
+			title="Tutor"
+			helper="Selecione o tutor responsável por este pet. Se vier do cadastro do tutor, ele já fica vinculado automaticamente."
+		>
+			<View style={styles.searchInputWrap}>
+				<Ionicons name="person-circle-outline" size={19} color="#8E8E93" />
+
+				<TextInput
+					placeholder="Buscar e selecionar tutor"
+					placeholderTextColor={subtle}
+					value={hasSelected ? tutor?.nome || tutor?.name || "" : tutorQuery}
+					onChangeText={(value) => {
+						setTutorQuery(value);
+						setTutor({ id: null, nome: "" });
+					}}
+					style={[styles.input, styles.searchInput, { color: text }]}
+					autoCapitalize="words"
+					autoCorrect={false}
+				/>
+
+				{hasSelected ? (
+					<Pressable
+						onPress={() => {
+							setTutor({ id: null, nome: "" });
+							setTutorQuery("");
+						}}
+						hitSlop={10}
+					>
+						<Ionicons name="close-circle" size={19} color="#8E8E93" />
+					</Pressable>
+				) : null}
+			</View>
+
+			{!hasSelected ? (
+				<View style={[styles.tutorResults, { borderColor: border }]}>
+					{tutoresBuscados.length > 0 ? (
+						tutoresBuscados.slice(0, 8).map((item, idx) => (
+							<Pressable
+								key={String(item.id)}
+								onPress={() => {
+									setTutor(item);
+									setTutorQuery("");
+								}}
+								style={({ pressed }) => [
+									styles.tutorResultRow,
+									{
+										backgroundColor: pressed ? "#F3F4F6" : "#FFFFFF",
+										borderBottomWidth:
+											idx === Math.min(tutoresBuscados.length, 8) - 1
+												? 0
+												: StyleSheet.hairlineWidth,
+									},
+								]}
+							>
+								<View style={styles.tutorAvatar}>
+									<Ionicons name="person" size={15} color="#FFFFFF" />
+								</View>
+
+								<View style={{ flex: 1, minWidth: 0 }}>
+									<Text style={[styles.tutorName, { color: text }]} numberOfLines={1}>
+										{item?.nome || item?.name || "Tutor sem nome"}
+									</Text>
+
+									<Text style={[styles.tutorSub, { color: subtle }]} numberOfLines={1}>
+										{item?.endereco?.formatted || tutorAddressFallback(item) || "Cadastro básico"}
+									</Text>
+								</View>
+							</Pressable>
+						))
+					) : (
+						<View style={styles.tutorEmpty}>
+							<Text style={{ color: subtle, fontSize: 13 }}>
+								{tutorQuery?.trim()
+									? "Nenhum tutor encontrado."
+									: "Digite para buscar um tutor."}
+							</Text>
+						</View>
+					)}
+				</View>
+			) : (
+				<Pressable
+					onPress={openMaps}
+					disabled={!tutor?.geo?.lat || !tutor?.geo?.lng}
+					style={({ pressed }) => [
+						styles.selectedTutor,
+						{
+							borderColor: border,
+							backgroundColor: pressed ? "#F3F4F6" : "rgba(142,142,147,0.08)",
+						},
+					]}
+				>
+					<View style={{ flex: 1, minWidth: 0 }}>
+						<Text style={[styles.selectedTutorName, { color: text }]} numberOfLines={1}>
+							{tutor?.nome || tutor?.name || "Tutor"}
+						</Text>
+
+						<Text style={[styles.selectedTutorSub, { color: subtle }]} numberOfLines={2}>
+							{tutor?.endereco?.formatted || tutorAddressFallback(tutor) || "Cadastro básico"}
+						</Text>
+					</View>
+
+					{tutor?.geo?.lat && tutor?.geo?.lng ? (
+						<Ionicons name="navigate-outline" size={22} color={tint} />
+					) : (
+						<Ionicons name="checkmark-circle" size={22} color="#16A34A" />
+					)}
+				</Pressable>
+			)}
+		</FormSection>
+	);
+}
 
 export default function PetNewModal() {
-    const { tutorId, tutorNome, mode, id } = useLocalSearchParams();
-    const _id = Array.isArray(id) ? id[0] : id;
-    const isEdit = mode === 'edit' && _id;
+	const { tutorId, tutorNome, mode, id } = useLocalSearchParams();
 
-    const dispatch = useDispatch();
-    const pet = useSelector(selectPetById(_id));
+	const _id = Array.isArray(id) ? id[0] : id;
+	const _tutorId = Array.isArray(tutorId) ? tutorId[0] : tutorId;
+	const _tutorNome = Array.isArray(tutorNome) ? tutorNome[0] : tutorNome;
 
-    useEffect(() => {
-        if (isEdit && !pet && _id) dispatch(fetchPet(_id));
-    }, [dispatch, isEdit, _id, pet]);
+	const isEdit = mode === "edit" && !!_id;
 
-    const FOOTER_H = 72;
-    const insets = useSafeAreaInsets();
+	const dispatch = useDispatch();
+	const pet = useSelector(selectPetById(_id));
+	const insets = useSafeAreaInsets();
 
-    const text = useThemeColor({}, 'text');
-    const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
-    const border = useThemeColor({ light: 'rgba(0,0,0,0.12)', dark: 'rgba(255,255,255,0.16)' }, 'border');
-    const bg = useThemeColor({}, 'background');
-    const tint = useThemeColor({}, 'tint');
+	const text = useThemeColor({}, "text");
+	const subtle = useThemeColor({ light: "#6B7280", dark: "#9AA0A6" }, "text");
+	const border = useThemeColor(
+		{ light: "rgba(15,23,42,0.10)", dark: "rgba(255,255,255,0.16)" },
+		"border"
+	);
+	const bg = useThemeColor({}, "background");
+	const tint = useThemeColor({}, "tint");
 
-    // form state
-    const [nome, setNome] = useState('');
-    const [especie, setEspecie] = useState('cachorro');
-    const [raca, setRaca] = useState('');
-    const [cor, setCor] = useState('');
-    const [sexo, setSexo] = useState('M');
-    const [castrado, setCastrado] = useState(false);
+	const [nome, setNome] = useState("");
+	const [especie, setEspecie] = useState("cachorro");
+	const [raca, setRaca] = useState("");
+	const [cor, setCor] = useState("");
+	const [sexo, setSexo] = useState("M");
+	const [castrado, setCastrado] = useState(false);
+	const [idade, setIdade] = useState("");
+	const [pesoKg, setPesoKg] = useState("");
+	const [observacoes, setObservacoes] = useState("");
 
-    // 🔹 substitui nascimento por idade (anos)
-    const [idade, setIdade] = useState(''); // string p/ input numérico
+	const [tutorQuery, setTutorQuery] = useState("");
+	const [tutor, setTutor] = useState(() => {
+		if (_tutorId) {
+			return {
+				id: String(_tutorId),
+				nome: String(_tutorNome || ""),
+			};
+		}
 
-    const [pesoKg, setPesoKg] = useState('');
-    const [observacoes, setObservacoes] = useState(''); // 🔹 novo campo
+		return { id: null, nome: "" };
+	});
 
-    // quando vier do atalho: não há tutorId -> precisamos permitir escolher
-    const [tutorQuery, setTutorQuery] = useState('');
-    const [tutor, setTutor] = useState(() => {
-        if (isEdit) return pet?.tutor || { id: null, nome: '' };
-        if (tutorId) return { id: String(tutorId), nome: String(tutorNome || '') };
-        return { id: null, nome: '' };
-    });
+	const [initialized, setInitialized] = useState(false);
+	const [submitting, setSubmitting] = useState(false);
 
-    // seletor memoizado p/ filtrar por nome/telefone/email
-    const tutoresByQuerySelectorRef = React.useRef(makeSelectTutoresByQuery());
-    const tutoresBuscados = useSelector((state) =>
-        tutoresByQuerySelectorRef.current(state, tutorQuery)
-    );
+	const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
 
-    const [initialized, setInitialized] = useState(false);
-    useEffect(() => {
-        if (isEdit && pet && !initialized) {
-            setNome(pet.nome || '');
-            setEspecie(pet.especie || 'cachorro');
-            setRaca(pet.raca || '');
-            setCor(pet.cor || '');
-            setSexo(pet.sexo || 'M');
-            setCastrado(!!pet.castrado);
+	const tutoresBuscados = useSelector((state) =>
+		tutoresByQuerySelectorRef.current(state, tutorQuery)
+	);
 
-            // 🔹 tenta idade do registro; se vier como número, vira string
-            setIdade(
-                Number.isFinite(pet?.idade) && pet.idade >= 0
-                    ? String(pet.idade)
-                    : (pet?.idade ? String(pet.idade) : '')
-            );
+	useEffect(() => {
+		if (isEdit && !pet && _id) dispatch(fetchPet(_id));
+	}, [dispatch, isEdit, _id, pet]);
 
-            setPesoKg(
-                typeof pet.pesoKg === 'number' && Number.isFinite(pet.pesoKg)
-                    ? String(pet.pesoKg).replace('.', ',')
-                    : ''
-            );
-            setObservacoes(pet.observacoes || '');
-            setInitialized(true);
-        }
-    }, [isEdit, pet, initialized]);
+	useEffect(() => {
+		if (!isEdit && !_tutorId) {
+			dispatch(fetchTutores());
+		}
+	}, [dispatch, isEdit, _tutorId]);
 
-    const canSubmit = useMemo(() => {
-        const hasNome = nome.trim().length > 0;
-        const especieOk = ESPECIES.includes(especie);
-        const needTutor = !isEdit && !tutorId; // criando “solto” -> precisa escolher tutor
-        const hasTutor = !needTutor || !!tutor?.id;
-        return hasNome && especieOk && hasTutor;
-    }, [nome, especie, isEdit, tutorId, tutor?.id]);
+	useEffect(() => {
+		if (isEdit && pet && !initialized) {
+			setNome(pet.nome || "");
+			setEspecie(pet.especie || "cachorro");
+			setRaca(pet.raca || "");
+			setCor(pet.cor || "");
+			setSexo(pet.sexo || "M");
+			setCastrado(!!pet.castrado);
 
-    const submit = async () => {
-        if (!canSubmit) {
-            Alert.alert('Cadastro de Pet', 'Verifique os campos obrigatórios e a idade.');
-            return;
-        }
-        try {
-            const idadeNumber = idade === '' ? null : Math.max(0, parseInt(idade, 10));
+			setIdade(
+				Number.isFinite(pet?.idade) && pet.idade >= 0
+					? String(pet.idade)
+					: pet?.idade
+					? String(pet.idade)
+					: ""
+			);
 
-            const base = {
-                nome: nome.trim(),
-                especie,
-                raca: raca.trim() || null,
-                cor: cor.trim() || null,
-                sexo,
-                castrado: !!castrado,
+			setPesoKg(
+				typeof pet.pesoKg === "number" && Number.isFinite(pet.pesoKg)
+					? String(pet.pesoKg).replace(".", ",")
+					: ""
+			);
 
-                // 🔹 novo campo
-                idade: idadeNumber,
+			setObservacoes(pet.observacoes || "");
 
-                // mantém peso e observações
-                pesoKg: parseDecimalBR(pesoKg), // -> number ou null
-                observacoes: observacoes.trim() || null,
-            };
+			if (pet?.tutor?.id) {
+				setTutor(pet.tutor);
+			}
 
-            if (isEdit) {
-                const payload = { id: String(_id), ...base };
-                await dispatch(updatePet(payload)).unwrap();
-            } else {
-                const payload = {
-                    tutor: {
-                        id: String(tutorId || tutor?.id),                  // usa o fixo se veio por parâmetro; senão, o escolhido
-                        nome: String(tutorNome || tutor?.nome || tutor?.name || ''),
-                    },
-                    ...base,
-                };
-                await dispatch(addPet(payload)).unwrap();
-            }
-            router.back();
-        } catch (e) {
-            Alert.alert(
-                'Erro',
-                e?.message ?? (isEdit ? 'Não foi possível atualizar o pet.' : 'Não foi possível criar o pet.')
-            );
-        }
-    };
+			setInitialized(true);
+		}
+	}, [isEdit, pet, initialized]);
 
-    // sanitiza idade (apenas dígitos)
-    function parseDecimalBR(s) {
-        if (s == null) return null;
-        const clean = String(s).replace(/[^\d,.-]/g, '')  // mantém dígitos, vírgula, ponto, sinais
-            .replace(/\./g, '')        // remove separador de milhar
-            .replace(',', '.');        // troca vírgula por ponto
-        const n = Number(clean);
-        return Number.isFinite(n) ? n : null;
-    }
+	const validation = useMemo(() => {
+		const hasNome = nome.trim().length > 0;
+		const especieOk = ESPECIES.includes(especie);
+		const sexoOk = SEXOS.includes(sexo);
 
-    const onChangeIdade = (t) => {
-        const onlyDigits = (t || '').replace(/[^\d]/g, '');
-        setIdade(onlyDigits);
-    };
+		const needTutor = !isEdit && !_tutorId;
+		const hasTutor = !needTutor || !!tutor?.id;
 
-    const tutorAddressFallback = (t) => {
-        const partes = [t?.endereco, t?.numero, t?.bairro, t?.cidade, t?.uf, t?.cep].filter(Boolean);
-        return partes.join(', ');
-    };
+		const idadeOk = !idade || Number(parseAge(idade)) >= 0;
+		const pesoOk = !pesoKg || parseDecimalBR(pesoKg) !== null;
 
-    const openMaps = () => {
-        if (!tutor?.geo?.lat || !tutor?.geo?.lng) return;
-        const { lat, lng } = tutor.geo;
-        const url = Platform.select({
-            ios: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-            android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(tutor?.nome || 'Local')})`,
-            default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-        });
-        Linking.openURL(url);
-    };
+		return {
+			hasNome,
+			especieOk,
+			sexoOk,
+			hasTutor,
+			idadeOk,
+			pesoOk,
+			canSubmit: hasNome && especieOk && sexoOk && hasTutor && idadeOk && pesoOk,
+		};
+	}, [nome, especie, sexo, isEdit, _tutorId, tutor?.id, idade, pesoKg]);
 
-    return (
-        <SafeAreaView style={{ flex: 1, backgroundColor: bg }} edges={[]}>
-            <Stack.Screen
-                options={{
-                    presentation: 'modal',
-                    title: isEdit ? 'Editar pet' : 'Novo Pet',
-                    headerBackTitleVisible: false,
-                    headerStyle: { backgroundColor: tint },
-                    headerTitleStyle: { color: 'white' },
-                }}
-            />
+	const firstError = useMemo(() => {
+		if (!validation.hasTutor) return "Selecione um tutor para este pet.";
+		if (!validation.hasNome) return "Informe o nome do pet.";
+		if (!validation.especieOk) return "Selecione uma espécie válida.";
+		if (!validation.sexoOk) return "Selecione o sexo.";
+		if (!validation.idadeOk) return "Idade inválida.";
+		if (!validation.pesoOk) return "Peso inválido.";
+		return null;
+	}, [validation]);
 
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={0}
-            >
-                <ScrollView
-                    style={{ flex: 1 }}
-                    contentContainerStyle={{
-                        padding: 16,
-                        paddingBottom: (insets.bottom || 12) + FOOTER_H + 16,
-                        gap: 12,
-                    }}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'on-drag' : 'none'}
-                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
-                    contentInsetAdjustmentBehavior="automatic"
-                >
-                    {/* Tutor */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Tutor</Text>
+	const canSubmit = validation.canSubmit && !submitting;
 
-                        {/* Caso esteja editando OU veio com tutor fixo via params -> apenas exibição */}
-                        {(isEdit || tutorId) ? (
-                            <Text style={{ color: text, fontWeight: '700' }}>
-                                {(isEdit ? pet?.tutor?.nome : tutorNome) || '—'}
-                            </Text>
-                        ) : (
-                            <>
-                                {/* Input de busca */}
-                                <View
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        borderWidth: 1,
-                                        borderColor: border,
-                                        borderRadius: 10,
-                                        paddingHorizontal: 10,
-                                        height: 42,
-                                        marginTop: 8
-                                    }}
-                                >
-                                    <Ionicons name="person-circle-outline" size={18} color="#8E8E93" />
-                                    <TextInput
-                                        placeholder="Buscar e selecionar tutor"
-                                        placeholderTextColor={subtle}
-                                        value={tutor?.id ? (tutor?.nome || tutor?.name || '') : tutorQuery}
-                                        onChangeText={(t) => {
-                                            setTutorQuery(t);
-                                            setTutor({ id: null, nome: '' });
-                                        }}
-                                        style={{ flex: 1, paddingVertical: 0, color: text }}
-                                    />
-                                    {tutor?.id && (
-                                        <Pressable onPress={() => { setTutor({ id: null, nome: '' }); setTutorQuery(''); }} hitSlop={10}>
-                                            <Ionicons name="close-circle" size={18} color="#8E8E93" />
-                                        </Pressable>
-                                    )}
-                                </View>
+	const onChangeIdade = useCallback((value) => {
+		setIdade(String(value || "").replace(/[^\d]/g, "").slice(0, 3));
+	}, []);
 
-                                {/* Lista de tutores (quando não há um selecionado) */}
-                                {!tutor?.id && (
-                                    <View
-                                        style={{
-                                            maxHeight: 240,
-                                            marginTop: 8,
-                                            borderWidth: 1,
-                                            borderColor: border,
-                                            borderRadius: 10,
-                                            overflow: 'hidden'
-                                        }}
-                                    >
-                                        {tutoresBuscados.length > 0 ? (
-                                            tutoresBuscados.map((item, idx) => (
-                                                <Pressable
-                                                    key={String(item.id)}
-                                                    onPress={() => setTutor(item)}
-                                                    style={({ pressed }) => ({
-                                                        paddingHorizontal: 12,
-                                                        paddingVertical: 10,
-                                                        backgroundColor: pressed ? '#F3F4F6' : 'white',
-                                                        borderBottomWidth: idx === tutoresBuscados.length - 1 ? 0 : 1,
-                                                        borderBottomColor: '#F1F5F9',
-                                                    })}
-                                                >
-                                                    <Text style={{ fontWeight: '700', color: text }}>
-                                                        {item?.nome || item?.name}
-                                                    </Text>
-                                                    <Text style={{ color: subtle, marginTop: 2 }} numberOfLines={1}>
-                                                        {item?.endereco?.formatted || tutorAddressFallback(item) || '—'}
-                                                    </Text>
-                                                </Pressable>
-                                            ))
-                                        ) : (
-                                            <View style={{ padding: 12 }}>
-                                                <Text style={{ color: subtle }}>Nenhum tutor encontrado</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
+	const onChangePeso = useCallback((value) => {
+		setPesoKg(normalizeDecimalInput(value));
+	}, []);
 
-                                {/* Tutor escolhido (cartão tocável) */}
-                                {tutor?.id && (
-                                    <Pressable
-                                        onPress={openMaps}
-                                        android_ripple={{ color: '#E5E7EB' }}
-                                        style={({ pressed }) => ({
-                                            marginTop: 8,
-                                            borderWidth: 1,
-                                            borderColor: border,
-                                            borderRadius: 10,
-                                            padding: 12,
-                                            backgroundColor: pressed ? '#F3F4F6' : 'rgba(142,142,147,0.08)',
-                                        })}
-                                    >
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                                            <Text style={{ fontWeight: '800', fontSize: 15, color: text }}>
-                                                {tutor?.nome || tutor?.name}
-                                            </Text>
-                                            {tutor?.geo?.lat && tutor?.geo?.lng && (
-                                                <Ionicons name="navigate-outline" size={22} color="#007AFF" />
-                                            )}
-                                        </View>
-                                        <Text style={{ color: subtle, marginTop: 4 }} numberOfLines={2}>
-                                            {tutor?.endereco?.formatted || tutorAddressFallback(tutor) || '—'}
-                                        </Text>
-                                    </Pressable>
-                                )}
-                            </>
-                        )}
-                    </View>
+	const openMaps = useCallback(() => {
+		if (!tutor?.geo?.lat || !tutor?.geo?.lng) return;
 
-                    {/* Nome */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Nome*</Text>
-                        <TextInput
-                            value={nome}
-                            onChangeText={setNome}
-                            placeholder="Ex.: Thor"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text }]}
-                        />
-                    </View>
+		const { lat, lng } = tutor.geo;
 
-                    {/* Espécie */}
-                    <View style={styles.segmentRow}>
-                        {ESPECIES.map((opt) => {
-                            const active = especie === opt;
-                            return (
-                                <Pressable
-                                    key={opt}
-                                    onPress={() => setEspecie(opt)}
-                                    style={[
-                                        styles.segmentBtn,
-                                        { borderColor: border },
-                                        active && { backgroundColor: tint, borderColor: tint },
-                                    ]}
-                                >
-                                    <Text style={[styles.segmentTxt, active && { color: '#fff' }]}>
-                                        {opt === 'cachorro' ? 'Cachorro' : 'Gato'}
-                                    </Text>
-                                </Pressable>
-                            );
-                        })}
-                    </View>
+		const url = Platform.select({
+			ios: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+			android: `geo:${lat},${lng}?q=${lat},${lng}(${encodeURIComponent(
+				tutor?.nome || "Local"
+			)})`,
+			default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
+		});
 
-                    {/* Raça */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Raça</Text>
-                        <TextInput
-                            value={raca}
-                            onChangeText={setRaca}
-                            placeholder="Ex.: Golden Retriever"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text }]}
-                        />
-                    </View>
+		Linking.openURL(url);
+	}, [tutor]);
 
-                    {/* Cor */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Cor</Text>
-                        <TextInput
-                            value={cor}
-                            onChangeText={setCor}
-                            placeholder="Ex.: Dourado"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text }]}
-                        />
-                    </View>
+	const submit = useCallback(async () => {
+		if (!canSubmit) {
+			Alert.alert("Cadastro de Pet", firstError || "Verifique os campos obrigatórios.");
+			return;
+		}
 
-                    {/* Sexo */}
-                    <View style={[styles.fieldRow, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle, flex: 1 }]}>Sexo</Text>
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            {SEXOS.map((s) => {
-                                const active = sexo === s;
-                                return (
-                                    <Pressable
-                                        key={s}
-                                        onPress={() => setSexo(s)}
-                                        style={[
-                                            styles.segmentSmall,
-                                            { borderColor: border },
-                                            active && { backgroundColor: tint, borderColor: tint },
-                                        ]}
-                                    >
-                                        <Text style={[styles.segmentSmallTxt, active && { color: '#fff' }]}>{s}</Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </View>
-                    </View>
+		try {
+			setSubmitting(true);
 
-                    {/* Castrado */}
-                    <View style={[styles.fieldRow, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle, flex: 1 }]}>Castrado</Text>
-                        <Switch value={castrado} onValueChange={setCastrado} />
-                    </View>
+			const base = {
+				nome: nome.trim(),
+				especie,
+				raca: trimOrNull(raca),
+				cor: trimOrNull(cor),
+				sexo,
+				castrado: !!castrado,
+				idade: parseAge(idade),
+				pesoKg: parseDecimalBR(pesoKg),
+				observacoes: trimOrNull(observacoes),
+			};
 
-                    {/* 🔹 Idade (anos) */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Idade (anos)</Text>
-                        <TextInput
-                            value={idade}
-                            onChangeText={onChangeIdade}
-                            placeholder="Ex.: 4"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text }]}
-                            keyboardType="number-pad"
-                            inputMode="numeric"
-                            maxLength={3} // opcional
-                        />
-                        <Text style={{ color: subtle, fontSize: 12, marginTop: 4 }}>
-                            Informe a idade do Pet...
-                        </Text>
-                    </View>
+			if (isEdit) {
+				const payload = {
+					id: String(_id),
+					...base,
+				};
 
-                    {/* Peso */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Peso (kg)</Text>
-                        <TextInput
-                            value={pesoKg}
-                            onChangeText={(t) => {
-                                // só números, vírgula e ponto
-                                let v = t.replace(/[^\d.,]/g, '');
-                                // evita dois separadores
-                                const parts = v.split(/[.,]/);
-                                if (parts.length > 2) {
-                                    v = parts[0] + ',' + parts.slice(1).join('');
-                                }
-                                setPesoKg(v);
-                            }}
-                            keyboardType="decimal-pad"
-                            inputMode="decimal" // ajuda no Android/Web
-                            placeholder="Ex.: 12.4"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text }]}
-                        />
-                    </View>
+				await dispatch(updatePet(payload)).unwrap();
+			} else {
+				const selectedTutorId = String(_tutorId || tutor?.id || "");
+				const selectedTutorNome = String(_tutorNome || tutor?.nome || tutor?.name || "");
 
-                    {/* 🔹 Observações */}
-                    <View style={[styles.field, { borderColor: border }]}>
-                        <Text style={[styles.label, { color: subtle }]}>Observações</Text>
-                        <TextInput
-                            value={observacoes}
-                            onChangeText={setObservacoes}
-                            placeholder="Anotações gerais sobre o paciente"
-                            placeholderTextColor={subtle}
-                            style={[styles.input, { color: text, minHeight: 84 }]}
-                            multiline
-                            textAlignVertical="top"
-                        />
-                    </View>
+				const payload = {
+					tutor: {
+						id: selectedTutorId,
+						nome: selectedTutorNome,
+					},
+					...base,
+				};
 
-                    <View style={{ height: 8 }} />
-                </ScrollView>
+				await dispatch(addPet(payload)).unwrap();
+			}
 
-                {/* Footer */}
-                <View
-                    style={{
-                        position: 'absolute',
-                        left: 0,
-                        right: 0,
-                        bottom: 0,
-                        paddingHorizontal: 16,
-                        paddingTop: 10,
-                        paddingBottom: (insets.bottom || 6),
-                        backgroundColor: tint,
-                        borderTopWidth: StyleSheet.hairlineWidth,
-                        borderTopColor: border,
-                    }}
-                >
-                    <View style={[styles.actions, { height: FOOTER_H - (insets.bottom || 0) }]}>
-                        <Pressable
-                            style={[
-                                styles.btn,
-                                { borderColor: border, backgroundColor: 'rgba(107,114,128,1)' }
-                            ]}
-                            onPress={() => router.back()}
-                        >
-                            <Text style={{ fontWeight: '700', color: '#fff' }}>Cancelar</Text>
-                        </Pressable>
+			router.back();
+		} catch (error) {
+			Alert.alert(
+				"Erro",
+				error?.message ||
+					(isEdit ? "Não foi possível atualizar o pet." : "Não foi possível criar o pet.")
+			);
+		} finally {
+			setSubmitting(false);
+		}
+	}, [
+		canSubmit,
+		firstError,
+		nome,
+		especie,
+		raca,
+		cor,
+		sexo,
+		castrado,
+		idade,
+		pesoKg,
+		observacoes,
+		isEdit,
+		_id,
+		_tutorId,
+		_tutorNome,
+		tutor,
+		dispatch,
+	]);
 
-                        <Pressable
-                            style={[
-                                styles.btn,
-                                {
-                                    backgroundColor: canSubmit ? 'rgba(16,185,129,1)' : 'rgba(16,185,129,0.3)',
-                                    borderColor: !canSubmit && 'grey'
-                                }
-                            ]}
-                            onPress={submit}
-                            disabled={!canSubmit}
-                        >
-                            <Text style={{ color: canSubmit ? '#fff' : 'rgba(107,114,128,0.3)', fontWeight: '800' }}>
-                                Salvar
-                            </Text>
-                        </Pressable>
-                    </View>
-                </View>
-            </KeyboardAvoidingView>
-        </SafeAreaView>
-    );
+	return (
+		<SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={[]}>
+			<Stack.Screen
+				options={{
+					presentation: "modal",
+					title: isEdit ? "Editar pet" : "Novo pet",
+					headerBackTitleVisible: false,
+					headerStyle: { backgroundColor: "#FFFFFF" },
+					headerTintColor: tint,
+					headerTitleStyle: {
+						color: tint,
+						fontWeight: "800",
+					},
+					headerLeft: () => (
+						<Pressable
+							onPress={() => router.back()}
+							hitSlop={10}
+							style={styles.headerCancel}
+						>
+							<Text style={[styles.headerCancelText, { color: tint }]}>
+								Cancelar
+							</Text>
+						</Pressable>
+					),
+				}}
+			/>
+
+			<KeyboardAvoidingView
+				style={styles.keyboard}
+				behavior={Platform.OS === "ios" ? "padding" : undefined}
+				keyboardVerticalOffset={0}
+			>
+				<View style={styles.shell}>
+					<ScrollView
+						style={styles.scroll}
+						contentContainerStyle={[
+							styles.content,
+							{ paddingBottom: 132 + insets.bottom },
+						]}
+						keyboardShouldPersistTaps="handled"
+						keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
+						automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+						contentInsetAdjustmentBehavior="automatic"
+						showsVerticalScrollIndicator={false}
+					>
+						{isEdit || _tutorId ? (
+							<FormSection
+								title="Tutor"
+								helper="Este pet já está vinculado a um tutor."
+							>
+								<View style={styles.fixedTutorRow}>
+									<View style={styles.tutorAvatar}>
+										<Ionicons name="person" size={15} color="#FFFFFF" />
+									</View>
+
+									<View style={{ flex: 1, minWidth: 0 }}>
+										<Text style={[styles.selectedTutorName, { color: text }]} numberOfLines={1}>
+											{isEdit ? pet?.tutor?.nome || "—" : _tutorNome || "—"}
+										</Text>
+
+										<Text style={[styles.selectedTutorSub, { color: subtle }]} numberOfLines={1}>
+											{isEdit ? "Tutor vinculado ao cadastro" : "Selecionado pelo cadastro do tutor"}
+										</Text>
+									</View>
+								</View>
+							</FormSection>
+						) : (
+							<TutorSearchBox
+								tutor={tutor}
+								tutorQuery={tutorQuery}
+								setTutorQuery={setTutorQuery}
+								setTutor={setTutor}
+								tutoresBuscados={tutoresBuscados}
+								text={text}
+								subtle={subtle}
+								border={border}
+								tint={tint}
+								openMaps={openMaps}
+							/>
+						)}
+
+						<FormSection
+							title="Dados do pet"
+							helper="Apenas nome, espécie e tutor são obrigatórios. Os demais campos podem ser completados depois."
+						>
+							<Field
+								label="Nome do pet"
+								error={!validation.hasNome ? "Obrigatório." : null}
+							>
+								<TextInput
+									value={nome}
+									onChangeText={setNome}
+									placeholder="Ex.: Thor"
+									placeholderTextColor="#9CA3AF"
+									style={[styles.input, { color: text }]}
+									returnKeyType="next"
+									autoCapitalize="words"
+								/>
+							</Field>
+
+							<Divider />
+
+							<Field label="Espécie">
+								<View style={styles.segmentRow}>
+									<SegmentedOption
+										active={especie === "cachorro"}
+										label="Cachorro"
+										icon="paw-outline"
+										onPress={() => setEspecie("cachorro")}
+										tint={tint}
+									/>
+
+									<SegmentedOption
+										active={especie === "gato"}
+										label="Gato"
+										icon="logo-octocat"
+										onPress={() => setEspecie("gato")}
+										tint={tint}
+									/>
+								</View>
+							</Field>
+
+							<Divider />
+
+							<Field label="Raça" helper="Opcional.">
+								<TextInput
+									value={raca}
+									onChangeText={setRaca}
+									placeholder="Ex.: Golden Retriever"
+									placeholderTextColor="#9CA3AF"
+									style={[styles.input, { color: text }]}
+									returnKeyType="next"
+									autoCapitalize="words"
+								/>
+							</Field>
+
+							<Divider />
+
+							<Field label="Cor" helper="Opcional.">
+								<TextInput
+									value={cor}
+									onChangeText={setCor}
+									placeholder="Ex.: Dourado"
+									placeholderTextColor="#9CA3AF"
+									style={[styles.input, { color: text }]}
+									returnKeyType="next"
+									autoCapitalize="words"
+								/>
+							</Field>
+						</FormSection>
+
+						<FormSection
+							title="Características"
+							helper="Essas informações ajudam no histórico clínico e nos atendimentos."
+						>
+							<Field label="Sexo">
+								<View style={styles.segmentRow}>
+									<SegmentedOption
+										active={sexo === "M"}
+										label="Macho"
+										icon="male-outline"
+										onPress={() => setSexo("M")}
+										tint={tint}
+									/>
+
+									<SegmentedOption
+										active={sexo === "F"}
+										label="Fêmea"
+										icon="female-outline"
+										onPress={() => setSexo("F")}
+										tint={tint}
+									/>
+								</View>
+							</Field>
+
+							<Divider />
+
+							<View style={styles.switchRow}>
+								<View style={{ flex: 1 }}>
+									<Text style={styles.fieldLabel}>Castrado</Text>
+									<Text style={styles.fieldHelper}>Opcional. Pode ser ajustado depois.</Text>
+								</View>
+
+								<Switch value={castrado} onValueChange={setCastrado} />
+							</View>
+
+							<Divider />
+
+							<View style={styles.twoColumns}>
+								<View style={{ flex: 1 }}>
+									<Field label="Idade" helper="Anos. Opcional.">
+										<TextInput
+											value={idade}
+											onChangeText={onChangeIdade}
+											placeholder="Ex.: 4"
+											placeholderTextColor="#9CA3AF"
+											style={[styles.input, { color: text }]}
+											keyboardType="number-pad"
+											inputMode="numeric"
+											maxLength={3}
+										/>
+									</Field>
+								</View>
+
+								<View style={{ flex: 1 }}>
+									<Field
+										label="Peso"
+										helper="Kg. Opcional."
+										error={!validation.pesoOk ? "Peso inválido." : null}
+									>
+										<TextInput
+											value={pesoKg}
+											onChangeText={onChangePeso}
+											keyboardType="decimal-pad"
+											inputMode="decimal"
+											placeholder="Ex.: 12,4"
+											placeholderTextColor="#9CA3AF"
+											style={[styles.input, { color: text }]}
+										/>
+									</Field>
+								</View>
+							</View>
+						</FormSection>
+
+						<FormSection
+							title="Observações"
+							helper="Anotações livres sobre comportamento, restrições, histórico ou preferências."
+						>
+							<TextInput
+								value={observacoes}
+								onChangeText={setObservacoes}
+								placeholder="Anotações gerais sobre o paciente..."
+								placeholderTextColor="#9CA3AF"
+								style={[styles.input, styles.textArea, { color: text }]}
+								multiline
+								textAlignVertical="top"
+							/>
+						</FormSection>
+
+						{!!firstError && (
+							<Text style={styles.bottomError}>{firstError}</Text>
+						)}
+					</ScrollView>
+
+					<View
+						style={[
+							styles.fixedFooter,
+							{
+								paddingBottom: Math.max(insets.bottom, 10),
+							},
+						]}
+					>
+						<Pressable
+							onPress={submit}
+							disabled={!canSubmit}
+							style={({ pressed }) => [
+								styles.saveButton,
+								{
+									backgroundColor: canSubmit ? tint : "#A7B4C8",
+									opacity: pressed ? 0.9 : 1,
+								},
+							]}
+						>
+							{submitting ? (
+								<>
+									<ActivityIndicator color="#fff" />
+									<Text style={styles.saveButtonText}>Salvando…</Text>
+								</>
+							) : (
+								<>
+									<Ionicons name="checkmark" size={18} color="#fff" />
+									<Text style={styles.saveButtonText}>
+										{isEdit ? "Salvar alterações" : "Salvar pet"}
+									</Text>
+								</>
+							)}
+						</Pressable>
+
+						<Text style={styles.footerHint}>
+							{firstError || "Você pode completar o cadastro do pet depois."}
+						</Text>
+					</View>
+				</View>
+			</KeyboardAvoidingView>
+		</SafeAreaView>
+	);
 }
 
 const styles = StyleSheet.create({
-    label: { fontSize: 12, fontWeight: '700', marginBottom: 6 },
-    field: { borderWidth: 1, borderRadius: 12, padding: 12 },
-    fieldRow: {
-        borderWidth: 1, borderRadius: 12, padding: 12,
-        flexDirection: 'row', alignItems: 'center', gap: 12,
-    },
-    input: { paddingVertical: 6 },
-    segmentRow: { flexDirection: 'row', gap: 8 },
-    segmentBtn: { flex: 1, borderWidth: 1, borderRadius: 999, paddingVertical: 8, alignItems: 'center' },
-    segmentTxt: { fontWeight: '800' },
-    segmentSmall: { borderWidth: 1, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
-    segmentSmallTxt: { fontWeight: '800' },
-    actions: { flexDirection: 'row', gap: 12, marginTop: 'auto' },
-    btn: { flex: 1, borderWidth: 1, borderRadius: 12, paddingVertical: 9, alignItems: 'center' },
+	safe: {
+		flex: 1,
+	},
+
+	keyboard: {
+		flex: 1,
+	},
+
+	shell: {
+		flex: 1,
+		position: "relative",
+	},
+
+	scroll: {
+		flex: 1,
+	},
+
+	content: {
+		paddingHorizontal: 16,
+		paddingTop: 14,
+		gap: 16,
+	},
+
+	headerCancel: {
+		paddingHorizontal: 4,
+		paddingVertical: 4,
+	},
+
+	headerCancelText: {
+		fontSize: 16,
+		fontWeight: "700",
+	},
+
+	section: {
+		gap: 8,
+	},
+
+	sectionHeader: {
+		paddingHorizontal: 2,
+	},
+
+	sectionTitle: {
+		fontSize: 18,
+		fontWeight: "800",
+		color: "#111827",
+		letterSpacing: -0.2,
+	},
+
+	sectionHelper: {
+		marginTop: 3,
+		fontSize: 12,
+		lineHeight: 17,
+		color: "#6B7280",
+	},
+
+	sectionCard: {
+		backgroundColor: "#FFFFFF",
+		borderRadius: 18,
+		paddingHorizontal: 14,
+		paddingVertical: 12,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderColor: "rgba(15,23,42,0.10)",
+		shadowColor: "#000",
+		shadowOpacity: 0.04,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: 5 },
+		elevation: 1,
+	},
+
+	field: {
+		gap: 6,
+	},
+
+	fieldLabel: {
+		fontSize: 13,
+		fontWeight: "700",
+		color: "#374151",
+	},
+
+	fieldHelper: {
+		fontSize: 11,
+		lineHeight: 15,
+		color: "#6B7280",
+	},
+
+	fieldError: {
+		fontSize: 11,
+		lineHeight: 15,
+		color: "#DC2626",
+		fontWeight: "600",
+	},
+
+	divider: {
+		height: 1,
+		backgroundColor: "rgba(148,163,184,0.20)",
+		marginVertical: 10,
+	},
+
+	input: {
+		minHeight: 44,
+		paddingHorizontal: 0,
+		paddingVertical: 8,
+		fontSize: 15,
+	},
+
+	textArea: {
+		minHeight: 104,
+		textAlignVertical: "top",
+		paddingTop: 10,
+	},
+
+	segmentRow: {
+		flexDirection: "row",
+		gap: 10,
+	},
+
+	segmentOption: {
+		flex: 1,
+		minHeight: 42,
+		borderRadius: 13,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderColor: "rgba(15,23,42,0.14)",
+		alignItems: "center",
+		justifyContent: "center",
+		flexDirection: "row",
+		gap: 7,
+		backgroundColor: "#FFFFFF",
+	},
+
+	segmentText: {
+		fontSize: 14,
+		fontWeight: "800",
+	},
+
+	switchRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+	},
+
+	twoColumns: {
+		flexDirection: "row",
+		gap: 12,
+		alignItems: "flex-start",
+	},
+
+	searchInputWrap: {
+		height: 44,
+		borderRadius: 14,
+		backgroundColor: "rgba(118,118,128,0.12)",
+		paddingHorizontal: 12,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+
+	searchInput: {
+		flex: 1,
+		paddingVertical: 0,
+	},
+
+	tutorResults: {
+		marginTop: 10,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: 14,
+		overflow: "hidden",
+		backgroundColor: "#FFFFFF",
+	},
+
+	tutorResultRow: {
+		paddingHorizontal: 12,
+		paddingVertical: 11,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 10,
+		borderBottomColor: "#F1F5F9",
+	},
+
+	tutorAvatar: {
+		width: 30,
+		height: 30,
+		borderRadius: 15,
+		backgroundColor: "rgba(15,23,42,0.82)",
+		alignItems: "center",
+		justifyContent: "center",
+	},
+
+	tutorName: {
+		fontSize: 14,
+		fontWeight: "800",
+	},
+
+	tutorSub: {
+		fontSize: 12,
+		marginTop: 2,
+	},
+
+	tutorEmpty: {
+		padding: 14,
+	},
+
+	selectedTutor: {
+		marginTop: 10,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: 14,
+		padding: 12,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 10,
+	},
+
+	selectedTutorName: {
+		fontSize: 15,
+		fontWeight: "800",
+	},
+
+	selectedTutorSub: {
+		fontSize: 12,
+		marginTop: 3,
+		lineHeight: 17,
+	},
+
+	fixedTutorRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 10,
+	},
+
+	bottomError: {
+		fontSize: 12,
+		lineHeight: 17,
+		color: "#DC2626",
+		fontWeight: "600",
+		paddingHorizontal: 2,
+	},
+
+	fixedFooter: {
+		position: "absolute",
+		left: 0,
+		right: 0,
+		bottom: 0,
+		zIndex: 50,
+		paddingHorizontal: 16,
+		paddingTop: 10,
+		backgroundColor: "rgba(255,255,255,0.96)",
+		borderTopWidth: StyleSheet.hairlineWidth,
+		borderTopColor: "rgba(15,23,42,0.10)",
+		shadowColor: "#000",
+		shadowOpacity: 0.08,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: -4 },
+		elevation: 12,
+	},
+
+	saveButton: {
+		height: 50,
+		borderRadius: 15,
+		alignItems: "center",
+		justifyContent: "center",
+		flexDirection: "row",
+		gap: 8,
+		shadowColor: "#000",
+		shadowOpacity: 0.18,
+		shadowRadius: 10,
+		shadowOffset: { width: 0, height: 5 },
+		elevation: 4,
+	},
+
+	saveButtonText: {
+		color: "#FFFFFF",
+		fontSize: 16,
+		fontWeight: "800",
+	},
+
+	footerHint: {
+		marginTop: 7,
+		textAlign: "center",
+		fontSize: 11,
+		color: "#6B7280",
+	},
 });

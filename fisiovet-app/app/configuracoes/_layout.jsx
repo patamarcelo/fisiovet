@@ -40,6 +40,7 @@ export default function ConfigLayout() {
       <Stack.Screen name="perfil" options={{ headerTitle: 'Perfil', headerLargeTitle: false }} />
       <Stack.Screen name="duration" options={{ headerTitle: 'Duração', headerLargeTitle: false }} />
       <Stack.Screen name="startevent" options={{ headerTitle: 'Ínicio do Dia', headerLargeTitle: false }} />
+      <Stack.Screen name="assinatura" options={{ headerTitle: 'Assinatura', headerLargeTitle: false }} />
     </Stack>
   );
 }

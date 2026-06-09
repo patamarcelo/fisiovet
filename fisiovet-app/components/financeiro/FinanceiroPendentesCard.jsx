@@ -1,7 +1,7 @@
 // src/components/financeiro/FinanceiroPendentesCard.jsx
 // @ts-nocheck
 import React, { useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { useSelector } from 'react-redux';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -12,7 +12,6 @@ import { selectAllEventos } from '@/src/store/slices/agendaSlice';
 
 /* ========== Helpers ========== */
 
-// formatter criado uma vez só (melhor performance)
 const currencyFormatterBR = new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
@@ -25,22 +24,37 @@ function formatCurrencyBRL(value) {
     return currencyFormatterBR.format(num);
 }
 
-function formatDateBRShort(isoStr) {
+function hiddenMoney() {
+    return '••••••';
+}
+
+function formatDateFullBR(isoStr) {
     if (!isoStr) return '—';
+
     const d = new Date(isoStr);
+
+    if (Number.isNaN(d.getTime())) return '—';
+
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
-    return `${dd}/${mm}`;
+    const yyyy = d.getFullYear();
+
+    return `${dd}/${mm}/${yyyy}`;
 }
 
 function isConfirmadoStatus(statusRaw) {
     const s = String(statusRaw || '').toLowerCase();
+
     return (
         s === 'confirmado' ||
         s === 'confirmada' ||
         s === 'concluido' ||
         s === 'concluida'
     );
+}
+
+function getEventoPreco(item) {
+    return Number(item?.financeiro?.preco ?? item?.preco ?? 0) || 0;
 }
 
 /* ========== Mini row de lançamento pendente ========== */
@@ -50,28 +64,24 @@ const PendingRow = React.memo(function PendingRow({
     border,
     textColor,
     subtleColor,
+    showValues,
 }) {
-    const preco = item.financeiro?.preco ?? item.preco ?? 0;
+    const preco = getEventoPreco(item);
     const tutorNome = item.tutorNome || item.cliente || 'Tutor não informado';
+
     const petNome =
         item.petNome ||
         (Array.isArray(item.petIds) && item.petIds.length
             ? `(${item.petIds.length} pets)`
             : null);
 
-    const formatDateFullBR = (isoStr) => {
-        if (!isoStr) return '—';
-        const d = new Date(isoStr);
-        const dd = String(d.getDate()).padStart(2, '0');
-        const mm = String(d.getMonth() + 1).padStart(2, '0');
-        const yyyy = d.getFullYear();
-        return `${dd}/${mm}/${yyyy}`;
-    };
+    const valueLabel = showValues ? formatCurrencyBRL(preco) : hiddenMoney();
 
     return (
         <Pressable
-            onPress={async () => {
-                await Haptics.selectionAsync(); // 💥 haptic ao tocar
+            onPress={() => {
+                Haptics.selectionAsync().catch(() => {});
+
                 router.push({
                     pathname: '/(modals)/agenda-new',
                     params: { id: String(item.id) },
@@ -81,16 +91,12 @@ const PendingRow = React.memo(function PendingRow({
             style={({ pressed }) => [
                 styles.row,
                 { borderColor: border },
-                // 🔹 efeito visual no iOS / geral
-                pressed && { backgroundColor: 'rgba(249,115,22,0.08)' }, // laranja bem suave
+                pressed && { backgroundColor: 'rgba(249,115,22,0.08)' },
             ]}
         >
-            {/* faixa esquerda fixa */}
             <View style={styles.rowStripe} />
 
-            {/* conteúdo central */}
             <View style={styles.rowContent}>
-                {/* linha principal: título + valor */}
                 <View style={styles.rowTitleLine}>
                     <Text
                         style={[styles.rowTitle, { color: textColor }]}
@@ -102,14 +108,16 @@ const PendingRow = React.memo(function PendingRow({
                     <Text
                         style={[
                             styles.rowValue,
-                            { color: '#F97316', fontVariant: ['tabular-nums'] },
+                            {
+                                color: '#F97316',
+                                fontVariant: ['tabular-nums'],
+                            },
                         ]}
                     >
-                        {formatCurrencyBRL(preco)}
+                        {valueLabel}
                     </Text>
                 </View>
 
-                {/* linha inferior: tutor/pet | data */}
                 <View style={styles.rowBottomLine}>
                     <Text
                         style={[styles.rowMeta, { color: subtleColor }]}
@@ -122,7 +130,10 @@ const PendingRow = React.memo(function PendingRow({
                     <Text
                         style={[
                             styles.rowMeta,
-                            { color: subtleColor, fontVariant: ['tabular-nums'] },
+                            {
+                                color: subtleColor,
+                                fontVariant: ['tabular-nums'],
+                            },
                         ]}
                     >
                         {formatDateFullBR(item.start)}
@@ -130,47 +141,47 @@ const PendingRow = React.memo(function PendingRow({
                 </View>
             </View>
 
-            {/* seta alinhada ao centro */}
             <View style={styles.arrowContainer}>
-                <Ionicons
-                    name="chevron-forward"
-                    size={18}
-                    color={subtleColor}
-                />
+                <Ionicons name="chevron-forward" size={18} color={subtleColor} />
             </View>
         </Pressable>
     );
 });
 
-
 /* ========== Card principal ========== */
 
-export default function FinanceiroPendentesCard({cardelevation}) {
+export default function FinanceiroPendentesCard({
+    cardelevation,
+    showValues = false,
+    onToggleValues,
+    loading = false,
+}) {
     const eventos = useSelector(selectAllEventos);
 
-    const bg = useThemeColor({}, 'background');
     const text = useThemeColor({}, 'text');
     const textIcon = useThemeColor({}, 'textIcon');
     const tint = useThemeColor({}, 'tint');
+
     const border = 'rgba(0,0,0,0.08)';
     const bgCard = useThemeColor({ light: '#FFFFFF', dark: '#111827' }, 'card');
 
-    // filtra só eventos com financeiro pendente (não pago)
     const { pendentesOrdenados, totalAReceber, totalCount, extrasCount } =
         useMemo(() => {
             const pendentes = (eventos || []).filter((e) => {
                 if (!e.financeiro) return false;
+
                 const pago = !!e.financeiro.pago;
                 if (pago) return false;
-                // opcional: só confirmados / concluídos
+
                 if (!isConfirmadoStatus(e.status)) return false;
+
                 return true;
             });
 
             pendentes.sort((a, b) => new Date(a.start) - new Date(b.start));
 
             const total = pendentes.reduce(
-                (acc, ev) => acc + Number(ev.financeiro?.preco ?? ev.preco ?? 0),
+                (acc, ev) => acc + getEventoPreco(ev),
                 0
             );
 
@@ -179,7 +190,7 @@ export default function FinanceiroPendentesCard({cardelevation}) {
             const extrasCount = Math.max(0, totalCount - maxHome);
 
             return {
-                pendentesOrdenados: pendentes.slice(0, maxHome), // limita a 5 na Home
+                pendentesOrdenados: pendentes.slice(0, maxHome),
                 totalAReceber: total,
                 totalCount,
                 extrasCount,
@@ -188,10 +199,17 @@ export default function FinanceiroPendentesCard({cardelevation}) {
 
     const temPendentes = pendentesOrdenados.length > 0;
 
-    const handleOpenFinanceiro = useCallback(async () => {
-        await Haptics.selectionAsync();
+    const totalLabel = showValues ? formatCurrencyBRL(totalAReceber) : hiddenMoney();
+
+    const handleOpenFinanceiro = useCallback(() => {
+        Haptics.selectionAsync().catch(() => {});
         router.push('/(phone)/financeiro');
     }, []);
+
+    const handleToggleValues = useCallback(() => {
+        Haptics.selectionAsync().catch(() => {});
+        onToggleValues?.();
+    }, [onToggleValues]);
 
     return (
         <View
@@ -201,54 +219,90 @@ export default function FinanceiroPendentesCard({cardelevation}) {
                 { borderColor: border, backgroundColor: bgCard || '#FFF' },
             ]}
         >
-            {/* Cabeçalho */}
             <View style={styles.cardHeader}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <View style={styles.titleGroup}>
                     <Ionicons name="cash-outline" size={18} color={tint} />
                     <Text style={[styles.cardTitle, { color: text }]}>
                         Financeiro • A receber
                     </Text>
                 </View>
 
-                <Pressable
-                    onPress={handleOpenFinanceiro}
-                    hitSlop={8}
-                    android_ripple={{ color: 'rgba(0,0,0,0.06)', borderless: true }}
-                    style={{ paddingHorizontal: 6, paddingVertical: 2 }}
-                >
-                    <Text style={{ color: tint, fontWeight: '700', fontSize: 12 }}>
-                        Ver financeiro
-                    </Text>
-                </Pressable>
+                <View style={styles.headerActions}>
+                    <Pressable
+                        onPress={handleToggleValues}
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                            showValues ? 'Ocultar valores' : 'Mostrar valores'
+                        }
+                        style={({ pressed }) => [
+                            styles.eyeButton,
+                            pressed && { opacity: 0.65 },
+                        ]}
+                    >
+                        <Ionicons
+                            name={showValues ? 'eye-outline' : 'eye-off-outline'}
+                            size={19}
+                            color={textIcon}
+                        />
+                    </Pressable>
+
+                    <Pressable
+                        onPress={handleOpenFinanceiro}
+                        hitSlop={8}
+                        android_ripple={{
+                            color: 'rgba(0,0,0,0.06)',
+                            borderless: true,
+                        }}
+                        style={styles.openButton}
+                    >
+                        <Text style={{ color: tint, fontWeight: '700', fontSize: 12 }}>
+                            Ver financeiro
+                        </Text>
+                    </Pressable>
+                </View>
             </View>
 
-            {/* Total */}
             <View style={styles.totalLine}>
                 <View>
                     <Text style={{ fontSize: 12, color: textIcon }}>Total pendente</Text>
+
                     <Text
                         style={[
                             styles.totalValue,
-                            { color: '#F97316', fontVariant: ['tabular-nums'] },
+                            {
+                                color: '#F97316',
+                                fontVariant: ['tabular-nums'],
+                            },
                         ]}
                     >
-                        {formatCurrencyBRL(totalAReceber)}
+                        {totalLabel}
                     </Text>
                 </View>
 
-                {temPendentes && (
+                {loading ? (
+                    <View style={styles.loadingBadge}>
+                        <ActivityIndicator size="small" color="#EA580C" />
+                    </View>
+                ) : temPendentes ? (
                     <View style={styles.badge}>
                         <Text style={styles.badgeText}>
                             {totalCount} pendente{totalCount > 1 ? 's' : ''}
                         </Text>
                     </View>
-                )}
+                ) : null}
             </View>
 
-            {/* Lista resumida */}
-            {temPendentes ? (
+            {loading ? (
+                <View style={styles.emptyBox}>
+                    <ActivityIndicator color="#F97316" />
+                    <Text style={[styles.emptyText, { color: textIcon }]}>
+                        Carregando pendências…
+                    </Text>
+                </View>
+            ) : temPendentes ? (
                 <>
-                    <View style={{ marginTop: 8, gap: 6 }}>
+                    <View style={styles.list}>
                         {pendentesOrdenados.map((ev) => (
                             <PendingRow
                                 key={String(ev.id)}
@@ -256,6 +310,7 @@ export default function FinanceiroPendentesCard({cardelevation}) {
                                 border={border}
                                 textColor={text}
                                 subtleColor={textIcon}
+                                showValues={showValues}
                             />
                         ))}
                     </View>
@@ -264,8 +319,8 @@ export default function FinanceiroPendentesCard({cardelevation}) {
                         <Text style={styles.extraHint}>
                             +{extrasCount} lançamento
                             {extrasCount > 1 ? 's' : ''} não exibido
-                            {extrasCount > 1 ? 's' : ''} aqui. Toque em “Ver financeiro” para
-                            ver todos.
+                            {extrasCount > 1 ? 's' : ''} aqui. Toque em “Ver financeiro”
+                            para ver todos.
                         </Text>
                     )}
                 </>
@@ -276,9 +331,11 @@ export default function FinanceiroPendentesCard({cardelevation}) {
                         size={28}
                         color="#16A34A"
                     />
+
                     <Text style={[styles.emptyText, { color: textIcon }]}>
                         Nenhum lançamento pendente no momento.
                     </Text>
+
                     <Text style={[styles.emptySub, { color: textIcon }]}>
                         Quando marcar sessões como confirmadas com financeiro pendente,
                         elas aparecem aqui.
@@ -299,15 +356,46 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         marginTop: 8,
     },
+
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 6,
+        gap: 8,
     },
+
+    titleGroup: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+
     cardTitle: {
         fontSize: 15,
         fontWeight: '800',
+    },
+
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+    },
+
+    eyeButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(118,118,128,0.10)',
+    },
+
+    openButton: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
     },
 
     totalLine: {
@@ -315,92 +403,42 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginTop: 4,
+        gap: 10,
     },
+
     totalValue: {
         marginTop: 2,
         fontSize: 20,
         fontWeight: '800',
     },
+
     badge: {
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 999,
         backgroundColor: 'rgba(249,115,22,0.08)',
     },
+
     badgeText: {
         fontSize: 11,
         fontWeight: '700',
         color: '#EA580C',
     },
 
-    row: {
-        flexDirection: 'row',
-        alignItems: 'stretch',
-        borderRadius: 10,
-        borderWidth: 1,
-        backgroundColor: '#FFF',
-        overflow: 'hidden',
-        minHeight: 52,
-    },
-    rowStripe: {
-        width: 4,
-        backgroundColor: '#F97316',
-    },
-    rowContent: {
-        flex: 1,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        justifyContent: 'center',
-    },
-    rowTitleLine: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'baseline',
-        gap: 6,
-    },
-    rowTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        flex: 1,
-    },
-    rowValue: {
-        fontSize: 13,
-        fontWeight: '800',
-    },
-    rowBottomLine: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 2,
-        gap: 6,
-    },
-    rowMeta: {
-        fontSize: 11,
-        flexShrink: 1,
-    },
-
-    emptyBox: {
-        marginTop: 8,
-        paddingVertical: 10,
-        paddingHorizontal: 6,
+    loadingBadge: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         alignItems: 'center',
-        gap: 4,
-    },
-    emptyText: {
-        fontSize: 13,
-        fontWeight: '600',
-        textAlign: 'center',
-    },
-    emptySub: {
-        fontSize: 11,
-        textAlign: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(249,115,22,0.08)',
     },
 
-    extraHint: {
-        marginTop: 6,
-        fontSize: 11,
-        color: '#6B7280',
-        textAlign: 'right',
+    list: {
+        marginTop: 8,
+        gap: 6,
     },
+
     row: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -413,6 +451,7 @@ const styles = StyleSheet.create({
 
     rowStripe: {
         width: 4,
+        alignSelf: 'stretch',
         backgroundColor: '#F97316',
     },
 
@@ -459,5 +498,29 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
 
+    emptyBox: {
+        marginTop: 8,
+        paddingVertical: 10,
+        paddingHorizontal: 6,
+        alignItems: 'center',
+        gap: 4,
+    },
 
+    emptyText: {
+        fontSize: 13,
+        fontWeight: '600',
+        textAlign: 'center',
+    },
+
+    emptySub: {
+        fontSize: 11,
+        textAlign: 'center',
+    },
+
+    extraHint: {
+        marginTop: 6,
+        fontSize: 11,
+        color: '#6B7280',
+        textAlign: 'right',
+    },
 });

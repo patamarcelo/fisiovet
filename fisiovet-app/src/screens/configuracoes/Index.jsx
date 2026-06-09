@@ -44,13 +44,15 @@ import { openWhatsapp } from '@/src/utils/openWhatsapp';
 
 import { selectNavPreference } from '@/src/store/slices/systemSlice';
 
+import Constants from "expo-constants";
+
 
 
 
 
 function SectionLabel({ children }) {
   return (
-    <Text style={{ fontSize: 12, fontWeight: '700', color: '#6B7280', marginHorizontal: 16, marginTop: 22, marginBottom: 8 }}>
+    <Text style={styles.sectionLabel}>
       {children}
     </Text>
   );
@@ -115,7 +117,7 @@ function Cell({
           </View>
         )}
 
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.cellTitle, { color: titleColor }]} numberOfLines={1}>
             {title}
           </Text>
@@ -164,7 +166,7 @@ function CellSwitch({
             <IconSymbol name={leftIcon} size={16} color="#fff" />
           </View>
         )}
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
             {title}
           </Text>
@@ -229,9 +231,11 @@ function CellValue({
           )}
 
           <View style={{ flex: 1 }}>
-            <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
-              {title}
-            </Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
+                {title}
+              </Text>
+            </View>
 
             <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
               Em breve
@@ -294,13 +298,13 @@ export default function ConfigIndex() {
 
       const user = auth.currentUser;
       const loggedWithGoogle = user?.providerData?.some(p => p.providerId === "google.com");
-      
+
       if (loggedWithGoogle) {
         // seguro chamar mesmo sem estar logado no Google
         await GoogleSignin.revokeAccess().catch(() => { });
         await GoogleSignin.signOut().catch(() => { });
       }
-      
+
       await signOut(auth);
 
       // 🔒 trava persist, esvazia buffer e apaga storage
@@ -374,6 +378,19 @@ export default function ConfigIndex() {
   //sistema de navegacao
   const navPreference = useSelector(selectNavPreference);
 
+  const appVersion =
+    Constants?.expoConfig?.version ||
+    Constants?.manifest?.version ||
+    "1.0.0";
+
+  const buildNumber =
+    Platform.OS === "ios"
+      ? Constants?.expoConfig?.ios?.buildNumber
+      : Constants?.expoConfig?.android?.versionCode;
+
+  const appVersionLabel = buildNumber
+    ? `${appVersion} (${buildNumber})`
+    : appVersion;
 
   // estados locais (exemplo; depois pode ligar no Redux)
   const [notifAgenda, setNotifAgenda] = useState(true);
@@ -405,13 +422,11 @@ export default function ConfigIndex() {
           <Divider />
           <Cell
             title="Assinatura"
-            subtitle="Plano atual e faturamento"
-            leftIcon="creditcard.fill"
-            value="Plano Free"
-            onPress={() => router.push('/configuracoes/assinatura')}
+            subtitle="Plano Free, limites e planos premium"
+            leftIcon="sparkles"
+            onPress={() => router.push("/configuracoes/assinatura")}
             subtleColor={subtle}
             textColor={text}
-            disabled
           />
         </Group>
 
@@ -514,7 +529,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/asaas')}
             subtleColor={subtle}
             textColor={text}
-          disabled
+            disabled
           />
         </Group>
 
@@ -592,11 +607,11 @@ export default function ConfigIndex() {
           <Divider />
           <Cell
             title="Versão"
-            value="1.0.12" // ideal: puxar do versionControl
+            value={appVersionLabel}
             leftIcon="info.circle.fill"
             onPress={undefined}
             rightIcon={null}
-            disabled={true} // opcional, ou só remova onPress e rightIcon
+            disabled={true}
             subtleColor={subtle}
             textColor={text}
           />
@@ -630,35 +645,24 @@ export default function ConfigIndex() {
           onPress={handleLogout}
           disabled={loggingOut}
           style={({ pressed }) => [
-            {
-              marginTop: 24,
-              marginHorizontal: 16,
-              paddingVertical: 14,
-              borderRadius: 10,
-              alignItems: "center",
-              backgroundColor: "#EF4444", // vermelho alerta
-              opacity: pressed || loggingOut ? 0.8 : 1,
-              flexDirection: "row",
-              justifyContent: "center",
-              gap: 8,
-            },
+            styles.logoutButton,
+            (pressed || loggingOut) && { opacity: 0.82 },
           ]}
         >
           {loggingOut ? (
             <>
               <ActivityIndicator color="#FFF" size="small" />
-              <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
-                Saindo…
-              </Text>
+              <Text style={styles.logoutText}>Saindo…</Text>
             </>
           ) : (
-            <Text style={{ color: "#FFF", fontWeight: "700", fontSize: 16 }}>
-              Sair
-            </Text>
+            <>
+              <Ionicons name="log-out-outline" size={17} color="#FFF" />
+              <Text style={styles.logoutText}>Sair da conta</Text>
+            </>
           )}
         </Pressable>
         {/* Rodapé opcional */}
-        <Text style={{ fontSize: 12, color: subtle, textAlign: 'center', marginTop: 16 }}>
+        <Text style={[styles.footerText, { color: subtle }]}>
           FisioVet • Configurações
         </Text>
       </ScrollView>
@@ -667,50 +671,124 @@ export default function ConfigIndex() {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
+  screen: {
+    flex: 1,
+  },
+
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#8E8E93",
+    marginHorizontal: 18,
+    marginTop: 20,
+    marginBottom: 7,
+    letterSpacing: 0.45,
+  },
 
   group: {
     marginHorizontal: 14,
-    borderRadius: 12,
-    overflow: 'hidden',
-    // sombra sutil no iOS e elevação no Android, como em Ajustes
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
+    borderRadius: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.045,
+    shadowRadius: 7,
     shadowOffset: { width: 0, height: 3 },
     elevation: 2,
   },
 
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Platform.OS === 'ios' ? 'rgba(60,60,67,0.29)' : '#E5E7EB',
-    marginLeft: 56, // alinha com início do texto, deixando ícone “fora” do corte
+    backgroundColor:
+      Platform.OS === "ios" ? "rgba(60,60,67,0.22)" : "#E5E7EB",
+    marginLeft: 54,
   },
 
   cell: {
-    minHeight: 54,
-    paddingHorizontal: 14,
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
+    minHeight: 50,
+    paddingHorizontal: 13,
+    paddingVertical: 7,
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 9,
   },
-  cellLeft: { flexDirection: 'row', gap: 10, alignItems: 'center', flex: 1 },
+
+  cellLeft: {
+    flexDirection: "row",
+    gap: 9,
+    alignItems: "center",
+    flex: 1,
+    minWidth: 0,
+  },
 
   iconBadge: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconImage: {
-    width: 26,
-    height: 26,
-    resizeMode: 'contain'
+    width: 25,
+    height: 25,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
-  cellTitle: { fontSize: 16, fontWeight: '600' },
-  cellSubtitle: { fontSize: 12, marginTop: 2 },
-  cellValue: { fontSize: 14, marginRight: 6, maxWidth: 130, textAlign: 'right' },
-  cellDisabled: { opacity: 0.55 },
+  iconImage: {
+    width: 25,
+    height: 25,
+    resizeMode: "contain",
+  },
+
+  cellTitle: {
+    fontSize: 14.5,
+    fontWeight: "650",
+    letterSpacing: -0.15,
+  },
+
+  cellSubtitle: {
+    fontSize: 11.3,
+    marginTop: 1,
+    lineHeight: 15,
+    fontWeight: "500",
+  },
+
+  cellValue: {
+    fontSize: 12.5,
+    fontWeight: "600",
+    marginRight: 4,
+    maxWidth: 124,
+    textAlign: "right",
+  },
+
+  cellDisabled: {
+    opacity: 0.52,
+  },
+
+  logoutButton: {
+    marginTop: 24,
+    marginHorizontal: 16,
+    minHeight: 46,
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: "center",
+    backgroundColor: "#EF4444",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 7,
+    shadowColor: "#EF4444",
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+
+  logoutText: {
+    color: "#FFF",
+    fontWeight: "800",
+    fontSize: 14.5,
+    letterSpacing: -0.1,
+  },
+
+  footerText: {
+    fontSize: 11.5,
+    textAlign: "center",
+    marginTop: 15,
+    marginBottom: 8,
+    fontWeight: "600",
+  },
 });

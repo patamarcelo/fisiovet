@@ -55,7 +55,7 @@ export default function TutoresLayout() {
   return (
     <Stack
       screenOptions={{
-        headerShown: true,
+        headerShown: false,
         headerShadowVisible: false,
         headerTintColor: tint,
         headerBackTitleVisible: false,

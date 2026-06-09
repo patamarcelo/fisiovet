@@ -1,146 +1,178 @@
 // app/_layout.jsx
-import 'react-native-gesture-handler';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack, useRouter, useSegments } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
-import { useEffect, useState } from 'react';
+import "react-native-gesture-handler";
+import "react-native-reanimated";
 
-import { useColorScheme } from '@/hooks/useColorScheme';
+import { ThemeProvider } from "@react-navigation/native";
+import { useFonts } from "expo-font";
+import { Stack, useRouter, useSegments } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import * as SplashScreen from "expo-splash-screen";
+
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 // Redux
-import { Provider, useSelector, useDispatch } from 'react-redux';
-import { PersistGate } from 'redux-persist/integration/react';
-import { store, persistor } from '../src/store';
+import { Provider, useSelector, useDispatch } from "react-redux";
+import { PersistGate } from "redux-persist/integration/react";
+import { store, persistor } from "../src/store";
 
 // Firebase
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/src/services/firebaseClient";
+import { setUser, syncUserProfile } from '@/src/store/slices/userSlice';
 
-import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
-import { setUser } from '@/src/store/slices/userSlice';
+
+import { mapFirebaseUserToDTO } from "@/firebase/authUserDTO";
 
 // Fonts
-import { Fonts } from '@/assets/assets';
+import { Fonts } from "@/assets/assets";
 
-// NEW: provider/variant
-import { LayoutProvider } from '@/src/providers/LayoutProvider';
-import { useLayoutVariant } from '@/hooks/useLayoutVariant';
+// Layout/provider
+import { LayoutProvider } from "@/src/providers/LayoutProvider";
+import { useLayoutVariant } from "@/hooks/useLayoutVariant";
 
+// Theme
+import { DarkAppTheme, LightAppTheme } from "@/src/theme/AppTheme";
+import { ColorSchemeProvider, useColorMode } from "@/src/theme/color-scheme";
+import SplashLoadingScreen from "@/components/SplashLoadingScreen";
 
-import { DarkAppTheme, LightAppTheme } from '@/src/theme/AppTheme'; // opcional (custom)
-import { ColorSchemeProvider, useColorMode } from '@/src/theme/color-scheme';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
 function useAuthBinding() {
-  const dispatch = useDispatch();
-  const [authReady, setAuthReady] = useState(false);
+	const dispatch = useDispatch();
+	const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
-      dispatch(setUser(mapFirebaseUserToDTO(u)));
-      setAuthReady(true);
-    });
-    return unsub;
-  }, [dispatch]);
+	useEffect(() => {
+		const unsub = onAuthStateChanged(auth, async (u) => {
+			const dto = mapFirebaseUserToDTO(u);
 
-  return authReady;
+			dispatch(setUser(dto));
+
+			if (dto?.uid) {
+				try {
+					await dispatch(syncUserProfile(dto)).unwrap();
+				} catch (e) {
+					console.log("Falha ao sincronizar profile:", e);
+				}
+			}
+
+			setAuthReady(true);
+		});
+
+		return unsub;
+	}, [dispatch]);
+
+	return authReady;
 }
 
 function AuthBootstrap({ children }) {
-  const ready = useAuthBinding();
-  if (!ready) return null; // espera o primeiro snapshot do Firebase
-  return children;
+	const ready = useAuthBinding();
+
+	useEffect(() => {
+		if (!ready) return;
+		SplashScreen.hideAsync().catch(() => { });
+	}, [ready]);
+
+	if (!ready) return <SplashLoadingScreen />;
+
+	return children;
 }
 
 function AuthGate({ children }) {
-  const user = useSelector((state) => state.user.user);
-  const boot = useSelector((state) => state.bootstrap);
-  const router = useRouter();
-  const segments = useSegments();
-  const variant = useLayoutVariant(); // "phone" | "tabletPortrait" | "tabletLandscape"
+	const user = useSelector((state) => state.user.user);
+	const boot = useSelector((state) => state.bootstrap);
+	const router = useRouter();
+	const segments = useSegments();
+	const variant = useLayoutVariant();
 
-  useEffect(() => {
-    const group = segments[0]; // "(phone)" | "(tablet)" | "(auth)" | "configuracoes" | undefined
-    const atRoot = segments.length === 0;
-    const inAuth = group === '(auth)' || group === 'firebaseCheck';
+	useEffect(() => {
+		const group = segments[0];
+		const atRoot = segments.length === 0;
+		const inAuth = group === "(auth)" || group === "firebaseCheck";
 
-    // ✅ rotas de topo permitidas fora dos grupos
-    const ALLOWED_TOP = ['configuracoes', '(modals)', 'pacientes', '(maps)', '(files)']; // adicione outras se precisar
-    const inAllowedTop = ALLOWED_TOP.includes(group);
+		const ALLOWED_TOP = [
+			"configuracoes",
+			"(modals)",
+			"pacientes",
+			"(maps)",
+			"(files)",
+		];
 
-    if (!user) {
-      if (!inAuth) router.replace('/(auth)/login');
-      return;
-    }
+		const inAllowedTop = ALLOWED_TOP.includes(group);
 
-    if (boot?.loading || boot?.done === false) {
-     return; // não faz replace enquanto carrega agenda/tutores/pets
-    }
+		if (!user) {
+			if (!inAuth) router.replace("/(auth)/login");
+			return;
+		}
 
-    // Se o user está logado:
-    const shouldBeTablet = variant === 'tabletLandscape';
-    const target = shouldBeTablet ? '/(tablet)' : '/(phone)';
-    const inPhone = group === '(phone)';
-    const inTablet = group === '(tablet)';
+		if (boot?.loading || boot?.done === false) {
+			return;
+		}
 
-    // Permite ficar em rotas de topo whitelisted
-    if (inAllowedTop) return;
+		const shouldBeTablet = variant === "tabletLandscape";
+		const target = shouldBeTablet ? "/(tablet)" : "/(phone)";
+		const inPhone = group === "(phone)";
+		const inTablet = group === "(tablet)";
 
-    // Se está em auth, na raiz, ou no grupo “errado”, redireciona
-    if (inAuth || atRoot || (shouldBeTablet && !inTablet) || (!shouldBeTablet && !inPhone)) {
-      router.replace(target);
-    }
-  }, [user, segments, router, variant,  boot?.loading, boot?.done]);
+		if (inAllowedTop) return;
 
-  return children;
+		if (
+			inAuth ||
+			atRoot ||
+			(shouldBeTablet && !inTablet) ||
+			(!shouldBeTablet && !inPhone)
+		) {
+			router.replace(target);
+		}
+	}, [user, segments, router, variant, boot?.loading, boot?.done]);
+
+	return children;
 }
 
 function RootNavigator() {
-  const { scheme } = useColorMode(); // 'light' | 'dark'
-  return (
-    <ThemeProvider value={scheme === 'dark' ? DarkAppTheme : LightAppTheme}>
-      <AuthGate>
-        <GestureHandlerRootView style={{ flex: 1 }}>
+	const { scheme } = useColorMode();
 
-          <Stack screenOptions={{ headerShown: false }}>
-            {/* Grupos principais */}
-            <Stack.Screen name="(phone)" />
-            <Stack.Screen name="(tablet)" />
-            <Stack.Screen name="configuracoes" options={{ headerShown: false }} />
-            <Stack.Screen name="(modals)" options={{ headerShown: false }} />
-            <Stack.Screen name="(maps)" options={{ headerShown: false}} />
-            {/* Suas outras rotas soltas */}
-            <Stack.Screen name="testeRota" />
-            <Stack.Screen name="+not-found" />
+	return (
+		<ThemeProvider value={scheme === "dark" ? DarkAppTheme : LightAppTheme}>
+			<AuthGate>
+				<Stack screenOptions={{ headerShown: false }}>
+					<Stack.Screen name="(phone)" />
+					<Stack.Screen name="(tablet)" />
+					<Stack.Screen name="configuracoes" options={{ headerShown: false }} />
+					<Stack.Screen name="(modals)" options={{ headerShown: false }} />
+					<Stack.Screen name="(maps)" options={{ headerShown: false }} />
+					<Stack.Screen name="(files)" options={{ headerShown: false }} />
 
-          </Stack>
-        </GestureHandlerRootView>
-      </AuthGate>
-      <StatusBar style="dark" />
-    </ThemeProvider>
-  );
+					<Stack.Screen name="testeRota" />
+					<Stack.Screen name="+not-found" />
+				</Stack>
+			</AuthGate>
+
+			<StatusBar style={scheme === "dark" ? "light" : "dark"} />
+		</ThemeProvider>
+	);
 }
 
 export default function RootLayout() {
-  const [fontsReady] = useFonts({
-    SpaceMono: Fonts.SpaceMono,
-  });
+	const [fontsReady] = useFonts({
+		SpaceMono: Fonts.SpaceMono,
+	});
 
-  if (!fontsReady) return null;
+	if (!fontsReady) return <SplashLoadingScreen />;
 
-  return (
-    <Provider store={store}>
-      <PersistGate loading={null} persistor={persistor}>
-        <AuthBootstrap>
-          {/* Provider que expõe a variante de layout */}
-          <ColorSchemeProvider>
-            <RootNavigator />
-          </ ColorSchemeProvider>
-        </AuthBootstrap>
-      </PersistGate>
-    </Provider>
-  );
+	return (
+		<Provider store={store}>
+			<PersistGate loading={<SplashLoadingScreen />} persistor={persistor}>
+				<AuthBootstrap>
+					<ColorSchemeProvider>
+						<LayoutProvider>
+							<GestureHandlerRootView style={{ flex: 1 }}>
+								<RootNavigator />
+							</GestureHandlerRootView>
+						</LayoutProvider>
+					</ColorSchemeProvider>
+				</AuthBootstrap>
+			</PersistGate>
+		</Provider>
+	);
 }
