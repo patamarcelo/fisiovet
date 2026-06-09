@@ -1,5 +1,11 @@
 // src/features/avaliacoes/saveAvaliacao.js
-import firestoreModule from '@react-native-firebase/firestore';
+import { db } from "@/src/services/firebaseClient";
+import {
+	collection,
+	doc,
+	serverTimestamp,
+	setDoc,
+} from "firebase/firestore";
 
 /**
  * Salva uma avaliação em:
@@ -7,26 +13,36 @@ import firestoreModule from '@react-native-firebase/firestore';
  *
  * fields = { radios: {...}, switches: {...}, notes: '' }
  */
-export async function saveAvaliacaoForPet({ firestore, uid, petId, tutorId = null, fields }) {
-    if (!uid) throw new Error('UID ausente');
-    if (!petId) throw new Error('petId ausente');
+export async function saveAvaliacaoForPet({
+	uid,
+	petId,
+	tutorId = null,
+	fields,
+}) {
+	if (!uid) throw new Error("UID ausente");
+	if (!petId) throw new Error("petId ausente");
 
-    const col = firestore
-        .collection('users').doc(String(uid))
-        .collection('pets').doc(String(petId))
-        .collection('avaliacoes');
+	const avaliacoesColRef = collection(
+		db,
+		"users",
+		String(uid),
+		"pets",
+		String(petId),
+		"avaliacoes"
+	);
 
-    // cria doc com ID automático
-    const ref = col.doc();
-    const payload = {
-        type: 'avaliacao',
-        petId,
-        tutorId,
-        fields: fields || { radios: {}, switches: {}, notes: '' },
-        createdAt: firestoreModule.FieldValue.serverTimestamp(),
-        status: 'submitted', // ou 'draft' se preferir
-    };
+	const ref = doc(avaliacoesColRef);
 
-    await ref.set(payload);
-    return { avaliacaoId: ref.id };
+	const payload = {
+		type: "avaliacao",
+		petId: String(petId),
+		tutorId: tutorId ? String(tutorId) : null,
+		fields: fields || { radios: {}, switches: {}, notes: "" },
+		createdAt: serverTimestamp(),
+		status: "submitted",
+	};
+
+	await setDoc(ref, payload);
+
+	return { avaliacaoId: ref.id };
 }

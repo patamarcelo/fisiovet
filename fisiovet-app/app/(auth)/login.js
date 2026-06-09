@@ -1,48 +1,69 @@
 // app/(auth)/login.jsx
 // @ts-nocheck
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from "react";
 import {
-	View, Text, TextInput, Pressable, StyleSheet,
-	KeyboardAvoidingView, Platform, ScrollView, Alert, ActivityIndicator
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as SecureStore from 'expo-secure-store';
-import auth from '@react-native-firebase/auth';
-import { useDispatch, useSelector } from 'react-redux';
-import { setUser } from '@/src/store/slices/userSlice';
-import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
-import { router } from 'expo-router';
-import ResponsiveHero from './_resposiveHero';
-import { Image } from 'expo-image';
+	View,
+	Text,
+	TextInput,
+	Pressable,
+	StyleSheet,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	Alert,
+	ActivityIndicator,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
+import { Image } from "expo-image";
+
+import {
+	fetchSignInMethodsForEmail,
+	sendPasswordResetEmail,
+	signInWithCredential,
+	signInWithEmailAndPassword,
+	GoogleAuthProvider,
+	OAuthProvider,
+	linkWithCredential,
+	updateProfile,
+	reload,
+} from "firebase/auth";
+import { auth } from "@/src/services/firebaseClient";
+
+import { useDispatch, useSelector } from "react-redux";
+import { setUser } from "@/src/store/slices/userSlice";
+import { mapFirebaseUserToDTO } from "@/firebase/authUserDTO";
+import ResponsiveHero from "./_resposiveHero";
 
 import * as AppleAuthentication from "expo-apple-authentication";
 import * as Crypto from "expo-crypto";
 
+import { configureGoogle } from "@/firebase/google_login";
+import { GoogleSignin, statusCodes } from "@react-native-google-signin/google-signin";
+import { postLoginBootstrap, selectBootstrapLoading } from "@/src/store/bootstrapSlice";
+
 const colors = {
-	teal: '#159E9C',
-	tealDark: '#0F7E7C',
-	card: 'rgba(255,255,255,0.6)',
-	text: '#111827',
-	sub: '#6B7280',
-	line: '#E5E7EB',
-	shadow: 'rgba(16, 24, 40, 0.08)',
+	teal: "#159E9C",
+	tealDark: "#0F7E7C",
+	card: "rgba(255,255,255,0.6)",
+	text: "#111827",
+	sub: "#6B7280",
+	line: "#E5E7EB",
+	shadow: "rgba(16, 24, 40, 0.08)",
 };
 
-const REMEMBER_KEY = 'fv_login_email';
-
-import { configureGoogle } from '@/firebase/google_login';
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { postLoginBootstrap, selectBootstrapLoading } from '@/src/store/bootstrapSlice';
+const REMEMBER_KEY = "fv_login_email";
 
 export default function Login() {
 	const dispatch = useDispatch();
 
-	const [email, setEmail] = useState('');
-	const [password, setPassword] = useState('');
+	const [email, setEmail] = useState("");
+	const [password, setPassword] = useState("");
 	const [secure, setSecure] = useState(true);
 	const [remember, setRemember] = useState(false);
-	const [error, setError] = useState('');
+	const [error, setError] = useState("");
 	const [loading, setLoading] = useState(false);
 
 	const [googleLoading, setGoogleLoading] = useState(false);
@@ -53,30 +74,58 @@ export default function Login() {
 
 	const currentYear = new Date().getFullYear();
 
-	useEffect(() => { configureGoogle(); }, []);
+	useEffect(() => {
+		configureGoogle();
+	}, []);
 
-	// Verifica disponibilidade REAL do Sign in with Apple (não use isAvailableAsync como boolean)
 	useEffect(() => {
 		let mounted = true;
+
 		(async () => {
 			try {
 				if (Platform.OS !== "ios") {
 					if (mounted) setAppleAvailable(false);
 					return;
 				}
+
 				const available = await AppleAuthentication.isAvailableAsync();
+
 				if (mounted) setAppleAvailable(!!available);
-			} catch (e) {
+			} catch {
 				if (mounted) setAppleAvailable(false);
 			}
 		})();
-		return () => { mounted = false; };
+
+		return () => {
+			mounted = false;
+		};
 	}, []);
+
+	useEffect(() => {
+		(async () => {
+			try {
+				const saved = await SecureStore.getItemAsync(REMEMBER_KEY);
+
+				if (saved) {
+					setEmail(saved);
+					setRemember(true);
+				}
+			} catch {}
+		})();
+	}, []);
+
+	useEffect(() => {
+		if (error) console.log("error:: ", error);
+	}, [error]);
 
 	function randomNonce(length = 32) {
 		const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 		let out = "";
-		for (let i = 0; i < length; i++) out += chars[Math.floor(Math.random() * chars.length)];
+
+		for (let i = 0; i < length; i += 1) {
+			out += chars[Math.floor(Math.random() * chars.length)];
+		}
+
 		return out;
 	}
 
@@ -86,6 +135,7 @@ export default function Login() {
 		const given = fullName?.givenName?.trim();
 		const family = fullName?.familyName?.trim();
 		const appleName = [given, family].filter(Boolean).join(" ").trim();
+
 		if (appleName) return appleName;
 
 		if (email && email.includes("@")) {
@@ -98,51 +148,55 @@ export default function Login() {
 
 	const isBadAppleName = (name) => {
 		if (!name) return true;
+
 		const n = String(name).trim();
 		const looksLikeUuid = /^[0-9a-fA-F-]{20,}$/.test(n) && n.includes("-");
+
 		if (looksLikeUuid) return true;
 		if (n.length >= 22 && !n.includes(" ")) return true;
+
 		return false;
 	};
 
-	// restaura e-mail lembrado
-	useEffect(() => {
-		(async () => {
-			try {
-				const saved = await SecureStore.getItemAsync(REMEMBER_KEY);
-				if (saved) {
-					setEmail(saved);
-					setRemember(true);
-				}
-			} catch { }
-		})();
-	}, []);
+	async function runPostLoginBootstrap(firebaseUser) {
+		if (!firebaseUser?.uid) return;
+
+		try {
+			await dispatch(
+				postLoginBootstrap({
+					uid: firebaseUser.uid,
+					clinicId: firebaseUser.clinicId,
+				})
+			).unwrap();
+		} catch (e) {
+			console.warn("Bootstrap pós-login falhou:", e);
+		}
+	}
 
 	async function handleLogin() {
 		try {
 			await Haptics.selectionAsync();
 			setLoading(true);
-			setError('');
+			setError("");
 
-			if (remember && email.trim()) {
-				await SecureStore.setItemAsync(REMEMBER_KEY, email.trim());
+			const cleanEmail = email.trim();
+
+			if (remember && cleanEmail) {
+				await SecureStore.setItemAsync(REMEMBER_KEY, cleanEmail);
 			} else {
 				await SecureStore.deleteItemAsync(REMEMBER_KEY);
 			}
 
-			const { user } = await auth().signInWithEmailAndPassword(email.trim(), password);
+			const { user } = await signInWithEmailAndPassword(auth, cleanEmail, password);
+
 			dispatch(setUser(mapFirebaseUserToDTO(user)));
 
-			try {
-				const finalUser = auth().currentUser || user;
-				await dispatch(postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })).unwrap();
-			} catch (e) {
-				console.warn('Bootstrap pós-login falhou:', e);
-			}
+			const finalUser = auth.currentUser || user;
+			await runPostLoginBootstrap(finalUser);
 
-			router.replace('/');
+			router.replace("/");
 		} catch (err) {
-			setError(err?.message?.replace('Firebase:', '').trim() || 'Falha no login.');
+			setError(err?.message?.replace("Firebase:", "").trim() || "Falha no login.");
 		} finally {
 			setLoading(false);
 		}
@@ -151,20 +205,27 @@ export default function Login() {
 	async function handleForgot() {
 		try {
 			await Haptics.selectionAsync();
+
 			const target = email.trim();
+
 			if (!target) {
-				Alert.alert('Recuperar senha', 'Informe seu e-mail no campo acima para enviarmos o link.');
+				Alert.alert(
+					"Recuperar senha",
+					"Informe seu e-mail no campo acima para enviarmos o link."
+				);
 				return;
 			}
-			await auth().sendPasswordResetEmail(target);
-			Alert.alert('Pronto', 'Enviamos um link de redefinição de senha para seu e-mail.');
+
+			await sendPasswordResetEmail(auth, target);
+
+			Alert.alert("Pronto", "Enviamos um link de redefinição de senha para seu e-mail.");
 		} catch (e) {
-			Alert.alert('Erro', e?.message || 'Não foi possível enviar o e-mail de recuperação.');
+			Alert.alert("Erro", e?.message || "Não foi possível enviar o e-mail de recuperação.");
 		}
 	}
 
 	function goToSignup() {
-		router.push('/(auth)/register');
+		router.push("/(auth)/register");
 	}
 
 	async function handleAppleLogin() {
@@ -175,7 +236,6 @@ export default function Login() {
 			setError("");
 			setAppleLoading(true);
 
-			// Blindagem: se não estiver disponível, não tenta (evita falha em review)
 			if (!appleAvailable) {
 				Alert.alert("Entrar com Apple", "Sign in with Apple não está disponível neste dispositivo.");
 				return;
@@ -202,21 +262,21 @@ export default function Login() {
 
 			appleEmail = appleCred?.email || null;
 
-			const appleAuthCredential = auth.AppleAuthProvider.credential(
-				appleCred.identityToken,
-				rawNonce
-			);
+			const provider = new OAuthProvider("apple.com");
+			const appleAuthCredential = provider.credential({
+				idToken: appleCred.identityToken,
+				rawNonce,
+			});
 
 			let fbUser;
 
 			try {
-				const res = await auth().signInWithCredential(appleAuthCredential);
+				const res = await signInWithCredential(auth, appleAuthCredential);
 				fbUser = res.user;
 			} catch (err) {
 				if (err?.code === "auth/account-exists-with-different-credential") {
-					const emailToCheck = err?.email || appleEmail;
+					const emailToCheck = err?.customData?.email || err?.email || appleEmail;
 
-					// Blindagem: se não há email para checar, não falha silenciosamente
 					if (!emailToCheck) {
 						Alert.alert(
 							"Conta já existente",
@@ -225,11 +285,16 @@ export default function Login() {
 						return;
 					}
 
-					const methods = await auth().fetchSignInMethodsForEmail(emailToCheck);
+					const methods = await fetchSignInMethodsForEmail(auth, emailToCheck);
 
 					if (methods?.includes("password") && password) {
-						const emailLogin = await auth().signInWithEmailAndPassword(emailToCheck, password);
-						await emailLogin.user.linkWithCredential(appleAuthCredential);
+						const emailLogin = await signInWithEmailAndPassword(
+							auth,
+							emailToCheck,
+							password
+						);
+
+						await linkWithCredential(emailLogin.user, appleAuthCredential);
 						fbUser = emailLogin.user;
 					} else {
 						Alert.alert(
@@ -246,7 +311,7 @@ export default function Login() {
 				}
 			}
 
-			const finalUser = auth().currentUser || fbUser;
+			const finalUser = auth.currentUser || fbUser;
 
 			if (finalUser) {
 				const computedName = getDisplayName({
@@ -258,47 +323,40 @@ export default function Login() {
 
 				if (!finalUser.displayName || isBadAppleName(finalUser.displayName)) {
 					try {
-						await finalUser.updateProfile({ displayName: computedName });
-						await finalUser.reload();
+						await updateProfile(finalUser, { displayName: computedName });
+						await reload(finalUser);
 					} catch (e) {
 						console.log("[APPLE] Falha ao atualizar displayName (ignorado):", e?.message);
 					}
 				}
 
-				const reloaded = auth().currentUser || finalUser;
+				const reloaded = auth.currentUser || finalUser;
 
 				dispatch(setUser(mapFirebaseUserToDTO(reloaded)));
 
-				try {
-					await dispatch(postLoginBootstrap({ uid: reloaded.uid, clinicId: reloaded.clinicId })).unwrap();
-				} catch (e) {
-					console.warn("Bootstrap pós-login falhou:", e);
-				}
+				await runPostLoginBootstrap(reloaded);
 
 				router.replace("/");
 			} else {
 				setError("Não foi possível concluir o login com Apple.");
 			}
 		} catch (e) {
-			// Cancelamento: NÃO deixe silencioso (review marca como falha)
 			if (e?.code === "ERR_REQUEST_CANCELED") {
 				Alert.alert("Login cancelado", "Você pode tentar novamente quando quiser.");
 				return;
 			}
 
 			console.log("APPLE ERROR RAW:", e);
+
 			try {
 				console.log("APPLE ERROR JSON:", JSON.stringify(e, null, 2));
-			} catch { }
+			} catch {}
+
 			setError((e?.message || "Falha no login com Apple.").replace("Firebase:", "").trim());
 		} finally {
 			setAppleLoading(false);
 		}
 	}
-
-	useEffect(() => {
-		if (error) console.log('error:: ', error);
-	}, [error]);
 
 	async function handleGoogleLogin() {
 		let googleIdToken = null;
@@ -306,29 +364,31 @@ export default function Login() {
 
 		try {
 			await Haptics.selectionAsync();
-			setError('');
+			setError("");
 			setGoogleLoading(true);
 
-			console.log('[GOOGLE] Início do login');
+			console.log("[GOOGLE] Início do login");
 
 			try {
 				const cur = await GoogleSignin.getCurrentUser();
+
 				if (cur) {
-					await GoogleSignin.revokeAccess().catch(() => { });
-					await GoogleSignin.signOut().catch(() => { });
-					console.log('[GOOGLE] Sessão anterior revogada');
+					await GoogleSignin.revokeAccess().catch(() => {});
+					await GoogleSignin.signOut().catch(() => {});
+					console.log("[GOOGLE] Sessão anterior revogada");
 				} else {
-					await GoogleSignin.signOut().catch(() => { });
+					await GoogleSignin.signOut().catch(() => {});
 				}
 			} catch (e) {
-				console.log('[GOOGLE] Ignorando erro ao limpar sessão:', e?.message);
+				console.log("[GOOGLE] Ignorando erro ao limpar sessão:", e?.message);
 			}
 
 			await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-			console.log('[GOOGLE] Play Services OK');
+			console.log("[GOOGLE] Play Services OK");
 
 			const googleResponse = await GoogleSignin.signIn();
-			console.log('[GOOGLE] signIn retornou:', {
+
+			console.log("[GOOGLE] signIn retornou:", {
 				hasUser: !!googleResponse?.user,
 				hasIdToken: !!googleResponse?.idToken,
 			});
@@ -339,52 +399,73 @@ export default function Login() {
 			if (!googleIdToken) {
 				try {
 					const tokens = await GoogleSignin.getTokens();
-					console.log('[GOOGLE] getTokens() retornou:', { hasIdToken: !!tokens?.idToken });
+
+					console.log("[GOOGLE] getTokens() retornou:", {
+						hasIdToken: !!tokens?.idToken,
+					});
+
 					if (tokens?.idToken) googleIdToken = tokens.idToken;
 				} catch (e) {
-					console.log('[GOOGLE] getTokens() falhou:', e);
+					console.log("[GOOGLE] getTokens() falhou:", e);
 				}
 			}
 
 			if (!googleIdToken) {
 				Alert.alert(
-					'Login Google',
-					'Não foi possível obter o token do Google.\n\nVerifique:\n• EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (tipo Web) do MESMO projeto\n• iOS: URL scheme (REVERSED_CLIENT_ID) no Info.plist\n• Android: SHA-1/SHA-256 cadastrados no Firebase'
+					"Login Google",
+					"Não foi possível obter o token do Google.\n\nVerifique:\n• EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID (tipo Web) do MESMO projeto\n• iOS: URL scheme (REVERSED_CLIENT_ID) no Info.plist\n• Android: SHA-1/SHA-256 cadastrados no Firebase"
 				);
 				return;
 			}
 
-			console.log('[GOOGLE] idToken OK, autenticando no Firebase...');
-			const googleCredential = auth.GoogleAuthProvider.credential(googleIdToken);
+			console.log("[GOOGLE] idToken OK, autenticando no Firebase...");
+
+			const googleCredential = GoogleAuthProvider.credential(googleIdToken);
 			let fbUser;
 
 			try {
-				const res = await auth().signInWithCredential(googleCredential);
+				const res = await signInWithCredential(auth, googleCredential);
 				fbUser = res.user;
-				console.log('[GOOGLE] Firebase signInWithCredential OK, uid:', fbUser?.uid);
+
+				console.log("[GOOGLE] Firebase signInWithCredential OK, uid:", fbUser?.uid);
 			} catch (err) {
-				console.log('[GOOGLE] Erro signInWithCredential:', err?.code, err?.message);
+				console.log("[GOOGLE] Erro signInWithCredential:", err?.code, err?.message);
 
-				if (err?.code === 'auth/account-exists-with-different-credential' && err?.email) {
-					const emailInFirebase = err.email;
-					const methods = await auth().fetchSignInMethodsForEmail(emailInFirebase);
-					console.log('[GOOGLE] Métodos existentes para o e-mail:', methods);
+				if (err?.code === "auth/account-exists-with-different-credential") {
+					const emailInFirebase = err?.customData?.email || err?.email;
 
-					if (methods?.includes('password') && password) {
-						const emailLogin = await auth().signInWithEmailAndPassword(emailInFirebase, password);
-						await emailLogin.user.linkWithCredential(googleCredential);
+					if (!emailInFirebase) {
+						Alert.alert(
+							"Conta já existente",
+							"Esta conta já existe com outro método. Entre com o método usado no cadastro e depois vincule o login do Google."
+						);
+						return;
+					}
+
+					const methods = await fetchSignInMethodsForEmail(auth, emailInFirebase);
+
+					console.log("[GOOGLE] Métodos existentes para o e-mail:", methods);
+
+					if (methods?.includes("password") && password) {
+						const emailLogin = await signInWithEmailAndPassword(
+							auth,
+							emailInFirebase,
+							password
+						);
+
+						await linkWithCredential(emailLogin.user, googleCredential);
 						fbUser = emailLogin.user;
-						console.log('[GOOGLE] Conta linkada com Google, uid:', fbUser?.uid);
+
+						console.log("[GOOGLE] Conta linkada com Google, uid:", fbUser?.uid);
 					} else {
 						Alert.alert(
-							'Conta já existente',
+							"Conta já existente",
 							'Este e-mail já possui cadastro. Entre com e-mail e senha e depois toque novamente em "Entrar com Google" para vincular.'
 						);
 						return;
 					}
-				}
-				else if (err?.code === statusCodes?.SIGN_IN_CANCELLED || err?.code === '12501') {
-					console.log('[GOOGLE] Usuário cancelou o fluxo Google');
+				} else if (err?.code === statusCodes?.SIGN_IN_CANCELLED || err?.code === "12501") {
+					console.log("[GOOGLE] Usuário cancelou o fluxo Google");
 					return;
 				} else {
 					throw err;
@@ -393,64 +474,67 @@ export default function Login() {
 
 			if (fbUser && !fbUser.photoURL && googlePhoto) {
 				try {
-					await fbUser.updateProfile({ photoURL: googlePhoto });
-					await fbUser.reload();
-					console.log('[GOOGLE] Foto atualizada a partir do Google');
+					await updateProfile(fbUser, { photoURL: googlePhoto });
+					await reload(fbUser);
+
+					console.log("[GOOGLE] Foto atualizada a partir do Google");
 				} catch (e) {
-					console.log('[GOOGLE] Falha ao atualizar foto (ignorado):', e?.message);
+					console.log("[GOOGLE] Falha ao atualizar foto (ignorado):", e?.message);
 				}
 			}
 
-			const finalUser = auth().currentUser || fbUser;
+			const finalUser = auth.currentUser || fbUser;
+
 			if (finalUser) {
 				dispatch(setUser(mapFirebaseUserToDTO(finalUser)));
-				console.log('[GOOGLE] Redux atualizado, navegando...');
-				try {
-					await dispatch(postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })).unwrap();
-				} catch (e) {
-					console.warn('Bootstrap pós-login falhou:', e);
-				}
-				router.replace('/');
+
+				console.log("[GOOGLE] Redux atualizado, navegando...");
+
+				await runPostLoginBootstrap(finalUser);
+
+				router.replace("/");
 			} else {
-				setError('Não foi possível concluir o login.');
+				setError("Não foi possível concluir o login.");
 			}
 		} catch (e) {
-			console.log('[GOOGLE] Catch geral:', e?.code, e?.message);
-			if (e?.code === statusCodes?.SIGN_IN_CANCELLED || e?.code === '12501') {
+			console.log("[GOOGLE] Catch geral:", e?.code, e?.message);
+
+			if (e?.code === statusCodes?.SIGN_IN_CANCELLED || e?.code === "12501") {
 				// cancelou → não mostra erro
 			} else if (e?.code === statusCodes?.PLAY_SERVICES_NOT_AVAILABLE) {
-				setError('Google Play Services indisponível/atualize para continuar.');
+				setError("Google Play Services indisponível/atualize para continuar.");
 			} else {
-				const msg = e?.message || 'Falha no login com Google.';
-				setError(msg.replace('Firebase:', '').trim());
+				const msg = e?.message || "Falha no login com Google.";
+				setError(msg.replace("Firebase:", "").trim());
 			}
 		} finally {
 			setGoogleLoading(false);
-			console.log('[GOOGLE] Fim do login (loading=false)');
+			console.log("[GOOGLE] Fim do login (loading=false)");
 		}
 	}
 
 	return (
 		<KeyboardAvoidingView
-			behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+			behavior={Platform.OS === "ios" ? "padding" : undefined}
 			style={{ flex: 1 }}
 		>
 			<ResponsiveHero
-				source={require('@/assets/images/fisiovet-hero.png')}
+				source={require("@/assets/images/fisiovet-hero.png")}
 				fullScreen
 				overlay
 			>
 				<ScrollView
-					contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 2 }}
+					contentContainerStyle={{ flexGrow: 1, justifyContent: "center", padding: 2 }}
 					keyboardShouldPersistTaps="handled"
 				>
 					<View style={styles.card}>
 						<View style={styles.brandRow}>
 							<View style={styles.brandIcon}>
-								<Ionicons name="paw" size={18} color={'whitesmoke'} />
+								<Ionicons name="paw" size={18} color="whitesmoke" />
 							</View>
+
 							<Text style={styles.brandText}>
-								<Text style={{ fontWeight: '800' }}>FisioVet</Text>
+								<Text style={{ fontWeight: "800" }}>FisioVet</Text>
 							</Text>
 						</View>
 
@@ -468,6 +552,7 @@ export default function Login() {
 									returnKeyType="next"
 									style={styles.input}
 								/>
+
 								<Ionicons name="mail-outline" size={18} color="#9CA3AF" />
 							</View>
 						</View>
@@ -484,21 +569,37 @@ export default function Login() {
 									onSubmitEditing={handleLogin}
 									style={styles.input}
 								/>
-								<Pressable onPress={() => setSecure(s => !s)} hitSlop={10}>
-									<Ionicons name={secure ? 'eye-outline' : 'eye-off-outline'} size={20} color="#9CA3AF" />
+
+								<Pressable onPress={() => setSecure((s) => !s)} hitSlop={10}>
+									<Ionicons
+										name={secure ? "eye-outline" : "eye-off-outline"}
+										size={20}
+										color="#9CA3AF"
+									/>
 								</Pressable>
 							</View>
 						</View>
 
 						<View style={styles.rowBetween}>
 							<Pressable
-								onPress={() => setRemember(v => !v)}
+								onPress={() => setRemember((v) => !v)}
 								style={styles.rememberRow}
 								hitSlop={10}
 							>
-								<View style={[styles.checkbox, remember && { borderColor: colors.teal, backgroundColor: '#E6FFFA' }]}>
-									{remember ? <Ionicons name="checkmark" size={14} color={colors.teal} /> : null}
+								<View
+									style={[
+										styles.checkbox,
+										remember && {
+											borderColor: colors.teal,
+											backgroundColor: "#E6FFFA",
+										},
+									]}
+								>
+									{remember ? (
+										<Ionicons name="checkmark" size={14} color={colors.teal} />
+									) : null}
 								</View>
+
 								<Text style={styles.rememberText}>Lembrar-me</Text>
 							</Pressable>
 
@@ -515,16 +616,18 @@ export default function Login() {
 								{ opacity: loading || pressed ? 0.9 : 1 },
 							]}
 						>
-							<Text style={styles.buttonText}>{loading ? 'Entrando…' : 'Entrar'}</Text>
+							<Text style={styles.buttonText}>{loading ? "Entrando…" : "Entrar"}</Text>
 						</Pressable>
 
 						<View style={styles.hr} />
 
 						<View style={[styles.rowCenter, { marginBottom: 12 }]}>
 							<Text style={{ color: colors.sub }}>Não tem conta? </Text>
+
 							<Pressable onPress={goToSignup} hitSlop={10}>
-								<Text style={[styles.link, { fontWeight: '700' }]}>Cadastre-se</Text>
+								<Text style={[styles.link, { fontWeight: "700" }]}>Cadastre-se</Text>
 							</Pressable>
+
 							<Text style={{ color: colors.sub }}> ou </Text>
 						</View>
 
@@ -540,7 +643,11 @@ export default function Login() {
 								<ActivityIndicator color="#000" />
 							) : (
 								<View style={styles.googleContent}>
-									<Image source={require('@/assets/images/google-icon.png')} style={styles.googleIcon} />
+									<Image
+										source={require("@/assets/images/google-icon.png")}
+										style={styles.googleIcon}
+									/>
+
 									<Text style={styles.googleText}>Entrar com Google</Text>
 								</View>
 							)}
@@ -560,6 +667,7 @@ export default function Login() {
 								) : (
 									<View style={styles.appleContent}>
 										<Ionicons name="logo-apple" size={20} color="#fff" />
+
 										<Text style={styles.appleText}>Entrar com Apple</Text>
 									</View>
 								)}
@@ -575,13 +683,24 @@ export default function Login() {
 						)}
 
 						{booting && (
-							<View style={{
-								position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-								backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center',
-								borderRadius: 16
-							}}>
+							<View
+								style={{
+									position: "absolute",
+									left: 0,
+									right: 0,
+									top: 0,
+									bottom: 0,
+									backgroundColor: "rgba(255,255,255,0.7)",
+									alignItems: "center",
+									justifyContent: "center",
+									borderRadius: 16,
+								}}
+							>
 								<ActivityIndicator size="large" color={colors.teal} />
-								<Text style={{ marginTop: 8, color: '#111', fontWeight: 'bold' }}>Carregando seus dados…</Text>
+
+								<Text style={{ marginTop: 8, color: "#111", fontWeight: "bold" }}>
+									Carregando seus dados…
+								</Text>
 							</View>
 						)}
 					</View>
@@ -596,8 +715,8 @@ const styles = StyleSheet.create({
 	banner: {
 		height: 180,
 		borderRadius: 16,
-		overflow: 'hidden',
-		justifyContent: 'flex-start',
+		overflow: "hidden",
+		justifyContent: "flex-start",
 	},
 	badge: {
 		marginTop: 18,
@@ -605,9 +724,9 @@ const styles = StyleSheet.create({
 		width: 56,
 		height: 56,
 		borderRadius: 28,
-		backgroundColor: 'rgba(255,255,255,0.22)',
-		alignItems: 'center',
-		justifyContent: 'center',
+		backgroundColor: "rgba(255,255,255,0.22)",
+		alignItems: "center",
+		justifyContent: "center",
 	},
 
 	card: {
@@ -624,76 +743,107 @@ const styles = StyleSheet.create({
 		elevation: 4,
 	},
 
-	brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
+	brandRow: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 8 },
 	brandIcon: {
-		width: 42, height: 42, borderRadius: 21,
-		backgroundColor: '#0EA5A4',
-		alignItems: 'center', justifyContent: 'center',
+		width: 42,
+		height: 42,
+		borderRadius: 21,
+		backgroundColor: "#0EA5A4",
+		alignItems: "center",
+		justifyContent: "center",
 	},
 	brandText: { fontSize: 28, color: colors.text },
 	subtitle: {
-		color: colors.text, opacity: 0.8,
-		fontSize: 18, marginTop: 4, marginBottom: 16, fontWeight: '600'
+		color: colors.text,
+		opacity: 0.8,
+		fontSize: 18,
+		marginTop: 4,
+		marginBottom: 16,
+		fontWeight: "600",
 	},
 
 	inputOuter: {
 		borderWidth: 1,
 		borderColor: colors.line,
 		borderRadius: 12,
-		backgroundColor: '#FFF',
+		backgroundColor: "#FFF",
 	},
 	inputRow: {
-		flexDirection: 'row', alignItems: 'center',
-		paddingHorizontal: 12, height: 48, gap: 8,
+		flexDirection: "row",
+		alignItems: "center",
+		paddingHorizontal: 12,
+		height: 48,
+		gap: 8,
 	},
 	input: {
-		flex: 1, color: colors.text, fontSize: 16, paddingVertical: 0,
+		flex: 1,
+		color: colors.text,
+		fontSize: 16,
+		paddingVertical: 0,
 	},
 
-	rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 },
-	rememberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+	rowBetween: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginTop: 12,
+	},
+	rememberRow: { flexDirection: "row", alignItems: "center", gap: 8 },
 	checkbox: {
-		width: 18, height: 18, borderRadius: 4, borderWidth: 1.5, borderColor: colors.line,
-		alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF'
+		width: 18,
+		height: 18,
+		borderRadius: 4,
+		borderWidth: 1.5,
+		borderColor: colors.line,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "#FFF",
 	},
 	rememberText: { color: colors.sub, fontSize: 14 },
 	link: { color: colors.teal, fontSize: 14 },
 
 	button: {
-		marginTop: 14, backgroundColor: colors.teal,
-		paddingVertical: 14, borderRadius: 10, alignItems: 'center'
+		marginTop: 14,
+		backgroundColor: colors.teal,
+		paddingVertical: 14,
+		borderRadius: 10,
+		alignItems: "center",
 	},
-	buttonText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
+	buttonText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
 
 	hr: { height: 1, backgroundColor: colors.line, marginVertical: 14 },
 
-	rowCenter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-	footer: { textAlign: 'center', color: colors.teal, marginTop: 10, fontWeight: 'bold' },
+	rowCenter: { flexDirection: "row", alignItems: "center", justifyContent: "center" },
+	footer: { textAlign: "center", color: colors.teal, marginTop: 10, fontWeight: "bold" },
 
 	errBox: {
-		marginTop: 12, padding: 10, borderRadius: 8,
-		backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FCA5A5'
+		marginTop: 12,
+		padding: 10,
+		borderRadius: 8,
+		backgroundColor: "#FEF2F2",
+		borderWidth: 1,
+		borderColor: "#FCA5A5",
 	},
-	errText: { color: '#B91C1C', textAlign: 'center' },
+	errText: { color: "#B91C1C", textAlign: "center" },
 
 	googleBtn: {
-		backgroundColor: '#fff',
-		borderColor: '#E5E7EB',
+		backgroundColor: "#fff",
+		borderColor: "#E5E7EB",
 		borderWidth: 1,
 		paddingVertical: 12,
 		borderRadius: 10,
-		alignItems: 'center',
-		justifyContent: 'center',
-		shadowColor: 'rgba(0, 0, 0, 0.08)',
+		alignItems: "center",
+		justifyContent: "center",
+		shadowColor: "rgba(0, 0, 0, 0.08)",
 		shadowOffset: { width: 0, height: 2 },
 		shadowOpacity: 1,
 		shadowRadius: 3,
 		elevation: 2,
 	},
 	googleContent: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'center',
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
 		gap: 8,
 	},
 	googleIcon: {
@@ -701,9 +851,9 @@ const styles = StyleSheet.create({
 		height: 30,
 	},
 	googleText: {
-		color: '#3C4043',
+		color: "#3C4043",
 		fontSize: 16,
-		fontWeight: '600',
+		fontWeight: "600",
 	},
 
 	appleBtn: {

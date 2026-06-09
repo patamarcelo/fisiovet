@@ -1,13 +1,7 @@
 import Expo
-import FirebaseCore
 import React
 import ReactAppDependencyProvider
 
-// @generated begin react-native-maps-import - expo prebuild (DO NOT MODIFY) sync-bee50fec513f89284e0fa3f5d935afdde33af98f
-#if canImport(GoogleMaps)
-import GoogleMaps
-#endif
-// @generated end react-native-maps-import
 @UIApplicationMain
 public class AppDelegate: ExpoAppDelegate {
   var window: UIWindow?
@@ -29,20 +23,12 @@ public class AppDelegate: ExpoAppDelegate {
 
 #if os(iOS) || os(tvOS)
     window = UIWindow(frame: UIScreen.main.bounds)
-// @generated begin @react-native-firebase/app-didFinishLaunchingWithOptions - expo prebuild (DO NOT MODIFY) sync-10e8520570672fd76b2403b7e1e27f5198a6349a
-FirebaseApp.configure()
-// @generated end @react-native-firebase/app-didFinishLaunchingWithOptions
     factory.startReactNative(
       withModuleName: "main",
       in: window,
       launchOptions: launchOptions)
 #endif
 
-// @generated begin react-native-maps-init - expo prebuild (DO NOT MODIFY) sync-2b71605b5a0787b04d02887f202b02c8d3d7f997
-#if canImport(GoogleMaps)
-GMSServices.provideAPIKey("AIzaSyC74WnhqSXYu2RFGeIxKUC46yWAoSFRx9U")
-#endif
-// @generated end react-native-maps-init
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -52,12 +38,6 @@ GMSServices.provideAPIKey("AIzaSyC74WnhqSXYu2RFGeIxKUC46yWAoSFRx9U")
     open url: URL,
     options: [UIApplication.OpenURLOptionsKey: Any] = [:]
   ) -> Bool {
-// @generated begin @react-native-firebase/auth-openURL - expo prebuild (DO NOT MODIFY)
-    if url.host?.lowercased() == "firebaseauth" {
-      // invocations for Firebase Auth are handled elsewhere and should not be forwarded to Expo Router
-      return false
-    }
-// @generated end @react-native-firebase/auth-openURL
     return super.application(app, open: url, options: options) || RCTLinkingManager.application(app, open: url, options: options)
   }
 

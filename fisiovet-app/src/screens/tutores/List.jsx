@@ -1,330 +1,721 @@
-import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react';
-import { View, Text, TextInput, SectionList, Pressable, StyleSheet } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { fetchTutores } from '@/src/store/slices/tutoresSlice';
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { router } from 'expo-router';
-import Avatar from '@/components/ui/Avatar';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { maskPhone } from '@/src/utils/masks';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from 'expo-router';
+// src/screens/tutores/List.jsx
+// @ts-nocheck
+import React, {
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
+import {
+	View,
+	Text,
+	TextInput,
+	SectionList,
+	Pressable,
+	StyleSheet,
+	Platform,
+	RefreshControl,
+} from "react-native";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchTutores } from "@/src/store/slices/tutoresSlice";
+import { useThemeColor } from "@/hooks/useThemeColor";
+import { router, useNavigation } from "expo-router";
+import Avatar from "@/components/ui/Avatar";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { maskPhone } from "@/src/utils/masks";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 
-function makeSections(items, q = '') {
-  const norm = (s) =>
-    (s || '')
-      .normalize('NFD')
-      .replace(/\p{Diacritic}/gu, '')
-      .toLowerCase();
-
-  const query = norm(q);
-  const filtered = query
-    ? items.filter((t) => norm(`${t.nome} ${t.telefone} ${t.email}`).includes(query))
-    : items;
-
-  const map = new Map();
-  for (const t of filtered) {
-    const letter = (t.nome?.[0] || '#').toUpperCase();
-    if (!map.has(letter)) map.set(letter, []);
-    map.get(letter).push(t);
-  }
-
-  return Array.from(map.entries())
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([title, data]) => ({
-      title,
-      data: data.sort((a, b) => a.nome.localeCompare(b.nome)),
-    }));
+function normText(value) {
+	return String(value || "")
+		.normalize("NFD")
+		.replace(/\p{Diacritic}/gu, "")
+		.toLowerCase()
+		.trim();
 }
 
-function EmptyCard({ title, subtitle, actionLabel, onAction, icon = 'person-add-outline' }) {
-  return (
-    <View
-      style={{
-        margin: 16,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.08)',
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 16,
-        alignItems: 'center',
-      }}
-    >
-      <View
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: 28,
-          backgroundColor: '#E8ECF1',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: 10,
-        }}
-      >
-        <Text>
-          <></>
-        </Text>
-      </View>
-      <Ionicons
-        name={icon}
-        size={26}
-        color="#1F2937"
-        style={{ marginTop: -56, marginBottom: 22 }}
-      />
+function getTutorSearchText(tutor) {
+	const endereco = tutor?.endereco || {};
 
-      <Text
-        style={{ fontSize: 16, fontWeight: '700', color: '#111827', textAlign: 'center' }}
-      >
-        {title}
-      </Text>
-      {!!subtitle && (
-        <Text style={{ color: '#6B7280', textAlign: 'center', marginTop: 6 }}>{subtitle}</Text>
-      )}
-
-      {!!actionLabel && (
-        <Pressable
-          onPress={onAction}
-          style={({ pressed }) => ({
-            marginTop: 14,
-            backgroundColor: pressed ? '#1D4ED8' : '#2563EB',
-            paddingHorizontal: 16,
-            paddingVertical: 10,
-            borderRadius: 10,
-          })}
-        >
-          <Text style={{ color: 'white', fontWeight: '700' }}>{actionLabel}</Text>
-        </Pressable>
-      )}
-    </View>
-  );
+	return [
+		tutor?.nome,
+		tutor?.telefone,
+		tutor?.email,
+		endereco?.logradouro,
+		endereco?.bairro,
+		endereco?.cidade,
+		endereco?.uf,
+	]
+		.filter(Boolean)
+		.join(" ");
 }
 
-function TutorRow({ item, tint, subtle, text, index }) {
-  // zebra: linhas pares com fundo diferente
-  const isEven = index % 2 === 0;
-  const baseBg = isEven ? 'transparent' : 'rgba(148,163,184,0.06)';
+function getAddressSummary(tutor) {
+	const e = tutor?.endereco || {};
 
-  return (
-    <Pressable
-      onPress={() => router.push(`/(phone)/tutores/${item.id}`)}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          backgroundColor: pressed ? 'rgba(0,0,0,0.04)' : baseBg,
-        },
-      ]}
-    >
-      <Avatar name={item.nome} size={48} bg="#E8ECF1" color="#1F2937" />
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: text, fontSize: 16, fontWeight: '600' }}>{item.nome}</Text>
-        {!!item.telefone && (
-          <Text style={{ color: subtle, marginTop: 2 }}>{maskPhone(item.telefone)}</Text>
-        )}
-      </View>
+	const cityUf = [e?.cidade, e?.uf].filter(Boolean).join(" / ");
+	const street = [e?.logradouro, e?.numero].filter(Boolean).join(", ");
 
-      <Pressable
-        onPress={() => router.push(`/(phone)/tutores/${item.id}`)}
-        style={({ pressed }) => [{ paddingHorizontal: 8, opacity: pressed ? 0.6 : 1 }]}
-        hitSlop={8}
-      >
-        <Text style={{ color: tint, fontWeight: '700' }}>Detalhes</Text>
-      </Pressable>
-    </Pressable>
-  );
+	if (street && cityUf) return `${street} • ${cityUf}`;
+	if (street) return street;
+	if (cityUf) return cityUf;
+
+	return "";
+}
+
+function makeSections(items = [], q = "") {
+	const query = normText(q);
+
+	const filtered = query
+		? items.filter((t) => normText(getTutorSearchText(t)).includes(query))
+		: items;
+
+	const map = new Map();
+
+	for (const tutor of filtered) {
+		const first = normText(tutor?.nome)?.[0] || "#";
+		const letter = /[a-z]/i.test(first) ? first.toUpperCase() : "#";
+
+		if (!map.has(letter)) map.set(letter, []);
+		map.get(letter).push(tutor);
+	}
+
+	return Array.from(map.entries())
+		.sort((a, b) => {
+			if (a[0] === "#") return 1;
+			if (b[0] === "#") return -1;
+			return a[0].localeCompare(b[0], "pt-BR");
+		})
+		.map(([title, data]) => ({
+			title,
+			data: data.sort((a, b) =>
+				String(a?.nome || "").localeCompare(String(b?.nome || ""), "pt-BR")
+			),
+		}));
+}
+
+function EmptyCard({
+	title,
+	subtitle,
+	actionLabel,
+	onAction,
+	icon = "person-add-outline",
+}) {
+	return (
+		<View style={styles.emptyWrap}>
+			<View style={styles.emptyIconWrap}>
+				<Ionicons name={icon} size={28} color="#334155" />
+			</View>
+
+			<Text style={styles.emptyTitle}>{title}</Text>
+
+			{!!subtitle && <Text style={styles.emptySubtitle}>{subtitle}</Text>}
+
+			{!!actionLabel && (
+				<Pressable
+					onPress={onAction}
+					style={({ pressed }) => [
+						styles.emptyButton,
+						pressed && { opacity: 0.88, transform: [{ scale: 0.99 }] },
+					]}
+				>
+					<Text style={styles.emptyButtonText}>{actionLabel}</Text>
+				</Pressable>
+			)}
+		</View>
+	);
+}
+
+function SearchHeader({
+	query,
+	setQuery,
+	total,
+	filteredTotal,
+	bg,
+	text,
+	subtle,
+	tint,
+	border,
+}) {
+	return (
+		<View style={[styles.headerArea, { backgroundColor: bg }]}>
+			<View style={styles.summaryRow}>
+				<View>
+					<Text style={[styles.summaryTitle, { color: text }]}>Tutores</Text>
+					<Text style={[styles.summarySubtitle, { color: subtle }]}>
+						{query
+							? `${filteredTotal} resultado${filteredTotal === 1 ? "" : "s"} de ${total}`
+							: `${total} tutor${total === 1 ? "" : "es"} cadastrado${total === 1 ? "" : "s"}`}
+					</Text>
+				</View>
+
+				<Pressable
+					onPress={async () => {
+						await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+						router.push("/(modals)/tutor-new");
+					}}
+					style={({ pressed }) => [
+						styles.headerAddButton,
+						{ backgroundColor: tint },
+						pressed && { opacity: 0.85 },
+					]}
+				>
+					<Ionicons name="add" size={20} color="#fff" />
+				</Pressable>
+			</View>
+
+			<View
+				style={[
+					styles.searchContainer,
+					{
+						backgroundColor: Platform.OS === "ios" ? "rgba(118,118,128,0.12)" : "#F3F4F6",
+						borderColor: border,
+					},
+				]}
+			>
+				<Ionicons name="search" size={18} color={subtle} />
+
+				<TextInput
+					placeholder="Buscar por nome, telefone ou e-mail"
+					placeholderTextColor={subtle}
+					value={query}
+					onChangeText={setQuery}
+					style={[styles.searchInput, { color: text }]}
+					returnKeyType="search"
+					clearButtonMode="never"
+					autoCapitalize="none"
+					autoCorrect={false}
+				/>
+
+				{!!query && (
+					<Pressable
+						onPress={() => setQuery("")}
+						hitSlop={8}
+						style={({ pressed }) => [
+							styles.clearSearchButton,
+							pressed && { opacity: 0.65 },
+						]}
+					>
+						<Ionicons name="close-circle" size={18} color={subtle} />
+					</Pressable>
+				)}
+			</View>
+		</View>
+	);
+}
+
+function TutorRow({ item, tint, subtle, text, border }) {
+	const phone = item?.telefone ? maskPhone(item.telefone) : "";
+	const email = item?.email || "";
+	const address = getAddressSummary(item);
+
+	return (
+		<Pressable
+			onPress={async () => {
+				await Haptics.selectionAsync();
+				router.push(`/(phone)/tutores/${item.id}`);
+			}}
+			style={({ pressed }) => [
+				styles.rowCard,
+				{
+					borderColor: border,
+					backgroundColor: pressed ? "rgba(37,99,235,0.06)" : "#FFFFFF",
+				},
+			]}
+		>
+			<Avatar name={item.nome} size={48} bg="#E8ECF1" color="#1F2937" />
+
+			<View style={styles.rowContent}>
+				<View style={styles.rowTop}>
+					<Text style={[styles.rowName, { color: text }]} numberOfLines={1}>
+						{item.nome || "Tutor sem nome"}
+					</Text>
+
+					<Ionicons name="chevron-forward" size={18} color={subtle} />
+				</View>
+
+				<View style={styles.metaBlock}>
+					{!!phone && (
+						<View style={styles.metaLine}>
+							<Ionicons name="call-outline" size={13} color={subtle} />
+							<Text style={[styles.metaText, { color: subtle }]} numberOfLines={1}>
+								{phone}
+							</Text>
+						</View>
+					)}
+
+					{!!email && (
+						<View style={styles.metaLine}>
+							<Ionicons name="mail-outline" size={13} color={subtle} />
+							<Text style={[styles.metaText, { color: subtle }]} numberOfLines={1}>
+								{email}
+							</Text>
+						</View>
+					)}
+
+					{!!address && (
+						<View style={styles.metaLine}>
+							<Ionicons name="location-outline" size={13} color={subtle} />
+							<Text style={[styles.metaText, { color: subtle }]} numberOfLines={1}>
+								{address}
+							</Text>
+						</View>
+					)}
+
+					{!phone && !email && !address && (
+						<Text style={[styles.metaText, { color: subtle }]}>
+							Cadastro básico
+						</Text>
+					)}
+				</View>
+			</View>
+		</Pressable>
+	);
 }
 
 function AlphabetBar({ letters, onJump, bottomOffset = 0 }) {
-  return (
-    <View style={[styles.alphaBar, { bottom: 6 + bottomOffset }]}>
-      {letters.map((L) => (
-        <Pressable key={L} onPress={() => onJump(L)} style={styles.alphaBtn} hitSlop={4}>
-          <Text style={styles.alphaTxt}>{L}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
+	if (!letters?.length) return null;
+
+	return (
+		<View style={[styles.alphaBar, { bottom: 24 + bottomOffset }]}>
+			{letters.map((letter) => (
+				<Pressable
+					key={letter}
+					onPress={() => onJump(letter)}
+					style={styles.alphaBtn}
+					hitSlop={4}
+				>
+					<Text style={styles.alphaTxt}>{letter}</Text>
+				</Pressable>
+			))}
+		</View>
+	);
 }
 
 export default function TutoresList() {
-  const dispatch = useDispatch();
-  const { items } = useSelector((s) => s.tutores);
-  const navigation = useNavigation();
+	const dispatch = useDispatch();
+	const navigation = useNavigation();
+	const insets = useSafeAreaInsets();
 
-  const text = useThemeColor({}, 'text');
-  const textIcon = useThemeColor({}, 'textIcon');
-  const subtle = useThemeColor({ light: '#6B7280', dark: '#9AA0A6' }, 'text');
-  const tint = useThemeColor({}, 'tint');
+	const { items = [], loading } = useSelector((s) => s.tutores);
 
-  const border = useThemeColor(
-    { light: 'rgba(0,0,0,0.08)', dark: 'rgba(255,255,255,0.12)' },
-    'border'
-  );
-  const bg = useThemeColor({}, 'background');
+	const text = useThemeColor({}, "text");
+	const textIcon = useThemeColor({}, "textIcon");
+	const subtle = useThemeColor({ light: "#6B7280", dark: "#9AA0A6" }, "text");
+	const tint = useThemeColor({}, "tint");
+	const bg = useThemeColor({}, "background");
 
-  const [query, setQuery] = useState('');
-  const listRef = useRef(null);
+	const border = useThemeColor(
+		{ light: "rgba(15,23,42,0.08)", dark: "rgba(255,255,255,0.12)" },
+		"border"
+	);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerShown: true,
-      headerStyle: { backgroundColor: bg },
-      headerTintColor: tint,
-      headerTitleStyle: { color: tint, fontWeight: '700' },
-      headerLargeTitle: true,
-      headerLargeTitleStyle: { color: tint },
-      headerTransparent: false,
-    });
-  }, [navigation, bg, tint]);
+	const [query, setQuery] = useState("");
+	const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    dispatch(fetchTutores());
-  }, [dispatch]);
+	const listRef = useRef(null);
 
-  const sections = useMemo(() => makeSections(items, query), [items, query]);
-  const letters = useMemo(() => sections.map((s) => s.title), [sections]);
+	useLayoutEffect(() => {
+		navigation.setOptions({
+			headerShown: true,
+			headerStyle: { backgroundColor: bg },
+			headerTintColor: tint,
+			headerTitleStyle: { color: tint, fontWeight: "700" },
+			headerLargeTitle: false,
+			headerTransparent: false,
+			title: "Tutores",
+		});
+	}, [navigation, bg, tint]);
 
-  const jumpTo = (letter) => {
-    const idx = sections.findIndex((s) => s.title === letter);
-    if (idx >= 0) {
-      listRef.current?.scrollToLocation({
-        sectionIndex: idx,
-        itemIndex: 0,
-        animated: true,
-      });
-    }
-  };
+	useEffect(() => {
+		dispatch(fetchTutores());
+	}, [dispatch]);
 
-  const hasAny = items?.length > 0;
+	const sections = useMemo(() => makeSections(items, query), [items, query]);
+	const letters = useMemo(() => sections.map((s) => s.title), [sections]);
+	const filteredTotal = useMemo(
+		() => sections.reduce((acc, section) => acc + section.data.length, 0),
+		[sections]
+	);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: bg }} edges={['left', 'right']}>
-      <SectionList
-        ref={listRef}
-        sections={sections}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
-          <TutorRow item={item} tint={tint} subtle={subtle} text={text} index={index} />
-        )}
-        renderSectionHeader={({ section: { title } }) => (
-          <View style={styles.sectionHeaderContainer}>
-            {/* Divider grosso por letra */}
-            <View style={styles.sectionLetterDivider} />
-            {/* Header da letra */}
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionHeaderText}>{title}</Text>
-            </View>
-          </View>
-        )}
-        ListHeaderComponent={
-          hasAny && (
-            <View
-              style={[
-                styles.searchBox,
-                { borderBottomColor: border, backgroundColor: bg },
-              ]}
-            >
-              <TextInput
-                placeholder="Buscar por nome, telefone ou e-mail"
-                placeholderTextColor={textIcon}
-                value={query}
-                onChangeText={setQuery}
-                style={[
-                  styles.input,
-                  { color: textIcon, borderColor: 'rgba(0,0,0,0.12)' },
-                ]}
-                returnKeyType="search"
-              />
-            </View>
-          )
-        }
-        stickySectionHeadersEnabled
-        contentInsetAdjustmentBehavior="automatic"
-        automaticallyAdjustContentInsets={false}
-        // Divider fino entre nomes
-        ItemSeparatorComponent={() => <View style={styles.sep} />}
-        ListEmptyComponent={
-          hasAny ? (
-            <EmptyCard
-              title="Nenhum resultado"
-              subtitle={`Não encontramos nada para “${query}”.`}
-              actionLabel="Limpar busca"
-              icon="search-outline"
-              onAction={() => setQuery('')}
-            />
-          ) : (
-            <EmptyCard
-              title="Sem tutores por aqui"
-              subtitle="Cadastre o primeiro tutor para começar."
-              actionLabel="Adicionar tutor"
-              icon="person-add-outline"
-              onAction={() => router.push('/(modals)/tutor-new')}
-            />
-          )
-        }
-      />
+	const hasAny = items?.length > 0;
 
-      {letters.length > 0 && (
-        <AlphabetBar letters={letters} onJump={jumpTo} bottomOffset={0} />
-      )}
-    </SafeAreaView>
-  );
+	const onRefresh = useCallback(async () => {
+		try {
+			setRefreshing(true);
+			await dispatch(fetchTutores()).unwrap();
+		} finally {
+			setRefreshing(false);
+		}
+	}, [dispatch]);
+
+	const jumpTo = useCallback(
+		(letter) => {
+			const sectionIndex = sections.findIndex((s) => s.title === letter);
+
+			if (sectionIndex < 0) return;
+
+			try {
+				listRef.current?.scrollToLocation({
+					sectionIndex,
+					itemIndex: 0,
+					animated: true,
+					viewPosition: 0,
+				});
+			} catch {}
+		},
+		[sections]
+	);
+
+	const renderItem = useCallback(
+		({ item }) => (
+			<TutorRow
+				item={item}
+				tint={tint}
+				subtle={subtle}
+				text={text}
+				border={border}
+			/>
+		),
+		[tint, subtle, text, border]
+	);
+
+	const renderSectionHeader = useCallback(
+		({ section: { title, data } }) => (
+			<View style={[styles.sectionHeaderWrap, { backgroundColor: bg }]}>
+				<Text style={[styles.sectionHeaderText, { color: subtle }]}>
+					{title}
+				</Text>
+
+				<Text style={[styles.sectionCount, { color: subtle }]}>
+					{data.length}
+				</Text>
+			</View>
+		),
+		[bg, subtle]
+	);
+
+	const listHeader = useMemo(
+		() =>
+			hasAny ? (
+				<SearchHeader
+					query={query}
+					setQuery={setQuery}
+					total={items.length}
+					filteredTotal={filteredTotal}
+					bg={bg}
+					text={text}
+					subtle={subtle}
+					tint={tint}
+					border={border}
+				/>
+			) : null,
+		[hasAny, query, items.length, filteredTotal, bg, text, subtle, tint, border]
+	);
+
+	return (
+		<SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={["left", "right"]}>
+			<SectionList
+				ref={listRef}
+				sections={sections}
+				keyExtractor={(item) => String(item.id)}
+				renderItem={renderItem}
+				renderSectionHeader={renderSectionHeader}
+				ListHeaderComponent={listHeader}
+				ListEmptyComponent={
+					hasAny ? (
+						<EmptyCard
+							title="Nenhum resultado"
+							subtitle={`Não encontramos nada para “${query}”.`}
+							actionLabel="Limpar busca"
+							icon="search-outline"
+							onAction={() => setQuery("")}
+						/>
+					) : (
+						<EmptyCard
+							title="Sem tutores por aqui"
+							subtitle="Cadastre o primeiro tutor para começar. Você pode salvar apenas com o nome e completar os dados depois."
+							actionLabel="Adicionar tutor"
+							icon="person-add-outline"
+							onAction={() => router.push("/(modals)/tutor-new")}
+						/>
+					)
+				}
+				contentContainerStyle={[
+					styles.listContent,
+					{
+						paddingBottom: insets.bottom + 96,
+					},
+				]}
+				stickySectionHeadersEnabled={false}
+				keyboardShouldPersistTaps="handled"
+				contentInsetAdjustmentBehavior="automatic"
+				refreshControl={
+					<RefreshControl
+						refreshing={refreshing || loading}
+						onRefresh={onRefresh}
+						tintColor={tint}
+						colors={[tint]}
+					/>
+				}
+				initialNumToRender={16}
+				maxToRenderPerBatch={16}
+				windowSize={10}
+				removeClippedSubviews={Platform.OS === "android"}
+				showsVerticalScrollIndicator={false}
+				onScrollToIndexFailed={() => {}}
+			/>
+
+			{letters.length > 1 && (
+				<AlphabetBar
+					letters={letters}
+					onJump={jumpTo}
+					bottomOffset={insets.bottom}
+				/>
+			)}
+		</SafeAreaView>
+	);
 }
 
 const styles = StyleSheet.create({
-  searchBox: { padding: 16 },
-  input: {
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 42,
-  },
+	safe: {
+		flex: 1,
+	},
 
-  // HEADER DA LETRA
-  sectionHeaderContainer: {
-    marginTop: 4,
-  },
-  sectionLetterDivider: {
-    height: 3,
-    borderRadius: 999,
-    backgroundColor: 'rgba(15,23,42,0.12)', // barra mais grossa entre grupos
-    marginHorizontal: 16,
-    marginBottom: 2,
-  },
-  sectionHeader: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  sectionHeaderText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
+	listContent: {
+		paddingTop: 4,
+		paddingHorizontal: 14,
+	},
 
-  row: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
+	headerArea: {
+		paddingTop: 6,
+		paddingBottom: 14,
+	},
 
-  // Divider entre nomes
-  sep: {
-    height: 1,
-    backgroundColor: 'rgba(148,163,184,0.35)',
-    marginLeft: 76, // depois do avatar
-  },
+	summaryRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginBottom: 12,
+		paddingHorizontal: 2,
+	},
 
-  alphaBar: {
-    position: 'absolute',
-    right: 4,
-    top: 90,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 2,
-    gap: 2,
-  },
-  alphaBtn: { paddingVertical: 2, paddingHorizontal: 4 },
-  alphaTxt: { fontSize: 11, fontWeight: '700', color: '#6B7280' },
+	summaryTitle: {
+		fontSize: 28,
+		fontWeight: "800",
+		letterSpacing: -0.6,
+	},
+
+	summarySubtitle: {
+		fontSize: 13,
+		fontWeight: "500",
+		marginTop: 2,
+	},
+
+	headerAddButton: {
+		width: 38,
+		height: 38,
+		borderRadius: 19,
+		alignItems: "center",
+		justifyContent: "center",
+		shadowColor: "#000",
+		shadowOpacity: 0.14,
+		shadowRadius: 8,
+		shadowOffset: { width: 0, height: 4 },
+		elevation: 3,
+	},
+
+	searchContainer: {
+		height: 44,
+		borderRadius: 14,
+		borderWidth: StyleSheet.hairlineWidth,
+		paddingHorizontal: 12,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+
+	searchInput: {
+		flex: 1,
+		height: 44,
+		fontSize: 15,
+		paddingVertical: 0,
+	},
+
+	clearSearchButton: {
+		width: 28,
+		height: 28,
+		borderRadius: 14,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+
+	sectionHeaderWrap: {
+		marginTop: 16,
+		marginBottom: 8,
+		paddingHorizontal: 4,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+	},
+
+	sectionHeaderText: {
+		fontSize: 13,
+		fontWeight: "800",
+		letterSpacing: 0.3,
+		textTransform: "uppercase",
+	},
+
+	sectionCount: {
+		fontSize: 12,
+		fontWeight: "700",
+	},
+
+	rowCard: {
+		borderWidth: StyleSheet.hairlineWidth,
+		borderRadius: 18,
+		paddingHorizontal: 12,
+		paddingVertical: 12,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+		marginBottom: 10,
+		shadowColor: "#000",
+		shadowOpacity: 0.05,
+		shadowRadius: 10,
+		shadowOffset: { width: 0, height: 4 },
+		elevation: 1,
+	},
+
+	rowContent: {
+		flex: 1,
+		minWidth: 0,
+	},
+
+	rowTop: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		gap: 8,
+	},
+
+	rowName: {
+		fontSize: 16,
+		fontWeight: "750",
+		letterSpacing: -0.2,
+		flex: 1,
+	},
+
+	metaBlock: {
+		marginTop: 5,
+		gap: 3,
+	},
+
+	metaLine: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 5,
+		minWidth: 0,
+	},
+
+	metaText: {
+		fontSize: 13,
+		fontWeight: "500",
+		flex: 1,
+	},
+
+	emptyWrap: {
+		marginTop: 42,
+		marginHorizontal: 2,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderColor: "rgba(15,23,42,0.08)",
+		backgroundColor: "#FFFFFF",
+		borderRadius: 22,
+		paddingHorizontal: 18,
+		paddingVertical: 22,
+		alignItems: "center",
+		shadowColor: "#000",
+		shadowOpacity: 0.05,
+		shadowRadius: 14,
+		shadowOffset: { width: 0, height: 6 },
+		elevation: 2,
+	},
+
+	emptyIconWrap: {
+		width: 58,
+		height: 58,
+		borderRadius: 29,
+		backgroundColor: "#EEF2F7",
+		alignItems: "center",
+		justifyContent: "center",
+		marginBottom: 12,
+	},
+
+	emptyTitle: {
+		fontSize: 17,
+		fontWeight: "800",
+		color: "#111827",
+		textAlign: "center",
+	},
+
+	emptySubtitle: {
+		color: "#6B7280",
+		textAlign: "center",
+		marginTop: 6,
+		lineHeight: 19,
+	},
+
+	emptyButton: {
+		marginTop: 16,
+		backgroundColor: "#2563EB",
+		paddingHorizontal: 18,
+		paddingVertical: 11,
+		borderRadius: 12,
+	},
+
+	emptyButtonText: {
+		color: "white",
+		fontWeight: "800",
+	},
+
+	alphaBar: {
+		position: "absolute",
+		right: 4,
+		top: 130,
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 2,
+		paddingVertical: 6,
+		borderRadius: 999,
+		backgroundColor: "rgba(255,255,255,0.76)",
+		gap: 1,
+	},
+
+	alphaBtn: {
+		paddingVertical: 1,
+		paddingHorizontal: 5,
+	},
+
+	alphaTxt: {
+		fontSize: 10,
+		fontWeight: "800",
+		color: "#64748B",
+	},
+
+	fab: {
+		position: "absolute",
+		right: 18,
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		alignItems: "center",
+		justifyContent: "center",
+		shadowColor: "#000",
+		shadowOpacity: 0.22,
+		shadowRadius: 12,
+		shadowOffset: { width: 0, height: 8 },
+		elevation: 5,
+	},
 });

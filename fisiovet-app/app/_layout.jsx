@@ -15,7 +15,9 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from '../src/store';
 
 // Firebase
-import auth from '@react-native-firebase/auth';
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/src/services/firebaseClient";
+
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
 import { setUser } from '@/src/store/slices/userSlice';
 
@@ -37,7 +39,7 @@ function useAuthBinding() {
   const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
-    const unsub = auth().onAuthStateChanged((u) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
       dispatch(setUser(mapFirebaseUserToDTO(u)));
       setAuthReady(true);
     });

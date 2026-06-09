@@ -34,6 +34,7 @@ module.exports = {
 		scheme: `fisiovetapp${SCHEME_SUFFIX}`, // deep link único por app/ambiente
 		userInterfaceStyle: "automatic",
 		newArchEnabled: true,
+		jsEngine: "jsc",
 
 		extra: {
 			eas: { projectId: "b5d74ed0-b6e2-497e-a9e7-b66665675e59" },
@@ -50,11 +51,8 @@ module.exports = {
 			supportsTablet: true,
 			usesAppleSignIn: true,
 			requireFullScreen: false,
-			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER, // SEM SUFIXO
-			scheme: "fisiovetapp", // FIXO
-			config: {
-				googleMapsApiKey: MAPS_KEY,
-			},
+			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER,
+			scheme: "fisiovetapp",
 			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				"UISupportedInterfaceOrientations~ipad": [
@@ -79,8 +77,7 @@ module.exports = {
 				NSContactsUsageDescription:
 					"Permitir acesso aos contatos para vincular tutores.",
 
-				NSFaceIDUsageDescription:
-					"Permitir autenticar com Face ID.",
+				NSFaceIDUsageDescription: "Permitir autenticar com Face ID.",
 			},
 		},
 
@@ -104,11 +101,13 @@ module.exports = {
 		},
 
 		plugins: [
-			"@react-native-firebase/app",
-			"@react-native-firebase/auth",
-			"@react-native-firebase/crashlytics",
+			"@react-native-community/datetimepicker",
+			"expo-font",
+			"expo-secure-store",
+			"expo-web-browser",
 			"expo-router",
 			"expo-apple-authentication",
+
 			[
 				"expo-splash-screen",
 				{
@@ -119,15 +118,20 @@ module.exports = {
 					backgroundColor: "#ffffff",
 				},
 			],
+
 			["react-native-bottom-tabs"],
+
 			[
 				"@react-native-google-signin/google-signin",
 				{
-					iosUrlScheme: "com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8",
+					iosUrlScheme:
+						"com.googleusercontent.apps.629108942932-pt4mjadm9028fn4kjovqoe3h1trebaj8",
 				},
 			],
 
-			["expo-build-properties", { ios: { useFrameworks: "static" } }],
+			"./plugins/withIosRemoveGoogleMapsPod",
+			// "./plugins/withIosNonModularHeaders",
+
 			[
 				"expo-location",
 				{
@@ -135,6 +139,7 @@ module.exports = {
 						"Permitir que o app use sua localização para rotas e mapa enquanto estiver em uso.",
 				},
 			],
+
 			[
 				"expo-calendar",
 				{
@@ -145,7 +150,7 @@ module.exports = {
 			],
 
 			"expo-notifications",
-			"expo-updates", // mesmo com updates.disabled, deixa plugin configurado
+			"expo-updates",
 		],
 
 		experiments: { typedRoutes: true },

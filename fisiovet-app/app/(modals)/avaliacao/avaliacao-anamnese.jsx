@@ -20,13 +20,24 @@ import { Stack, useLocalSearchParams, router } from 'expo-router';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 
-import { ensureFirebase } from '@/firebase/firebase';
+import { auth, db } from '@/src/services/firebaseClient';
+import {
+    collection,
+    deleteDoc,
+    doc,
+    getDoc,
+    serverTimestamp,
+    setDoc,
+    updateDoc,
+} from 'firebase/firestore';
+
 import {
     createDraft,
     updateDraftField,
     clearDraft,
     replaceDraft,
 } from '@/src/store/slices/avaliacaoSlice';
+
 
 /* ---------- UI helpers ---------- */
 function SectionTitle({ children }) {
@@ -216,82 +227,89 @@ function DorRadio({ label, value, onChange, disabled }) {
 }
 
 /* ---------- helpers Firestore ---------- */
-async function fetchAvaliacao({ firestore, uid, petId, avaliacaoId }) {
-    const ref = firestore
-        .collection('users')
-        .doc(String(uid))
-        .collection('pets')
-        .doc(String(petId))
-        .collection('avaliacoes')
-        .doc(String(avaliacaoId));
-    const snap = await ref.get();
-    if (!snap.exists) return null;
+async function fetchAvaliacao({ uid, petId, avaliacaoId }) {
+    const ref = doc(
+        db,
+        'users',
+        String(uid),
+        'pets',
+        String(petId),
+        'avaliacoes',
+        String(avaliacaoId)
+    );
+
+    const snap = await getDoc(ref);
+
+    if (!snap.exists()) return null;
+
     return { id: snap.id, ...snap.data() };
 }
 
 export async function saveNewAvaliacao({
-    firestore,
-    firestoreModule,
     uid,
     petId,
     payload,
 }) {
-    const col = firestore
-        .collection('users')
-        .doc(String(uid))
-        .collection('pets')
-        .doc(String(petId))
-        .collection('avaliacoes');
+    const colRef = collection(
+        db,
+        'users',
+        String(uid),
+        'pets',
+        String(petId),
+        'avaliacoes'
+    );
 
-    const ref = col.doc();
-    const now = firestoreModule.FieldValue.serverTimestamp();
+    const ref = doc(colRef);
+    const now = serverTimestamp();
 
-    await ref.set({
+    await setDoc(ref, {
         ...payload,
         createdAt: now,
         updatedAt: now,
-        type: 'avaliacao', // tipo "macro"
+        type: 'avaliacao',
     });
 
     return ref.id;
 }
 
 export async function updateAvaliacao({
-    firestore,
-    firestoreModule,
     uid,
     petId,
     avaliacaoId,
     payload,
 }) {
-    const ref = firestore
-        .collection('users')
-        .doc(String(uid))
-        .collection('pets')
-        .doc(String(petId))
-        .collection('avaliacoes')
-        .doc(String(avaliacaoId));
+    const ref = doc(
+        db,
+        'users',
+        String(uid),
+        'pets',
+        String(petId),
+        'avaliacoes',
+        String(avaliacaoId)
+    );
 
-    await ref.update({
+    await updateDoc(ref, {
         ...payload,
-        updatedAt: firestoreModule.FieldValue.serverTimestamp(),
+        updatedAt: serverTimestamp(),
     });
 }
 
 async function deleteAvaliacao({
-    firestore,
     uid,
     petId,
     avaliacaoId,
 }) {
-    const ref = firestore
-        .collection('users')
-        .doc(String(uid))
-        .collection('pets')
-        .doc(String(petId))
-        .collection('avaliacoes')
-        .doc(String(avaliacaoId));
-    await ref.delete();
+    const ref = doc(
+        db,
+        'users',
+        String(uid),
+        'pets',
+        String(petId),
+        'avaliacoes',
+        String(avaliacaoId)
+    );
+
+    await deleteDoc(ref);
 }
 
 function normalizeDraftAnamnese(petId, docData) {
@@ -399,7 +417,8 @@ function CardHighlight({ filled, children }) {
 export default function AnamneseFormScreen() {
     const { id: petId, avaliacaoId } = useLocalSearchParams();
     const dispatch = useDispatch();
-    const { auth, firestore, firestoreModule } = ensureFirebase() || {};
+
+    const currentUser = auth.currentUser;
 
     const draft = useSelector(
         (s) => s.avaliacao?.draftsByPet?.[petId]
@@ -423,15 +442,17 @@ export default function AnamneseFormScreen() {
     }, [dispatch, petId, isExisting, draft]);
 
     // Se for existente, busca e popula draft
+    // Se for existente, busca e popula draft
     useEffect(() => {
         (async () => {
-            if (!isExisting || !firestore || !auth?.currentUser?.uid)
-                return;
+            if (!isExisting || !auth.currentUser?.uid) return;
+
             try {
                 setLoading(true);
+
                 const uid = auth.currentUser.uid;
-                const doc = await fetchAvaliacao({
-                    firestore,
+
+                const docData = await fetchAvaliacao({
                     uid,
                     petId: String(petId),
                     avaliacaoId: String(avaliacaoId),
@@ -439,9 +460,11 @@ export default function AnamneseFormScreen() {
 
                 const seed = normalizeDraftAnamnese(
                     String(petId),
-                    doc || {}
+                    docData || {}
                 );
+
                 setOriginal(seed);
+
                 dispatch(
                     replaceDraft({
                         petId: String(petId),
@@ -458,12 +481,11 @@ export default function AnamneseFormScreen() {
         })();
     }, [
         isExisting,
-        firestore,
-        auth,
         petId,
         avaliacaoId,
         dispatch,
     ]);
+
 
     /* ------- Atualizadores de campos ------- */
     const updateTexto = useCallback(
@@ -554,7 +576,7 @@ export default function AnamneseFormScreen() {
     const handleSave = useCallback(async () => {
         try {
             if (!draft) return;
-            if (!auth?.currentUser?.uid)
+            if (!auth.currentUser?.uid)
                 return Alert.alert(
                     'Anamnese',
                     'Usuário não autenticado.'
@@ -578,31 +600,29 @@ export default function AnamneseFormScreen() {
 
             if (isExisting) {
                 await updateAvaliacao({
-                    firestore,
-                    firestoreModule,
                     uid,
                     petId: String(petId),
                     avaliacaoId: String(avaliacaoId),
                     payload,
                 });
+
                 setOriginal(
                     normalizeDraftAnamnese(String(petId), {
                         ...payload,
                     })
                 );
+
                 setEditing(false);
                 Alert.alert('Anamnese', 'Alterações salvas!');
             } else {
                 await saveNewAvaliacao({
-                    firestore,
-                    firestoreModule,
                     uid,
                     petId: String(petId),
                     payload,
                 });
+
                 Alert.alert('Anamnese', 'Registro criado!');
             }
-
             // Volta para a lista de avaliações do pet
             dispatch(clearDraft({ petId: String(petId) }));
             router.replace({
@@ -619,20 +639,20 @@ export default function AnamneseFormScreen() {
         draft,
         isExisting,
         avaliacaoId,
-        firestore,
-        firestoreModule,
-        auth,
         petId,
         dispatch,
     ]);
 
     const handleDelete = useCallback(() => {
         if (!isExisting) return;
-        const uid = auth?.currentUser?.uid;
+
+        const uid = auth.currentUser?.uid;
+
         if (!uid) {
             Alert.alert('Anamnese', 'Usuário não autenticado.');
             return;
         }
+
         Alert.alert(
             'Apagar anamnese',
             'Tem certeza que deseja apagar este registro?',
@@ -644,15 +664,15 @@ export default function AnamneseFormScreen() {
                     onPress: async () => {
                         try {
                             await deleteAvaliacao({
-                                firestore,
                                 uid,
                                 petId: String(petId),
                                 avaliacaoId: String(avaliacaoId),
                             });
+
                             dispatch(clearDraft({ petId: String(petId) }));
+
                             router.replace({
-                                pathname:
-                                    '/(phone)/pacientes/[id]/avaliacao',
+                                pathname: '/(phone)/pacientes/[id]/avaliacao',
                                 params: { id: String(petId) },
                             });
                         } catch (e) {
@@ -668,8 +688,6 @@ export default function AnamneseFormScreen() {
         );
     }, [
         isExisting,
-        auth,
-        firestore,
         petId,
         avaliacaoId,
         dispatch,
@@ -785,373 +803,373 @@ export default function AnamneseFormScreen() {
                 }}
             />
 
-            
-                    <ScrollView
-                        contentContainerStyle={{
-                            padding: 16,
-                            paddingBottom: 450,
-                        }}
-                        keyboardShouldPersistTaps="handled"
-                        onScrollBeginDrag={Keyboard.dismiss}
-                    >
-                        {/* Título opcional */}
-                        <SectionTitle>Título</SectionTitle>
-                        <CardHighlight filled={isFilled(draft?.title)}>
-                            <DisabledOverlay disabled={!editing}>
-                                <TextInput
-                                    placeholder="Ex.: Anamnese inicial, retorno, pós-cirúrgica…"
-                                    placeholderTextColor="#9CA3AF"
-                                    value={draft?.title ?? ''}
-                                    onChangeText={updateTitle}
-                                    editable={editing}
-                                    style={{
-                                        height: 44,
-                                        color: '#111827',
-                                        opacity: editing ? 1 : 0.55,
-                                        // borderWidth: 1.5,
-                                        // borderRadius: 10,
-                                        // paddingHorizontal: 10,
-                                        backgroundColor: editing ? 'white' : 'rgba(0,0,0,0.03)',
-                                    }}
-                                />
-                            </DisabledOverlay>
-                        </CardHighlight>
 
-                        {/* 2. Queixa Principal */}
-                        <View style={{ marginTop: 16 }}>
-                            <SectionTitle>2. Queixa Principal</SectionTitle>
-                            <LabeledTextArea
-                                label=""
-                                value={draft?.textos?.queixaPrincipal || ''}
-                                onChangeText={(t) => updateTexto('queixaPrincipal', t)}
-                                placeholder="Descreva a queixa principal do tutor em relação ao animal."
-                                disabled={disabled}
-                                minHeight={80}
-                                filled={isFilled(draft?.textos?.queixaPrincipal)}
-                            />
-                        </View>
-
-                        {/* 3. História da Doença Atual */}
-                        <SectionTitle>3. História da Doença Atual</SectionTitle>
-                        <LabeledTextArea
-                            label=""
-                            value={draft?.textos?.historiaDoencaAtual || ''}
-                            onChangeText={(t) => updateTexto('historiaDoencaAtual', t)}
-                            placeholder="Evolução do quadro, início dos sinais, tratamentos prévios relacionados ao problema atual…"
-                            disabled={disabled}
-                            minHeight={100}
-                            filled={isFilled(draft?.textos?.historiaDoencaAtual)}
-                        />
-
-                        {/* 4. Antecedentes Médicos */}
-                        <SectionTitle>4. Antecedentes Médicos</SectionTitle>
-                        <LabeledTextArea
-                            label="Vacinas e vermífugos"
-                            value={draft?.textos?.vacinasVermifugos || ''}
-                            onChangeText={(t) => updateTexto('vacinasVermifugos', t)}
-                            placeholder="Esquema vacinal e de vermifugação."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.vacinasVermifugos)}
-                        />
-                        <LabeledTextArea
-                            label="Alimentação"
-                            value={draft?.textos?.alimentacao || ''}
-                            onChangeText={(t) => updateTexto('alimentacao', t)}
-                            placeholder="Tipo de ração, caseiro, frequência, petiscos…"
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.alimentacao)}
-                        />
-                        <LabeledTextArea
-                            label="Hidratação"
-                            value={draft?.textos?.hidratacao || ''}
-                            onChangeText={(t) => updateTexto('hidratacao', t)}
-                            placeholder="Ingestão de água, se bebe pouco/muito, uso de fontes, etc."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.hidratacao)}
-                        />
-                        <LabeledTextArea
-                            label="Fezes e urina"
-                            value={draft?.textos?.fezesUrina || ''}
-                            onChangeText={(t) => updateTexto('fezesUrina', t)}
-                            placeholder="Frequência, consistência, alterações observadas."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.fezesUrina)}
-                        />
-                        <LabeledTextArea
-                            label="Medicações anteriores"
-                            value={draft?.textos?.medicacoesAnteriores || ''}
-                            onChangeText={(t) => updateTexto('medicacoesAnteriores', t)}
-                            placeholder="Medicamentos usados anteriormente (dose, tempo, resposta)."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.medicacoesAnteriores)}
-                        />
-                        <LabeledTextArea
-                            label="Medicações em uso"
-                            value={draft?.textos?.medicacoesUso || ''}
-                            onChangeText={(t) => updateTexto('medicacoesUso', t)}
-                            placeholder="Medicamentos em uso atualmente."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.medicacoesUso)}
-                        />
-                        <LabeledTextArea
-                            label="Histórico de neoplasias"
-                            value={draft?.textos?.historicoNeoplasias || ''}
-                            onChangeText={(t) => updateTexto('historicoNeoplasias', t)}
-                            placeholder="Tipo, localização, tratamentos realizados, recidivas."
-                            disabled={disabled}
-                            filled={isFilled(draft?.textos?.historicoNeoplasias)}
-                        />
-
-                        {/* 5. Hábitos e Rotina */}
-                        <SectionTitle>5. Hábitos e Rotina</SectionTitle>
-                        <CardHighlight filled={groupHasTrue(draft?.habitos)}>
-                            <DisabledOverlay disabled={disabled}>
-                                <CheckboxRow
-                                    label="Escadas"
-                                    value={!!draft?.habitos?.escadas}
-                                    onChange={(v) => updateHabito('escadas', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Acesso à rua"
-                                    value={!!draft?.habitos?.acessoRua}
-                                    onChange={(v) => updateHabito('acessoRua', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Piso liso"
-                                    value={!!draft?.habitos?.pisoLiso}
-                                    onChange={(v) => updateHabito('pisoLiso', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Piso antiderrapante"
-                                    value={!!draft?.habitos?.pisoAntiderrapante}
-                                    onChange={(v) => updateHabito('pisoAntiderrapante', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Sobe/desce sofá"
-                                    value={!!draft?.habitos?.sobeDesceSofa}
-                                    onChange={(v) => updateHabito('sobeDesceSofa', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Sobe/desce cama"
-                                    value={!!draft?.habitos?.sobeDesceCama}
-                                    onChange={(v) => updateHabito('sobeDesceCama', v)}
-                                    disabled={disabled}
-                                />
-                            </DisabledOverlay>
-                        </CardHighlight>
-
-                        <View style={{ height: 8 }} />
-                        <LabeledTextArea
-                            label="Local onde dorme"
-                            value={draft?.textos?.localDormir || ''}
-                            onChangeText={(t) => updateTexto('localDormir', t)}
-                            placeholder="Cama, sofá, chão, dormitório do tutor, outro cômodo…"
-                            disabled={disabled}
-                            minHeight={60}
-                            filled={isFilled(draft?.textos?.localDormir)}
-                        />
-
-                        {/* 6. Avaliação Funcional */}
-                        <SectionTitle>6. Avaliação Funcional</SectionTitle>
-                        <CardHighlight filled={groupHasTrue(draft?.funcional)}>
-                            <DisabledOverlay disabled={disabled}>
-                                <CheckboxRow
-                                    label="Levanta sozinho"
-                                    value={!!draft?.funcional?.levantaSozinho}
-                                    onChange={(v) => updateFuncional('levantaSozinho', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Caminha sem apoio"
-                                    value={!!draft?.funcional?.caminhaSemApoio}
-                                    onChange={(v) => updateFuncional('caminhaSemApoio', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Escorrega"
-                                    value={!!draft?.funcional?.escorrega}
-                                    onChange={(v) => updateFuncional('escorrega', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Dificuldade para levantar"
-                                    value={!!draft?.funcional?.dificuldadeLevantar}
-                                    onChange={(v) => updateFuncional('dificuldadeLevantar', v)}
-                                    disabled={disabled}
-                                />
-                            </DisabledOverlay>
-                        </CardHighlight>
-
-                        {/* 7. Avaliação da Dor */}
-                        <SectionTitle>7. Avaliação da Dor</SectionTitle>
-                        <CardHighlight
-                            filled={
-                                isFilled(draft?.dor?.nivel) ||
-                                isFilled(draft?.textos?.descricaoDor)
-                            }
-                        >
-                            <DisabledOverlay disabled={disabled}>
-                                <DorRadio
-                                    label="Intensidade da dor"
-                                    value={draft?.dor?.nivel || 'leve'}
-                                    onChange={updateDorNivel}
-                                    disabled={disabled}
-                                />
-                                <View style={{ height: 8 }} />
-                                <Text
-                                    style={{
-                                        fontWeight: '600',
-                                        color: '#111827',
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    Descrição da dor
-                                </Text>
-                                <TextInput
-                                    value={draft?.textos?.descricaoDor || ''}
-                                    onChangeText={updateDescricaoDor}
-                                    placeholder="Localização, tipo (aguda, crônica, intermitente), fatores que pioram/melhoram…"
-                                    placeholderTextColor="#9CA3AF"
-                                    editable={!disabled}
-                                    multiline
-                                    textAlignVertical="top"
-                                    style={{
-                                        minHeight: 80,
-                                        color: '#111827',
-                                        opacity: disabled ? 0.55 : 1,
-                                        borderWidth: 1.5,
-                                        borderRadius: 10,
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 8,
-                                        borderColor: isFilled(draft?.textos?.descricaoDor)
-                                            ? '#16A34A'
-                                            : 'rgba(0,0,0,0.15)',
-                                        backgroundColor: disabled
-                                            ? 'rgba(0,0,0,0.03)'
-                                            : 'white',
-                                    }}
-                                />
-                            </DisabledOverlay>
-                        </CardHighlight>
-
-                        {/* 8. Expectativas do Tutor */}
-                        <SectionTitle>8. Expectativas do Tutor</SectionTitle>
-                        <CardHighlight filled={groupHasTrue(draft?.expectativas)}>
-                            <DisabledOverlay disabled={disabled}>
-                                <CheckboxRow
-                                    label="Reduzir dor"
-                                    value={!!draft?.expectativas?.reduzirDor}
-                                    onChange={(v) => updateExpectativa('reduzirDor', v)}
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Melhorar mobilidade"
-                                    value={!!draft?.expectativas?.melhorarMobilidade}
-                                    onChange={(v) =>
-                                        updateExpectativa('melhorarMobilidade', v)
-                                    }
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Reabilitação pós-cirurgia"
-                                    value={!!draft?.expectativas?.reabilitacaoPosCirurgia}
-                                    onChange={(v) =>
-                                        updateExpectativa('reabilitacaoPosCirurgia', v)
-                                    }
-                                    disabled={disabled}
-                                />
-                                <CheckboxRow
-                                    label="Qualidade de vida"
-                                    value={!!draft?.expectativas?.qualidadeVida}
-                                    onChange={(v) =>
-                                        updateExpectativa('qualidadeVida', v)
-                                    }
-                                    disabled={disabled}
-                                />
-                            </DisabledOverlay>
-                        </CardHighlight>
-
-                        {/* 9. Observações Gerais */}
-                        <View style={{ height: 16 }} />
-                        <SectionTitle>9. Observações Gerais</SectionTitle>
-                        <LabeledTextArea
-                            label=""
-                            value={draft?.textos?.observacoesGerais || ''}
-                            onChangeText={(t) => updateTexto('observacoesGerais', t)}
-                            placeholder="Informações adicionais relevantes para o plano fisioterapêutico."
-                            disabled={disabled}
-                            minHeight={100}
-                            filled={isFilled(draft?.textos?.observacoesGerais)}
-                        />
-                    </ScrollView>
-
-
-                    {/* Botão Salvar fixo no rodapé */}
-                    {editing && (
-                        <SafeAreaView
-                            edges={["bottom"]}
+            <ScrollView
+                contentContainerStyle={{
+                    padding: 16,
+                    paddingBottom: 450,
+                }}
+                keyboardShouldPersistTaps="handled"
+                onScrollBeginDrag={Keyboard.dismiss}
+            >
+                {/* Título opcional */}
+                <SectionTitle>Título</SectionTitle>
+                <CardHighlight filled={isFilled(draft?.title)}>
+                    <DisabledOverlay disabled={!editing}>
+                        <TextInput
+                            placeholder="Ex.: Anamnese inicial, retorno, pós-cirúrgica…"
+                            placeholderTextColor="#9CA3AF"
+                            value={draft?.title ?? ''}
+                            onChangeText={updateTitle}
+                            editable={editing}
                             style={{
-                                position: 'absolute',
-                                left: 0,
-                                right: 0,
-                                bottom: 0,
-                                backgroundColor: 'white',
-                                borderTopWidth: 1,
-                                borderTopColor: 'rgba(0,0,0,0.08)',
+                                height: 44,
+                                color: '#111827',
+                                opacity: editing ? 1 : 0.55,
+                                // borderWidth: 1.5,
+                                // borderRadius: 10,
+                                // paddingHorizontal: 10,
+                                backgroundColor: editing ? 'white' : 'rgba(0,0,0,0.03)',
+                            }}
+                        />
+                    </DisabledOverlay>
+                </CardHighlight>
+
+                {/* 2. Queixa Principal */}
+                <View style={{ marginTop: 16 }}>
+                    <SectionTitle>2. Queixa Principal</SectionTitle>
+                    <LabeledTextArea
+                        label=""
+                        value={draft?.textos?.queixaPrincipal || ''}
+                        onChangeText={(t) => updateTexto('queixaPrincipal', t)}
+                        placeholder="Descreva a queixa principal do tutor em relação ao animal."
+                        disabled={disabled}
+                        minHeight={80}
+                        filled={isFilled(draft?.textos?.queixaPrincipal)}
+                    />
+                </View>
+
+                {/* 3. História da Doença Atual */}
+                <SectionTitle>3. História da Doença Atual</SectionTitle>
+                <LabeledTextArea
+                    label=""
+                    value={draft?.textos?.historiaDoencaAtual || ''}
+                    onChangeText={(t) => updateTexto('historiaDoencaAtual', t)}
+                    placeholder="Evolução do quadro, início dos sinais, tratamentos prévios relacionados ao problema atual…"
+                    disabled={disabled}
+                    minHeight={100}
+                    filled={isFilled(draft?.textos?.historiaDoencaAtual)}
+                />
+
+                {/* 4. Antecedentes Médicos */}
+                <SectionTitle>4. Antecedentes Médicos</SectionTitle>
+                <LabeledTextArea
+                    label="Vacinas e vermífugos"
+                    value={draft?.textos?.vacinasVermifugos || ''}
+                    onChangeText={(t) => updateTexto('vacinasVermifugos', t)}
+                    placeholder="Esquema vacinal e de vermifugação."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.vacinasVermifugos)}
+                />
+                <LabeledTextArea
+                    label="Alimentação"
+                    value={draft?.textos?.alimentacao || ''}
+                    onChangeText={(t) => updateTexto('alimentacao', t)}
+                    placeholder="Tipo de ração, caseiro, frequência, petiscos…"
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.alimentacao)}
+                />
+                <LabeledTextArea
+                    label="Hidratação"
+                    value={draft?.textos?.hidratacao || ''}
+                    onChangeText={(t) => updateTexto('hidratacao', t)}
+                    placeholder="Ingestão de água, se bebe pouco/muito, uso de fontes, etc."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.hidratacao)}
+                />
+                <LabeledTextArea
+                    label="Fezes e urina"
+                    value={draft?.textos?.fezesUrina || ''}
+                    onChangeText={(t) => updateTexto('fezesUrina', t)}
+                    placeholder="Frequência, consistência, alterações observadas."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.fezesUrina)}
+                />
+                <LabeledTextArea
+                    label="Medicações anteriores"
+                    value={draft?.textos?.medicacoesAnteriores || ''}
+                    onChangeText={(t) => updateTexto('medicacoesAnteriores', t)}
+                    placeholder="Medicamentos usados anteriormente (dose, tempo, resposta)."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.medicacoesAnteriores)}
+                />
+                <LabeledTextArea
+                    label="Medicações em uso"
+                    value={draft?.textos?.medicacoesUso || ''}
+                    onChangeText={(t) => updateTexto('medicacoesUso', t)}
+                    placeholder="Medicamentos em uso atualmente."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.medicacoesUso)}
+                />
+                <LabeledTextArea
+                    label="Histórico de neoplasias"
+                    value={draft?.textos?.historicoNeoplasias || ''}
+                    onChangeText={(t) => updateTexto('historicoNeoplasias', t)}
+                    placeholder="Tipo, localização, tratamentos realizados, recidivas."
+                    disabled={disabled}
+                    filled={isFilled(draft?.textos?.historicoNeoplasias)}
+                />
+
+                {/* 5. Hábitos e Rotina */}
+                <SectionTitle>5. Hábitos e Rotina</SectionTitle>
+                <CardHighlight filled={groupHasTrue(draft?.habitos)}>
+                    <DisabledOverlay disabled={disabled}>
+                        <CheckboxRow
+                            label="Escadas"
+                            value={!!draft?.habitos?.escadas}
+                            onChange={(v) => updateHabito('escadas', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Acesso à rua"
+                            value={!!draft?.habitos?.acessoRua}
+                            onChange={(v) => updateHabito('acessoRua', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Piso liso"
+                            value={!!draft?.habitos?.pisoLiso}
+                            onChange={(v) => updateHabito('pisoLiso', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Piso antiderrapante"
+                            value={!!draft?.habitos?.pisoAntiderrapante}
+                            onChange={(v) => updateHabito('pisoAntiderrapante', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Sobe/desce sofá"
+                            value={!!draft?.habitos?.sobeDesceSofa}
+                            onChange={(v) => updateHabito('sobeDesceSofa', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Sobe/desce cama"
+                            value={!!draft?.habitos?.sobeDesceCama}
+                            onChange={(v) => updateHabito('sobeDesceCama', v)}
+                            disabled={disabled}
+                        />
+                    </DisabledOverlay>
+                </CardHighlight>
+
+                <View style={{ height: 8 }} />
+                <LabeledTextArea
+                    label="Local onde dorme"
+                    value={draft?.textos?.localDormir || ''}
+                    onChangeText={(t) => updateTexto('localDormir', t)}
+                    placeholder="Cama, sofá, chão, dormitório do tutor, outro cômodo…"
+                    disabled={disabled}
+                    minHeight={60}
+                    filled={isFilled(draft?.textos?.localDormir)}
+                />
+
+                {/* 6. Avaliação Funcional */}
+                <SectionTitle>6. Avaliação Funcional</SectionTitle>
+                <CardHighlight filled={groupHasTrue(draft?.funcional)}>
+                    <DisabledOverlay disabled={disabled}>
+                        <CheckboxRow
+                            label="Levanta sozinho"
+                            value={!!draft?.funcional?.levantaSozinho}
+                            onChange={(v) => updateFuncional('levantaSozinho', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Caminha sem apoio"
+                            value={!!draft?.funcional?.caminhaSemApoio}
+                            onChange={(v) => updateFuncional('caminhaSemApoio', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Escorrega"
+                            value={!!draft?.funcional?.escorrega}
+                            onChange={(v) => updateFuncional('escorrega', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Dificuldade para levantar"
+                            value={!!draft?.funcional?.dificuldadeLevantar}
+                            onChange={(v) => updateFuncional('dificuldadeLevantar', v)}
+                            disabled={disabled}
+                        />
+                    </DisabledOverlay>
+                </CardHighlight>
+
+                {/* 7. Avaliação da Dor */}
+                <SectionTitle>7. Avaliação da Dor</SectionTitle>
+                <CardHighlight
+                    filled={
+                        isFilled(draft?.dor?.nivel) ||
+                        isFilled(draft?.textos?.descricaoDor)
+                    }
+                >
+                    <DisabledOverlay disabled={disabled}>
+                        <DorRadio
+                            label="Intensidade da dor"
+                            value={draft?.dor?.nivel || 'leve'}
+                            onChange={updateDorNivel}
+                            disabled={disabled}
+                        />
+                        <View style={{ height: 8 }} />
+                        <Text
+                            style={{
+                                fontWeight: '600',
+                                color: '#111827',
+                                marginBottom: 6,
                             }}
                         >
-                            <View style={{ padding: 12 }}>
-                                <TouchableOpacity
-                                    onPress={handleSave}
-                                    style={{
-                                        backgroundColor: '#2563EB',
-                                        height: 48,
-                                        borderRadius: 12,
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexDirection: 'row',
-                                    }}
-                                >
-                                    {saving ? (
-                                        <>
-                                            <ActivityIndicator color="#fff" />
-                                            <Text
-                                                style={{
-                                                    color: 'white',
-                                                    fontWeight: '700',
-                                                    marginLeft: 10,
-                                                }}
-                                            >
-                                                Salvando…
-                                            </Text>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Ionicons
-                                                name="checkmark"
-                                                size={18}
-                                                color="#fff"
-                                            />
-                                            <Text
-                                                style={{
-                                                    color: 'white',
-                                                    fontWeight: '700',
-                                                    marginLeft: 6,
-                                                }}
-                                            >
-                                                Salvar
-                                            </Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
-                            </View>
-                        </SafeAreaView>
-                    )}
+                            Descrição da dor
+                        </Text>
+                        <TextInput
+                            value={draft?.textos?.descricaoDor || ''}
+                            onChangeText={updateDescricaoDor}
+                            placeholder="Localização, tipo (aguda, crônica, intermitente), fatores que pioram/melhoram…"
+                            placeholderTextColor="#9CA3AF"
+                            editable={!disabled}
+                            multiline
+                            textAlignVertical="top"
+                            style={{
+                                minHeight: 80,
+                                color: '#111827',
+                                opacity: disabled ? 0.55 : 1,
+                                borderWidth: 1.5,
+                                borderRadius: 10,
+                                paddingHorizontal: 10,
+                                paddingVertical: 8,
+                                borderColor: isFilled(draft?.textos?.descricaoDor)
+                                    ? '#16A34A'
+                                    : 'rgba(0,0,0,0.15)',
+                                backgroundColor: disabled
+                                    ? 'rgba(0,0,0,0.03)'
+                                    : 'white',
+                            }}
+                        />
+                    </DisabledOverlay>
+                </CardHighlight>
+
+                {/* 8. Expectativas do Tutor */}
+                <SectionTitle>8. Expectativas do Tutor</SectionTitle>
+                <CardHighlight filled={groupHasTrue(draft?.expectativas)}>
+                    <DisabledOverlay disabled={disabled}>
+                        <CheckboxRow
+                            label="Reduzir dor"
+                            value={!!draft?.expectativas?.reduzirDor}
+                            onChange={(v) => updateExpectativa('reduzirDor', v)}
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Melhorar mobilidade"
+                            value={!!draft?.expectativas?.melhorarMobilidade}
+                            onChange={(v) =>
+                                updateExpectativa('melhorarMobilidade', v)
+                            }
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Reabilitação pós-cirurgia"
+                            value={!!draft?.expectativas?.reabilitacaoPosCirurgia}
+                            onChange={(v) =>
+                                updateExpectativa('reabilitacaoPosCirurgia', v)
+                            }
+                            disabled={disabled}
+                        />
+                        <CheckboxRow
+                            label="Qualidade de vida"
+                            value={!!draft?.expectativas?.qualidadeVida}
+                            onChange={(v) =>
+                                updateExpectativa('qualidadeVida', v)
+                            }
+                            disabled={disabled}
+                        />
+                    </DisabledOverlay>
+                </CardHighlight>
+
+                {/* 9. Observações Gerais */}
+                <View style={{ height: 16 }} />
+                <SectionTitle>9. Observações Gerais</SectionTitle>
+                <LabeledTextArea
+                    label=""
+                    value={draft?.textos?.observacoesGerais || ''}
+                    onChangeText={(t) => updateTexto('observacoesGerais', t)}
+                    placeholder="Informações adicionais relevantes para o plano fisioterapêutico."
+                    disabled={disabled}
+                    minHeight={100}
+                    filled={isFilled(draft?.textos?.observacoesGerais)}
+                />
+            </ScrollView>
+
+
+            {/* Botão Salvar fixo no rodapé */}
+            {editing && (
+                <SafeAreaView
+                    edges={["bottom"]}
+                    style={{
+                        position: 'absolute',
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        backgroundColor: 'white',
+                        borderTopWidth: 1,
+                        borderTopColor: 'rgba(0,0,0,0.08)',
+                    }}
+                >
+                    <View style={{ padding: 12 }}>
+                        <TouchableOpacity
+                            onPress={handleSave}
+                            style={{
+                                backgroundColor: '#2563EB',
+                                height: 48,
+                                borderRadius: 12,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexDirection: 'row',
+                            }}
+                        >
+                            {saving ? (
+                                <>
+                                    <ActivityIndicator color="#fff" />
+                                    <Text
+                                        style={{
+                                            color: 'white',
+                                            fontWeight: '700',
+                                            marginLeft: 10,
+                                        }}
+                                    >
+                                        Salvando…
+                                    </Text>
+                                </>
+                            ) : (
+                                <>
+                                    <Ionicons
+                                        name="checkmark"
+                                        size={18}
+                                        color="#fff"
+                                    />
+                                    <Text
+                                        style={{
+                                            color: 'white',
+                                            fontWeight: '700',
+                                            marginLeft: 6,
+                                        }}
+                                    >
+                                        Salvar
+                                    </Text>
+                                </>
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                </SafeAreaView>
+            )}
         </KeyboardAvoidingView>
     );
 }

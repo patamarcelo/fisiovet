@@ -24,6 +24,8 @@ import { selectUserName, selectUserPhoto } from '@/src/store/slices/userSlice';
 
 import { Image } from 'expo-image';
 
+import { storage } from "@/src/services/firebaseClient";
+
 import { getMetadata, ref, getDownloadURL } from 'firebase/storage'; // ajuste se já estiver em outro lugar
 import { getCachedAvatar } from '../utils/avatarCache';
 import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';

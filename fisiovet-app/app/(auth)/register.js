@@ -12,9 +12,13 @@ import { setUser } from '@/src/store/slices/userSlice';
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
 import { router } from 'expo-router';
 import ResponsiveHero from './_resposiveHero';
-import { getAuth, createUserWithEmailAndPassword, updateProfile } from '@react-native-firebase/auth';
-import { setLogLevel } from '@react-native-firebase/app';
-setLogLevel('debug');
+import {
+    createUserWithEmailAndPassword,
+    updateProfile,
+} from "firebase/auth";
+import { auth } from "@/src/services/firebaseClient";
+
+
 
 
 import { postLoginBootstrap } from '@/src/store/bootstrapSlice';
@@ -89,10 +93,9 @@ export default function SignUp() {
 			setError('');
 			setSubmitting(true);
 
-			const authInstance = getAuth(); // 🔥 pega instância modular
-
+			const { user } = await createUserWithEmailAndPassword(auth, email, password);
+			const cred = user
 			// cria usuário
-			const cred = await createUserWithEmailAndPassword(authInstance, email.trim(), password);
 
 			// define displayName
 			if (name.trim()) {

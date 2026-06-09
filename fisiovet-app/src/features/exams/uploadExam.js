@@ -1,54 +1,104 @@
 // src/features/exams/uploadExam.js
-import * as DocumentPicker from 'expo-document-picker';
-import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
-import mime from 'mime'; // se não tiver, instale: npm i mime
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system";
 
-import firestoreModule from '@react-native-firebase/firestore';
+import { db, storage } from "@/src/services/firebaseClient";
+import {
+	collection,
+	doc,
+	serverTimestamp,
+	setDoc,
+} from "firebase/firestore";
+import {
+	getDownloadURL,
+	ref as storageRef,
+	uploadBytesResumable,
+} from "firebase/storage";
+
+function guessMimeType(uri = "", fallback = "application/octet-stream") {
+	const clean = String(uri).split("?")[0].toLowerCase();
+
+	if (clean.endsWith(".jpg") || clean.endsWith(".jpeg")) return "image/jpeg";
+	if (clean.endsWith(".png")) return "image/png";
+	if (clean.endsWith(".webp")) return "image/webp";
+	if (clean.endsWith(".heic")) return "image/heic";
+	if (clean.endsWith(".heif")) return "image/heif";
+	if (clean.endsWith(".gif")) return "image/gif";
+
+	if (clean.endsWith(".pdf")) return "application/pdf";
+	if (clean.endsWith(".txt")) return "text/plain";
+	if (clean.endsWith(".csv")) return "text/csv";
+
+	if (clean.endsWith(".doc")) return "application/msword";
+	if (clean.endsWith(".docx")) {
+		return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+	}
+
+	if (clean.endsWith(".xls")) return "application/vnd.ms-excel";
+	if (clean.endsWith(".xlsx")) {
+		return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+	}
+
+	return fallback;
+}
 
 // Escolhe arquivo (imagem, pdf, etc.)
-export async function pickExamFile({ mode = 'any' } = {}) {
-    if (mode === 'image') {
-        const res = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            quality: 0.9,
-            base64: false,
-            allowsEditing: false,
-        });
-        if (res.canceled) return null;
-        const asset = res.assets[0];
-        return {
-            uri: asset.uri,
-            name: asset.fileName || asset.uri.split('/').pop() || `image-${Date.now()}.jpg`,
-            mime: asset.mimeType || mime.getType(asset.uri) || 'image/jpeg',
-            size: asset.fileSize || (await safeGetSize(asset.uri)),
-            width: asset.width,
-            height: asset.height,
-        };
-    }
+export async function pickExamFile({ mode = "any" } = {}) {
+	if (mode === "image") {
+		const res = await ImagePicker.launchImageLibraryAsync({
+			mediaTypes: ImagePicker.MediaTypeOptions.Images,
+			quality: 0.9,
+			base64: false,
+			allowsEditing: false,
+		});
 
-    // Documentos (PDF, etc.)
-    const res = await DocumentPicker.getDocumentAsync({
-        multiple: false,
-        copyToCacheDirectory: true,
-    });
-    if (res.canceled) return null;
-    const asset = res.assets[0];
-    return {
-        uri: asset.uri,
-        name: asset.name || asset.uri.split('/').pop() || `file-${Date.now()}`,
-        mime: asset.mimeType || mime.getType(asset.uri) || 'application/octet-stream',
-        size: asset.size ?? (await safeGetSize(asset.uri)),
-    };
+		if (res.canceled) return null;
+
+		const asset = res.assets[0];
+
+		return {
+			uri: asset.uri,
+			name:
+				asset.fileName ||
+				asset.uri.split("/").pop() ||
+				`image-${Date.now()}.jpg`,
+			mime: asset.mimeType || guessMimeType(asset.uri, "image/jpeg"),
+			size: asset.fileSize || (await safeGetSize(asset.uri)),
+			width: asset.width,
+			height: asset.height,
+		};
+	}
+
+	const res = await DocumentPicker.getDocumentAsync({
+		multiple: false,
+		copyToCacheDirectory: true,
+	});
+
+	if (res.canceled) return null;
+
+	const asset = res.assets[0];
+
+	return {
+		uri: asset.uri,
+		name: asset.name || asset.uri.split("/").pop() || `file-${Date.now()}`,
+		mime: asset.mimeType || guessMimeType(asset.uri),
+		size: asset.size ?? (await safeGetSize(asset.uri)),
+	};
 }
 
 async function safeGetSize(uri) {
-    try {
-        const info = await FileSystem.getInfoAsync(uri, { size: true });
-        return info.size ?? 0;
-    } catch {
-        return 0;
-    }
+	try {
+		const info = await FileSystem.getInfoAsync(uri, { size: true });
+		return info.size ?? 0;
+	} catch {
+		return 0;
+	}
+}
+
+async function uriToBlob(uri) {
+	const response = await fetch(uri);
+	return await response.blob();
 }
 
 /**
@@ -56,88 +106,83 @@ async function safeGetSize(uri) {
  * users/{uid}/pets/{petId}/exams/{examId}
  */
 export async function uploadExamForPet({
-    firestore,
-    storage,
-    uid,
-    petId,
-    tutorId = null,
-    title = null,
-    notes = null,
-    file,                 // { uri, name, mime, size, width?, height? }
-    onProgress = null,    // opcional: (pct:number) => void
+	uid,
+	petId,
+	tutorId = null,
+	title = null,
+	notes = null,
+	file,
+	onProgress = null,
 }) {
-    if (!uid) throw new Error('UID ausente');
-    if (!petId) throw new Error('petId ausente');
-    if (!file?.uri) throw new Error('Arquivo inválido');
+	if (!uid) throw new Error("UID ausente");
+	if (!petId) throw new Error("petId ausente");
+	if (!file?.uri) throw new Error("Arquivo inválido");
 
-    // 1) cria doc para obter o ID
-    const examRef = firestore
-        .collection('users').doc(uid)
-        .collection('pets').doc(String(petId))
-        .collection('exams')
-        .doc();
-    const examId = examRef.id;
+	const examsColRef = collection(
+		db,
+		"users",
+		String(uid),
+		"pets",
+		String(petId),
+		"exams"
+	);
 
-    // 2) sobe para o Storage
-    const storagePath = `users/${uid}/pets/${petId}/exams/${examId}/${file.name}`;
-    const sref = storage.ref(storagePath);
+	const examRef = doc(examsColRef);
+	const examId = examRef.id;
 
-    const task = sref.putFile(file.uri, {
-        contentType: file.mime,
-        // customMetadata: { origin: 'app' },
-    });
+	const storagePath = `users/${uid}/pets/${petId}/exams/${examId}/${file.name}`;
+	const fileRef = storageRef(storage, storagePath);
 
-    const clamp = (n) => Math.max(0, Math.min(99, Math.round(n)));
+	const blob = await uriToBlob(file.uri);
 
-    await new Promise((resolve, reject) => {
-        const unsubscribe = task.on(
-            'state_changed',
-            (snap) => {
-                if (!onProgress) return;
-                const { bytesTransferred = 0, totalBytes = 0 } = snap || {};
-                if (totalBytes > 0) {
-                    const pct = clamp((bytesTransferred / totalBytes) * 100);
-                    onProgress(pct);
-                }
-            },
-            (err) => {
-                try { unsubscribe && unsubscribe(); } catch { }
-                reject(err);
-            },
-            () => {
-                try { unsubscribe && unsubscribe(); } catch { }
-                resolve();
-            }
-        );
-    });
+	const task = uploadBytesResumable(fileRef, blob, {
+		contentType: file.mime || "application/octet-stream",
+	});
 
-    // 3) URL pública
-    const downloadURL = await sref.getDownloadURL();
+	const clamp = (n) => Math.max(0, Math.min(99, Math.round(n)));
 
-    // 4) grava metadados no Firestore
-    const payload = {
-        petId,
-        tutorId,
-        title: title || file.name,
-        notes: notes || null,
-        type: 'exam',
-        tags: [],
-        createdAt: firestoreModule.FieldValue.serverTimestamp(),
-        file: {
-            name: file.name,
-            mime: file.mime,
-            size: file.size ?? null,
-            width: file.width ?? null,
-            height: file.height ?? null,
-            storagePath,
-            downloadURL,
-        },
-    };
+	await new Promise((resolve, reject) => {
+		task.on(
+			"state_changed",
+			(snap) => {
+				if (!onProgress) return;
 
-    await examRef.set(payload);
+				const { bytesTransferred = 0, totalBytes = 0 } = snap || {};
 
-    // só agora 100%
-    if (onProgress) onProgress(100);
+				if (totalBytes > 0) {
+					const pct = clamp((bytesTransferred / totalBytes) * 100);
+					onProgress(pct);
+				}
+			},
+			(err) => reject(err),
+			() => resolve()
+		);
+	});
 
-    return { examId, downloadURL };
+	const downloadURL = await getDownloadURL(fileRef);
+
+	const payload = {
+		petId: String(petId),
+		tutorId: tutorId ? String(tutorId) : null,
+		title: title || file.name,
+		notes: notes || null,
+		type: "exam",
+		tags: [],
+		createdAt: serverTimestamp(),
+		file: {
+			name: file.name,
+			mime: file.mime || "application/octet-stream",
+			size: file.size ?? null,
+			width: file.width ?? null,
+			height: file.height ?? null,
+			storagePath,
+			downloadURL,
+		},
+	};
+
+	await setDoc(examRef, payload);
+
+	if (onProgress) onProgress(100);
+
+	return { examId, downloadURL };
 }

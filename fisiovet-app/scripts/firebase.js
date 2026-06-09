@@ -1,11 +1,24 @@
 // scripts/firebase.js
-import auth from "@react-native-firebase/auth";
-import firestore from "@react-native-firebase/firestore";
-import app from "@react-native-firebase/app";
+import {
+	auth,
+	firestore,
+	firestoreModule,
+	storageInstance,
+	ensureFirebase,
+} from "@/firebase/firebase";
 
-// Opcional: verificar se o app já foi inicializado
-if (!app.apps.length) {
-	app.initializeApp();
-}
+export {
+	auth,
+	firestore,
+	firestoreModule,
+	storageInstance,
+	ensureFirebase,
+};
 
-export { auth, firestore };
+export default {
+	auth,
+	firestore,
+	firestoreModule,
+	storageInstance,
+	ensureFirebase,
+};

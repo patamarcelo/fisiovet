@@ -101,7 +101,7 @@ export default function MapFull() {
             <MapView
                 ref={mapRef}
                 style={StyleSheet.absoluteFill}
-                provider={PROVIDER_GOOGLE}
+                provider={Platform.OS === "android" ? PROVIDER_GOOGLE : undefined}
                 initialRegion={{
                     latitude,
                     longitude,

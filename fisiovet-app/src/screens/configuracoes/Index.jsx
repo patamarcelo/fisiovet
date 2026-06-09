@@ -25,13 +25,16 @@ import { useColorMode } from '@/src/theme/color-scheme';
 import { selectDefaultDuracao, selectStartOfDay } from '@/src/store/slices/systemSlice';
 
 
-import { signOut } from '@react-native-firebase/auth';
+
 import { useDispatch } from 'react-redux';
 import { setUser } from '@/src/store/slices/userSlice';
 import { ensureFirebase } from '@/firebase/firebase';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
 
-import auth from '@react-native-firebase/auth';
+
+import { signOut } from "firebase/auth";
+import { auth } from "@/src/services/firebaseClient";
+
 import * as SecureStore from 'expo-secure-store';
 import { clearSession } from '@/src/store/sessionActions';
 
@@ -289,16 +292,16 @@ export default function ConfigIndex() {
     try {
       setLoggingOut(true);
 
-      const user = auth().currentUser;
+      const user = auth.currentUser;
       const loggedWithGoogle = user?.providerData?.some(p => p.providerId === "google.com");
-
+      
       if (loggedWithGoogle) {
         // seguro chamar mesmo sem estar logado no Google
         await GoogleSignin.revokeAccess().catch(() => { });
         await GoogleSignin.signOut().catch(() => { });
       }
-
-      await auth().signOut();
+      
+      await signOut(auth);
 
       // 🔒 trava persist, esvazia buffer e apaga storage
       persistor.pause();

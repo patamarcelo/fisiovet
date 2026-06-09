@@ -7,6 +7,29 @@ import { ensureFirebase } from '@/firebase/firebase';
 ======================= */
 const STORAGE_KEY = 'fisiovet:tutores_v1';
 
+function findUndefinedPaths(value, path = "") {
+  const hits = [];
+
+  if (value === undefined) {
+    hits.push(path || "(root)");
+    return hits;
+  }
+  if (value === null) return hits;
+
+  if (Array.isArray(value)) {
+    value.forEach((v, i) => hits.push(...findUndefinedPaths(v, `${path}[${i}]`)));
+    return hits;
+  }
+
+  if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      const p = path ? `${path}.${k}` : k;
+      hits.push(...findUndefinedPaths(v, p));
+    }
+  }
+  return hits;
+}
+
 // POA mock (geocode)
 const POA = { lat: -30.0346, lng: -51.2177 };
 const jitter = (v) => v + (Math.random() - 0.5) * 0.02;
@@ -171,6 +194,13 @@ export async function createTutor(payload) {
       updatedAtMs: nowMs,
     };
 
+    const undefinedPaths = findUndefinedPaths(data);
+    if (undefinedPaths.length) {
+      console.log("🔥 Firestore SET: undefinedPaths =", undefinedPaths);
+      console.log("🔥 Firestore SET: data =", JSON.stringify(data, null, 2));
+      throw new Error("Payload contém undefined: " + undefinedPaths.join(", "));
+    }
+
     await ref.set(data);
     // retorna payload+id com ms locais (útil pra UI)
     return { id: ref.id, ...payload, geo, createdAt: nowMs, updatedAt: nowMs };
@@ -214,6 +244,7 @@ export async function updateTutor(id, patch) {
       updatedAt: nowSrv,
       updatedAtMs: nowMs,
     });
+    
 
     // retorna merge local para atualizar store
     return { id, ...patch, ...(geo ? { geo } : {}), updatedAt: nowMs };

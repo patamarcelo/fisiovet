@@ -7,6 +7,32 @@ import {
     removeTutor,
 } from '@/src/services/tutores';
 
+
+function deepCleanUndefined(value) {
+    if (value === undefined) return undefined;
+
+    // mantém null como null (Firestore aceita)
+    if (value === null) return null;
+
+    if (Array.isArray(value)) {
+        const arr = value
+            .map(deepCleanUndefined)
+            .filter((v) => v !== undefined);
+        return arr;
+    }
+
+    if (typeof value === "object") {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+            const cleaned = deepCleanUndefined(v);
+            if (cleaned !== undefined) out[k] = cleaned;
+        }
+        return out;
+    }
+
+    return value;
+}
+
 // THUNKS
 export const fetchTutores = createAsyncThunk('tutores/fetchAll', async () => {
     return await listTutores();
@@ -17,15 +43,13 @@ export const fetchTutor = createAsyncThunk('tutores/fetchOne', async (id) => {
 });
 
 export const addTutor = createAsyncThunk('tutores/add', async (payload) => {
-    // payload: { nome, telefone, email, endereco, geo? }
-    return await createTutor(payload);
+    return await createTutor(deepCleanUndefined(payload));
 });
 
 export const updateTutor = createAsyncThunk(
     'tutores/update',
     async ({ id, patch }) => {
-        // patch: campos que deseja atualizar (ex: { nome, telefone, email, endereco, geo })
-        return await svcUpdateTutor(id, patch);
+        return await svcUpdateTutor(id, deepCleanUndefined(patch));
     }
 );
 
