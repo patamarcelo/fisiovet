@@ -11,7 +11,7 @@ import * as Haptics from 'expo-haptics';
 function EditButton() {
   const { id } = useLocalSearchParams();           // <- pega dos params da rota atual
   const tint = useThemeColor({}, 'tint');
-  
+
 
   // pode chegar undefined na 1ª render; evite quebrar
   if (!id) return null;
@@ -56,10 +56,10 @@ export default function TutoresLayout() {
     <Stack
       screenOptions={{
         headerShown: false,
-        headerShadowVisible: false,
-        headerTintColor: tint,
-        headerBackTitleVisible: false,
         headerLargeTitle: false,
+        headerTransparent: false,
+        headerBlurEffect: undefined,
+        headerShadowVisible: false,
       }}
     >
       <Stack.Screen

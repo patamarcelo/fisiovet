@@ -18,7 +18,7 @@ const MAPS_KEY =
 
 
 // Controle de versão centralizado
-const versionControl = "1.0.14";
+const versionControl = "1.0.15";
 
 
 module.exports = {
@@ -32,7 +32,7 @@ module.exports = {
 		orientation: "portrait",
 		icon: "./assets/images/icon.png",
 		scheme: `fisiovetapp${SCHEME_SUFFIX}`, // deep link único por app/ambiente
-		userInterfaceStyle: "automatic",
+		userInterfaceStyle: "light",
 		newArchEnabled: true,
 		jsEngine: "jsc",
 
@@ -49,6 +49,8 @@ module.exports = {
 			scheme: "fisiovetapp",
 			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
+				UIUserInterfaceStyle: "Light",
+				
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
 					"UIInterfaceOrientationLandscapeLeft",

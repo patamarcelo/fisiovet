@@ -22,16 +22,29 @@ function CloseButton() {
 export default function ModalLayout() {
     const bg = useThemeColor({}, 'background');
     const tint = useThemeColor({}, 'tint');
+    const text = useThemeColor({}, "text");
 
     return (
         <Stack
             screenOptions={{
-                // iOS: modal “page sheet”; Android: transparente para parecer overlay
-                presentation: Platform.select({ ios: 'modal', android: 'transparentModal', default: 'modal' }),
+                presentation: Platform.select({
+                    ios: "modal",
+                    android: "transparentModal",
+                    default: "modal",
+                }),
+                headerShown: true,
                 headerBackTitleVisible: false,
                 headerLargeTitle: false,
+                headerTransparent: false,
+                headerBlurEffect: undefined,
                 headerStyle: { backgroundColor: bg },
                 headerTintColor: tint,
+                headerTitleStyle: {
+                    color: text,
+                    fontWeight: "800",
+                },
+                headerShadowVisible: false,
+                contentStyle: { backgroundColor: bg },
             }}
         >
 

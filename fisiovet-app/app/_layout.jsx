@@ -2,6 +2,7 @@
 import "react-native-gesture-handler";
 import "react-native-reanimated";
 
+import { Appearance } from "react-native";
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
@@ -158,6 +159,9 @@ export default function RootLayout() {
 		SpaceMono: Fonts.SpaceMono,
 	});
 
+	useEffect(() => {
+		Appearance.setColorScheme("light");
+	}, []);
 	if (!fontsReady) return <SplashLoadingScreen />;
 
 	return (

@@ -134,7 +134,7 @@ function MiniEventRow({ item }) {
     return (
         <Pressable
             onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
+                Haptics.selectionAsync().catch(() => { });
                 router.push({
                     pathname: '/(modals)/agenda-new',
                     params: { id: String(item.id) },
@@ -190,7 +190,6 @@ function UpcomingEventsList({
     hasPet,
     canCreateEvent,
 }) {
-    const { height } = useWindowDimensions();
     const sections = useMemo(() => toSections(upcoming), [upcoming]);
 
     if (!upcoming?.length) {
@@ -216,7 +215,7 @@ function UpcomingEventsList({
                     <Pressable
                         onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                () => {}
+                                () => { }
                             );
 
                             router.push({
@@ -243,27 +242,21 @@ function UpcomingEventsList({
     }
 
     return (
-        <SectionList
-            sections={sections}
-            keyExtractor={(item) => String(item.id)}
-            renderItem={({ item }) => <MiniEventRow item={item} />}
-            renderSectionHeader={({ section }) => (
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionHeaderText}>{section.title}</Text>
+        <View style={styles.eventsInlineList}>
+            {sections.map((section) => (
+                <View key={section.title} style={styles.eventsSection}>
+                    <View style={styles.sectionHeader}>
+                        <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                    </View>
+
+                    {section.data.map((item) => (
+                        <View key={String(item.id)} style={{ marginBottom: 6 }}>
+                            <MiniEventRow item={item} />
+                        </View>
+                    ))}
                 </View>
-            )}
-            ItemSeparatorComponent={() => <View style={{ height: 6 }} />}
-            contentContainerStyle={{ paddingTop: 4, paddingBottom: 4 }}
-            style={{
-                maxHeight: Math.min(height * 0.45, 360),
-                minHeight: Math.min(height * 0.25, 360),
-            }}
-            stickySectionHeadersEnabled={false}
-            showsVerticalScrollIndicator
-            indicatorStyle="black"
-            persistentScrollbar
-            nestedScrollEnabled
-        />
+            ))}
+        </View>
     );
 }
 
@@ -415,7 +408,7 @@ export default function Home() {
 
                         <Pressable
                             onPress={() => {
-                                Haptics.selectionAsync().catch(() => {});
+                                Haptics.selectionAsync().catch(() => { });
                                 router.push('/configuracoes');
                             }}
                             hitSlop={10}
@@ -449,7 +442,7 @@ export default function Home() {
                             <Pressable
                                 onPress={() => {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                        () => {}
+                                        () => { }
                                     );
                                     router.push('/(modals)/pet-new');
                                 }}
@@ -482,7 +475,7 @@ export default function Home() {
                         <Pressable
                             onPress={() => {
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                    () => {}
+                                    () => { }
                                 );
                                 router.push('/(modals)/tutor-new');
                             }}
@@ -515,7 +508,7 @@ export default function Home() {
                             <Pressable
                                 onPress={() => {
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                        () => {}
+                                        () => { }
                                     );
                                     router.push('/(modals)/agenda-new');
                                 }}
@@ -552,7 +545,7 @@ export default function Home() {
 
                             <Pressable
                                 onPress={() => {
-                                    Haptics.selectionAsync().catch(() => {});
+                                    Haptics.selectionAsync().catch(() => { });
                                     router.push('/(phone)/agenda');
                                 }}
                                 hitSlop={8}
@@ -844,5 +837,13 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 14,
         textAlign: 'center',
+    },
+    eventsInlineList: {
+        paddingTop: 4,
+        paddingBottom: 4,
+    },
+
+    eventsSection: {
+        marginBottom: 8,
     },
 });
