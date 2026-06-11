@@ -11,6 +11,7 @@ import systemReducer from './slices/systemSlice';
 import avaliacaoReducer from './slices/avaliacaoSlice';
 import bootstrapReducer from './bootstrapSlice';
 import subscriptionReducer from "./slices/subscriptionSlice";
+import syncQueueReducer from "./slices/syncQueueSlice";
 
 import { clearSession } from "./sessionActions";
 
@@ -23,6 +24,7 @@ const appReducer = combineReducers({
 	avaliacao: avaliacaoReducer,
 	bootstrap: bootstrapReducer, // ⬅️ novo
 	subscription: subscriptionReducer,
+	syncQueue: syncQueueReducer,
 
 });
 

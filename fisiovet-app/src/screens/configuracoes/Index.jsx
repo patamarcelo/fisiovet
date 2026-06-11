@@ -42,10 +42,9 @@ import { persistor } from "@/src/store";
 import { Image } from 'expo-image';
 import { openWhatsapp } from '@/src/utils/openWhatsapp';
 
-import { selectNavPreference } from '@/src/store/slices/systemSlice';
+import { selectNavPreference, selectGoogleCalendarIntegration } from '@/src/store/slices/systemSlice';
 
 import Constants from "expo-constants";
-
 
 
 
@@ -202,10 +201,15 @@ function CellValue({
   subtleColor,
   textColor,
   disabled,
+  subtitle
 }) {
   const isString = typeof value === "string" || typeof value === "number";
   const badgeColor =
-    title.includes("Integração") || title.includes("Navegação") ? "#8B5CF6" : "#8E8E93";
+    title.includes("Integração") ||
+      title.includes("Navegação") ||
+      title.includes("Assinar calendário")
+      ? "#8B5CF6"
+      : "#8E8E93";
 
   const RightValue = isString ? (
     <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>
@@ -213,6 +217,34 @@ function CellValue({
     </Text>
   ) : (
     <View style={{ marginRight: 6 }}>{value}</View>
+  );
+
+  const LeftContent = (
+    <View style={styles.cellLeft}>
+      {!!leftIcon && (
+        <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
+          <IconSymbol name={leftIcon} size={16} color="#fff" />
+        </View>
+      )}
+
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
+          {title}
+        </Text>
+
+        {!!subtitle && (
+          <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        )}
+
+        {disabled && (
+          <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
+            Em breve
+          </Text>
+        )}
+      </View>
+    </View>
   );
 
   if (disabled) {
@@ -223,28 +255,8 @@ function CellValue({
         accessibilityLabel={title}
         accessibilityState={{ disabled: true }}
       >
-        <View style={styles.cellLeft}>
-          {!!leftIcon && (
-            <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
-              <IconSymbol name={leftIcon} size={16} color="#fff" />
-            </View>
-          )}
-
-          <View style={{ flex: 1 }}>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
-                {title}
-              </Text>
-            </View>
-
-            <Text style={[styles.cellSubtitle, { color: subtleColor }]} numberOfLines={1}>
-              Em breve
-            </Text>
-          </View>
-        </View>
-
+        {LeftContent}
         {RightValue}
-        {/* sem chevron quando disabled */}
       </View>
     );
   }
@@ -257,23 +269,14 @@ function CellValue({
       accessibilityLabel={title}
       accessibilityState={{ disabled: false }}
     >
-      <View style={styles.cellLeft}>
-        {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
-            <IconSymbol name={leftIcon} size={16} color="#fff" />
-          </View>
-        )}
-        <Text style={[styles.cellTitle, { color: textColor }]} numberOfLines={1}>
-          {title}
-        </Text>
-      </View>
+      {LeftContent}
 
       {RightValue}
+
       <IconSymbol name="chevron.right" size={14} color={subtleColor} />
     </Pressable>
   );
 }
-
 
 export default function ConfigIndex() {
   // cores do tema
@@ -395,7 +398,16 @@ export default function ConfigIndex() {
   // estados locais (exemplo; depois pode ligar no Redux)
   const [notifAgenda, setNotifAgenda] = useState(true);
   const [notifLembretes, setNotifLembretes] = useState(false);
-  const [isGoogleConnected, setIsGoogleConnected] = useState(false);
+  const googleCalendar = useSelector(selectGoogleCalendarIntegration);
+
+  const isGoogleConnected =
+    googleCalendar?.status === "ready" || googleCalendar?.connected === true;
+
+  const isCalendarSubscriptionReady = Boolean(
+    googleCalendar?.enabled &&
+    googleCalendar?.feedToken &&
+    googleCalendar?.status !== "disabled"
+  );
 
   return (
     <View style={[styles.screen, { backgroundColor: bgScreen }]}>
@@ -445,7 +457,7 @@ export default function ConfigIndex() {
           // disabled
           />
           <Divider />
-          <Cell
+          {/* <Cell
             title="Tamanho da fonte"
             subtitle="Ajuste o tamanho do texto no app"
             leftIcon="textformat.size"
@@ -454,7 +466,7 @@ export default function ConfigIndex() {
             subtleColor={subtle}
             textColor={text}
             disabled
-          />
+          /> */}
         </Group>
 
         {/* AGENDA */}
@@ -493,23 +505,27 @@ export default function ConfigIndex() {
           />
           <Divider />
           <CellValue
-            title="Integração Google Agenda"
+            title="Assinar calendário"
+            subtitle="Google Agenda, Apple Calendar e Outlook"
             value={
-              isGoogleConnected ? (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              isCalendarSubscriptionReady ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <FontAwesome name="check-circle" size={20} color="#16A34A" />
                 </View>
+              ) : googleCalendar?.enabled ? (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                  <Ionicons name="time-outline" size={20} color="#D97706" />
+                </View>
               ) : (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
                   <Ionicons name="close-circle" size={20} color="#EF4444" />
                 </View>
               )
             }
             leftIcon="calendar"
-            onPress={() => router.push('/configuracoes/agenda')}
+            onPress={() => router.push("/configuracoes/agenda")}
             subtleColor={subtle}
             textColor={text}
-            disabled
           />
           <Divider />
           <CellValue
@@ -602,7 +618,7 @@ export default function ConfigIndex() {
             onPress={() => router.push('/configuracoes/termos')}
             subtleColor={subtle}
             textColor={text}
-            disabled
+            // disabled
           />
           <Divider />
           <Cell
@@ -611,7 +627,7 @@ export default function ConfigIndex() {
             leftIcon="info.circle.fill"
             onPress={undefined}
             rightIcon={null}
-            disabled={true}
+            // disabled={true}
             subtleColor={subtle}
             textColor={text}
           />

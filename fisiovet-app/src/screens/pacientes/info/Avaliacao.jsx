@@ -29,6 +29,8 @@ import { ensureFirebase } from "@/firebase/firebase";
 import { clearDraft, createDraft } from "@/src/store/slices/avaliacaoSlice";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
+import { exportAvaliacoesPdf } from "@/src/services/avaliacaoPdf";
+
 const AVALIACAO_TIPOS = [
 	{
 		key: "rota",
@@ -92,7 +94,7 @@ function toDate(value) {
 	if (typeof value?.toDate === "function") {
 		try {
 			return value.toDate();
-		} catch {}
+		} catch { }
 	}
 
 	const d = new Date(value);
@@ -141,9 +143,9 @@ function groupByDay(items) {
 		const date = toDate(item?.createdAt || item?.updatedAt);
 		const key = date
 			? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
-					2,
-					"0"
-			  )}-${String(date.getDate()).padStart(2, "0")}`
+				2,
+				"0"
+			)}-${String(date.getDate()).padStart(2, "0")}`
 			: "sem-data";
 
 		if (!map.has(key)) {
@@ -208,7 +210,16 @@ function EmptyAvaliacoesCard({ onAdd, tint, text, subtle, border }) {
 	);
 }
 
-function AvaliacaoRow({ item, onOpen, text, subtle, border }) {
+function AvaliacaoRow({
+	item,
+	onOpen,
+	text,
+	subtle,
+	border,
+	selecting,
+	selected,
+	onToggleSelect,
+}) {
 	const kind = getAvaliacaoKind(item);
 	const date = toDate(item?.createdAt || item?.updatedAt);
 	const title = item?.title?.trim?.() || kind.label;
@@ -221,7 +232,14 @@ function AvaliacaoRow({ item, onOpen, text, subtle, border }) {
 
 	return (
 		<Pressable
-			onPress={() => onOpen(item)}
+			onPress={() => {
+				if (selecting) {
+					onToggleSelect(item);
+					return;
+				}
+
+				onOpen(item);
+			}}
 			style={({ pressed }) => [
 				styles.rowCard,
 				{
@@ -257,14 +275,26 @@ function AvaliacaoRow({ item, onOpen, text, subtle, border }) {
 					{notes}
 				</Text>
 			</View>
-
-			<Ionicons name="chevron-forward" size={18} color={subtle} />
+			{selecting ? (
+				<View
+					style={[
+						styles.selectionBox,
+						selected && styles.selectionBoxSelected,
+					]}
+				>
+					{selected && (
+						<Ionicons name="checkmark" size={15} color="#FFFFFF" />
+					)}
+				</View>
+			) : (
+				<Ionicons name="chevron-forward" size={18} color={subtle} />
+			)}
 		</Pressable>
 	);
 }
 
 export default function AvaliacaoList() {
-	const { id: petId } = useLocalSearchParams();
+	const { id: petId, petName } = useLocalSearchParams();
 	const navigation = useNavigation();
 	const dispatch = useDispatch();
 	const insets = useSafeAreaInsets();
@@ -285,6 +315,10 @@ export default function AvaliacaoList() {
 	const [loading, setLoading] = useState(true);
 	const [refreshing, setRefreshing] = useState(false);
 
+	const [selecting, setSelecting] = useState(false);
+	const [selectedIds, setSelectedIds] = useState({});
+	const [exporting, setExporting] = useState(false);
+
 	const handleAddDraft = useCallback(() => {
 		if (!petId) return;
 
@@ -292,7 +326,7 @@ export default function AvaliacaoList() {
 
 		const startDraft = (tipoKey) => {
 			try {
-				Haptics.selectionAsync().catch(() => {});
+				Haptics.selectionAsync().catch(() => { });
 
 				dispatch(clearDraft({ petId: safePetId }));
 				dispatch(createDraft({ petId: safePetId, tipo: tipoKey }));
@@ -344,30 +378,186 @@ export default function AvaliacaoList() {
 		]);
 	}, [dispatch, petId]);
 
+	const selectedCount = useMemo(
+		() => Object.values(selectedIds).filter(Boolean).length,
+		[selectedIds]
+	);
+
+	const selectedItems = useMemo(() => {
+		return items.filter((item) => selectedIds[String(item.id)]);
+	}, [items, selectedIds]);
+
+	const toggleSelection = useCallback((item) => {
+		const id = String(item?.id || "");
+
+		if (!id) return;
+
+		setSelectedIds((prev) => ({
+			...prev,
+			[id]: !prev[id],
+		}));
+	}, []);
+
+	const clearSelection = useCallback(() => {
+		setSelectedIds({});
+		setSelecting(false);
+	}, []);
+
+	const selectAll = useCallback(() => {
+		const next = {};
+
+		for (const item of items) {
+			if (item?.id) {
+				next[String(item.id)] = true;
+			}
+		}
+
+		setSelectedIds(next);
+	}, [items]);
+
+	const handleStartExport = useCallback(() => {
+		if (!items.length) {
+			Alert.alert("Exportar PDF", "Não há avaliações para exportar.");
+			return;
+		}
+
+		setSelecting(true);
+		setSelectedIds({});
+	}, [items.length]);
+
+	const handleExportSelected = useCallback(async () => {
+		try {
+			if (!selectedItems.length) {
+				Alert.alert("Exportar PDF", "Selecione ao menos uma avaliação.");
+				return;
+			}
+
+			setExporting(true);
+
+			await exportAvaliacoesPdf({
+				evaluations: selectedItems,
+				petName: petName || "",
+			});
+
+			clearSelection();
+		} catch (e) {
+			console.log("export avaliações pdf error", e);
+			Alert.alert(
+				"Exportar PDF",
+				e?.message || "Não foi possível gerar o PDF."
+			);
+		} finally {
+			setExporting(false);
+		}
+	}, [selectedItems, clearSelection]);
+
 	useLayoutEffect(() => {
 		navigation.setOptions({
 			headerShown: true,
-			headerTitle: "Avaliações",
+			headerTitle: selecting
+				? `${selectedCount} selecionada${selectedCount === 1 ? "" : "s"}`
+				: "Avaliações",
 			headerLargeTitle: false,
 			headerTintColor: tint,
 			headerStyle: { backgroundColor: bg },
 			headerTitleStyle: { color: tint, fontWeight: "800" },
-			headerRight: () => (
-				<Pressable
-					onPress={handleAddDraft}
-					hitSlop={10}
-					style={({ pressed }) => [
-						styles.navAddButton,
-						{ opacity: pressed ? 0.65 : 1 },
-					]}
-					accessibilityRole="button"
-					accessibilityLabel="Adicionar avaliação"
-				>
-					<Ionicons name="add-circle" size={24} color={tint} />
-				</Pressable>
-			),
+
+			headerLeft: selecting
+				? () => (
+					<Pressable
+						onPress={clearSelection}
+						hitSlop={10}
+						style={({ pressed }) => [
+							styles.navTextButton,
+							{ opacity: pressed ? 0.65 : 1 },
+						]}
+					>
+						<Text style={[styles.navTextButtonText, { color: tint }]}>
+							Cancelar
+						</Text>
+					</Pressable>
+				)
+				: () => (
+					<Pressable
+						onPress={() => router.back()}
+						hitSlop={10}
+						style={({ pressed }) => [
+							styles.navTextButton,
+							{ opacity: pressed ? 0.65 : 1 },
+						]}
+					>
+						<Text style={[styles.navTextButtonText, { color: tint }]}>
+							<Ionicons name="chevron-back" size={18} color={subtle} />
+						</Text>
+					</Pressable>
+				),
+
+			headerRight: () => {
+				if (selecting) {
+					return (
+						<Pressable
+							onPress={selectAll}
+							disabled={!items.length}
+							hitSlop={10}
+							style={({ pressed }) => [
+								styles.navTextButton,
+								{
+									opacity: !items.length ? 0.28 : pressed ? 0.65 : 1,
+								},
+							]}
+						>
+							<Text style={[styles.navTextButtonText, { color: tint }]}>
+								Todos
+							</Text>
+						</Pressable>
+					);
+				}
+
+				return (
+					<View style={styles.headerActions}>
+						{items.length > 0 && (
+							<Pressable
+								onPress={handleStartExport}
+								hitSlop={10}
+								style={({ pressed }) => [
+									styles.navAddButton,
+									{ opacity: pressed ? 0.65 : 1 },
+								]}
+								accessibilityRole="button"
+								accessibilityLabel="Exportar avaliações"
+							>
+								<Ionicons name="print-outline" size={23} color={tint} />
+							</Pressable>
+						)}
+
+						<Pressable
+							onPress={handleAddDraft}
+							hitSlop={10}
+							style={({ pressed }) => [
+								styles.navAddButton,
+								{ opacity: pressed ? 0.65 : 1 },
+							]}
+							accessibilityRole="button"
+							accessibilityLabel="Adicionar avaliação"
+						>
+							<Ionicons name="add-circle" size={24} color={tint} />
+						</Pressable>
+					</View>
+				);
+			},
 		});
-	}, [navigation, tint, bg, handleAddDraft]);
+	}, [
+		navigation,
+		tint,
+		bg,
+		selecting,
+		selectedCount,
+		items.length,
+		handleAddDraft,
+		handleStartExport,
+		clearSelection,
+		selectAll,
+	]);
 
 	useEffect(() => {
 		if (!firestore) return;
@@ -428,6 +618,7 @@ export default function AvaliacaoList() {
 		setTimeout(() => setRefreshing(false), 450);
 	}, []);
 
+
 	if (loading) {
 		return (
 			<SafeAreaView
@@ -470,6 +661,9 @@ export default function AvaliacaoList() {
 						text={text}
 						subtle={subtle}
 						border={border}
+						selecting={selecting}
+						selected={!!selectedIds[String(item.id)]}
+						onToggleSelect={toggleSelection}
 					/>
 				)}
 				renderSectionHeader={({ section }) => (
@@ -509,7 +703,8 @@ export default function AvaliacaoList() {
 				contentContainerStyle={[
 					styles.listContent,
 					{
-						paddingBottom: Math.max(insets.bottom, 0) + 24,
+						paddingBottom:
+							Math.max(insets.bottom, 0) + (selecting ? 96 : 24),
 						flexGrow: 1,
 					},
 				]}
@@ -525,6 +720,37 @@ export default function AvaliacaoList() {
 					/>
 				}
 			/>
+			{selecting && (
+				<SafeAreaView
+					edges={["bottom"]}
+					style={[
+						styles.exportFooter,
+						{ paddingBottom: Math.max(insets.bottom, 10) },
+					]}
+				>
+					<Pressable
+						onPress={handleExportSelected}
+						disabled={exporting || selectedCount === 0}
+						style={({ pressed }) => [
+							styles.exportButton,
+							(pressed || exporting) && { opacity: 0.84 },
+							selectedCount === 0 && { opacity: 0.45 },
+						]}
+					>
+						{exporting ? (
+							<ActivityIndicator color="#FFFFFF" />
+						) : (
+							<Ionicons name="document-text-outline" size={18} color="#FFFFFF" />
+						)}
+
+						<Text style={styles.exportButtonText}>
+							{exporting
+								? "Gerando PDF..."
+								: `Gerar PDF${selectedCount ? ` (${selectedCount})` : ""}`}
+						</Text>
+					</Pressable>
+				</SafeAreaView>
+			)}
 		</SafeAreaView>
 	);
 }
@@ -738,5 +964,64 @@ const styles = StyleSheet.create({
 		color: "#FFFFFF",
 		fontWeight: "800",
 		fontSize: 14,
+	},
+	headerActions: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 4,
+	},
+
+	navTextButton: {
+		paddingHorizontal: 8,
+		paddingVertical: 4,
+	},
+
+	navTextButtonText: {
+		fontSize: 16,
+		fontWeight: "750",
+	},
+
+	selectionBox: {
+		width: 24,
+		height: 24,
+		borderRadius: 12,
+		borderWidth: 2,
+		borderColor: "rgba(15,23,42,0.18)",
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "#FFFFFF",
+	},
+
+	selectionBoxSelected: {
+		borderColor: "#2563EB",
+		backgroundColor: "#2563EB",
+	},
+
+	exportFooter: {
+		position: "absolute",
+		left: 0,
+		right: 0,
+		bottom: 0,
+		backgroundColor: "#FFFFFF",
+		borderTopWidth: StyleSheet.hairlineWidth,
+		borderTopColor: "rgba(15,23,42,0.12)",
+		paddingHorizontal: 16,
+		paddingTop: 10,
+	},
+
+	exportButton: {
+		height: 46,
+		borderRadius: 14,
+		backgroundColor: "#2563EB",
+		alignItems: "center",
+		justifyContent: "center",
+		flexDirection: "row",
+		gap: 8,
+	},
+
+	exportButtonText: {
+		color: "#FFFFFF",
+		fontSize: 14.5,
+		fontWeight: "850",
 	},
 });

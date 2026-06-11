@@ -26,6 +26,36 @@ const defaultState = {
     // Integrações (exemplos; expanda depois)
     integrations: {
         google: { connected: false, token: null },
+
+        googleCalendar: {
+            enabled: false,
+            connected: false,
+
+            mode: "ics_feed",
+
+            // link secreto do calendário
+            feedToken: null,
+            feedUrl: null,
+            webcalUrl: null,
+
+            // opcional: pode manter email se quiser identificar/mostrar,
+            // mas não é necessário para ICS
+            email: "",
+            inviteEmail: "",
+
+            status: "disabled",
+            // disabled | ready | error
+
+            pendingCount: 0,
+            failedCount: 0,
+            lastSyncAt: null,
+
+            error: null,
+
+            createdAt: null,
+            updatedAt: null,
+        },
+
         asaas: { enabled: false, apiKey: null },
     },
     financeiro: {
@@ -49,8 +79,28 @@ export const loadSystem = createAsyncThunk('system/load', async () => {
     const v = await readFromDevice();
     if (v && typeof v === 'object') {
         return {
-            ...defaultState,      // garante campos novos
+            ...defaultState,
             ...v,
+            integrations: {
+                ...defaultState.integrations,
+                ...(v.integrations || {}),
+                googleCalendar: {
+                    ...defaultState.integrations.googleCalendar,
+                    ...(v.integrations?.googleCalendar || {}),
+                },
+                google: {
+                    ...defaultState.integrations.google,
+                    ...(v.integrations?.google || {}),
+                },
+                asaas: {
+                    ...defaultState.integrations.asaas,
+                    ...(v.integrations?.asaas || {}),
+                },
+            },
+            financeiro: {
+                ...defaultState.financeiro,
+                ...(v.financeiro || {}),
+            },
             navPreference: sanitizeNavPreference(v.navPreference, defaultState.navPreference),
         };
     }
@@ -71,6 +121,21 @@ export const updateSystem = createAsyncThunk('system/update', async (patch, { ge
         integrations: {
             ...state.integrations,
             ...(patch?.integrations || {}),
+
+            google: {
+                ...(state.integrations?.google || defaultState.integrations.google),
+                ...(patch?.integrations?.google || {}),
+            },
+
+            googleCalendar: {
+                ...(state.integrations?.googleCalendar || defaultState.integrations.googleCalendar),
+                ...(patch?.integrations?.googleCalendar || {}),
+            },
+
+            asaas: {
+                ...(state.integrations?.asaas || defaultState.integrations.asaas),
+                ...(patch?.integrations?.asaas || {}),
+            },
         },
         financeiro: {
             ...state.financeiro,
@@ -109,6 +174,30 @@ export default systemSlice.reducer;
 export const selectSystem = (s) => s.system || defaultState;
 export const selectDefaultDuracao = createSelector(selectSystem, (sys) => sys.defaultDuracao);
 export const selectStartOfDay = createSelector(selectSystem, (sys) => sys.startOfDay);
+
+export const selectIntegrations = createSelector(
+    selectSystem,
+    (sys) => sys.integrations || defaultState.integrations
+);
+
+export const selectGoogleCalendarIntegration = createSelector(
+    selectIntegrations,
+    (integrations) => ({
+        ...defaultState.integrations.googleCalendar,
+        ...(integrations?.googleCalendar || {}),
+    })
+);
+
+export const selectIsGoogleCalendarEnabled = createSelector(
+    selectGoogleCalendarIntegration,
+    (googleCalendar) => Boolean(googleCalendar.enabled)
+);
+
+export const selectGoogleCalendarStatus = createSelector(
+    selectGoogleCalendarIntegration,
+    (googleCalendar) => googleCalendar.status || "disabled"
+);
+
 
 // 🔹 NOVO selector
 export const selectNavPreference = createSelector(

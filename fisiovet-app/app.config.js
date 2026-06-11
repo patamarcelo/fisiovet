@@ -50,7 +50,7 @@ module.exports = {
 			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				UIUserInterfaceStyle: "Light",
-				
+
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
 					"UIInterfaceOrientationLandscapeLeft",
@@ -113,7 +113,7 @@ module.exports = {
 					backgroundColor: "#F7F8FA",
 					dark: {
 						image: "./assets/images/splash-fisiovet.png",
-						backgroundColor: "#0B1220"
+						backgroundColor: "#F7F8FA"
 					}
 				}
 			],

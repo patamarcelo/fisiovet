@@ -34,10 +34,13 @@ import {
   selectEventoById,
   updateEvento,
 } from "@/src/store/slices/agendaSlice";
+import { loadSyncQueue } from "@/src/store/slices/syncQueueSlice";
 import { selectTutorById } from "@/src/store/slices/tutoresSlice";
 import { selectPetsState } from "@/src/store/slices/petsSlice";
+import { useStore } from "react-redux";
 
 import { EmptyAgendaCard } from "./_ListEmpty";
+import { processSyncQueue } from "@/src/services/syncProcessor";
 
 const STATUS_COLORS = {
   confirmado: "#1ABC9C",
@@ -432,6 +435,7 @@ export default function AgendaScreen() {
   const dispatch = useDispatch();
   const listRef = useRef(null);
   const sectionsRef = useRef([]);
+  const store = useStore();
 
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState("todos");
@@ -447,9 +451,33 @@ export default function AgendaScreen() {
   const petsById = petsState?.byId || {};
 
   useEffect(() => {
-    dispatch(loadAgenda());
-  }, [dispatch]);
+    let alive = true;
 
+    async function bootAgenda() {
+      try {
+        await Promise.all([
+          dispatch(loadAgenda()).unwrap(),
+          dispatch(loadSyncQueue()).unwrap(),
+        ]);
+
+        if (!alive) return;
+
+        await processSyncQueue(dispatch, store.getState);
+      } catch (err) {
+        console.log("Boot Agenda ignorou sync inicial:", err?.message);
+
+        dispatch(loadAgenda());
+        dispatch(loadSyncQueue());
+      }
+    }
+
+    bootAgenda();
+
+    return () => {
+      alive = false;
+    };
+  }, [dispatch, store]);
+  
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLargeTitle: false,
@@ -576,13 +604,21 @@ export default function AgendaScreen() {
     setRefreshing(true);
 
     try {
-      await dispatch(loadAgenda()).unwrap?.();
-    } catch {
+      await Promise.all([
+        dispatch(loadAgenda()).unwrap(),
+        dispatch(loadSyncQueue()).unwrap(),
+      ]);
+
+      await processSyncQueue(dispatch, store.getState);
+    } catch (err) {
+      console.log("Refresh Agenda ignorou sync:", err?.message);
+
       dispatch(loadAgenda());
+      dispatch(loadSyncQueue());
     } finally {
       setRefreshing(false);
     }
-  }, [dispatch]);
+  }, [dispatch, store]);
 
   const clearAllFilters = useCallback(() => {
     Haptics.selectionAsync().catch(() => { });

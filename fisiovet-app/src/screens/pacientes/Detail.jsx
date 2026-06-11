@@ -442,8 +442,8 @@ export default function PetDetail() {
 						subtle={subtle}
 						onPress={() =>
 							router.push({
-								pathname: "/(phone)/pacientes/[id]/avaliacao",
-								params: { id: String(pet.id) },
+								pathname: "/(modals)/pets/[id]/avaliacao",
+								params: { id: String(pet.id), petName: pet?.nome },
 							})
 						}
 						onAdd={handleAddDraft}

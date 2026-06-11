@@ -21,12 +21,13 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, router, useFocusEffect } from 'expo-router';
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, useStore } from 'react-redux';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
 
 import { loadAgenda, selectAllEventos } from '@/src/store/slices/agendaSlice';
+import { loadSyncQueue } from '@/src/store/slices/syncQueueSlice';
 import { selectUserName, selectUserPhoto } from '@/src/store/slices/userSlice';
 import { selectTutores } from '@/src/store/slices/tutoresSlice';
 import { selectPetsState } from '@/src/store/slices/petsSlice';
@@ -39,6 +40,7 @@ import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentes
 import { BlurView } from 'expo-blur';
 
 import { updateSystem } from '@/src/store/slices/systemSlice';
+import { processSyncQueue } from "@/src/services/syncProcessor";
 
 /* ---------- Consts & helpers ---------- */
 
@@ -267,6 +269,7 @@ export default function Home() {
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
     const scrollRef = useRef(null);
+    const store = useStore();
 
     const tint = useThemeColor({}, 'tint');
     const colorIcon = useThemeColor({}, 'colorIcon');
@@ -306,8 +309,27 @@ export default function Home() {
     // Garante carga inicial da agenda/financeiro ao abrir a Home.
     // O financeiro pendente deriva dos eventos.
     useEffect(() => {
-        dispatch(loadAgenda());
-    }, [dispatch]);
+        let alive = true;
+
+        async function boot() {
+            try {
+                await dispatch(loadAgenda()).unwrap();
+                await dispatch(loadSyncQueue()).unwrap();
+
+                if (!alive) return;
+
+                await processSyncQueue(dispatch, store.getState);
+            } catch (err) {
+                console.log("Boot Home ignorou sync inicial:", err?.message);
+            }
+        }
+
+        boot();
+
+        return () => {
+            alive = false;
+        };
+    }, [dispatch, store]);
 
     useFocusEffect(
         useCallback(() => {

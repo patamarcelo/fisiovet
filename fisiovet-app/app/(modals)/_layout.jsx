@@ -71,10 +71,20 @@ export default function ModalLayout() {
                     headerRightContainerStyle: { minWidth: 72 },
                 }}
             />
+
+            <Stack.Screen
+                name="pets/[id]/avaliacao"
+                options={{
+                    title: "Avaliações",
+                    headerShown: true,
+                    presentation: "modal",
+                }}
+            />
             <Stack.Screen
                 name="exam-new"
                 options={{
                     title: 'Novo Exame',
+                    presentation: "fullScreenModal",
                     // Nada de headerRight aqui! Deixa a própria tela controlar.
                     headerTitleAlign: 'center',
                     headerTitleContainerStyle: { flex: 1, alignItems: 'center' },
@@ -85,6 +95,7 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="avaliacao/avaliacao-anamnese"
                 options={{
+                    presentation: "fullScreenModal",
                     title: "Anamnese",
                     headerTitleAlign: "center",
                     headerTitleContainerStyle: { flex: 1, alignItems: "center" },
@@ -96,6 +107,7 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="avaliacao/avaliacao-neurologica"
                 options={{
+                    presentation: "fullScreenModal",
                     title: "Avaliação Neurológica",
                     headerTitleAlign: "center",
                     headerTitleContainerStyle: { flex: 1, alignItems: "center" },
@@ -107,6 +119,7 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="avaliacao/avaliacao-ortopedica"
                 options={{
+                    presentation: "fullScreenModal",
                     title: "Avaliação Ortopédica",
                     headerTitleAlign: "center",
                     headerTitleContainerStyle: { flex: 1, alignItems: "center" },
@@ -114,6 +127,8 @@ export default function ModalLayout() {
                     headerRightContainerStyle: { minWidth: 72 },
                 }}
             />
+
+
             {/* Adicione aqui outras telas modais, cada uma com suas opções:
         */}
         </Stack>

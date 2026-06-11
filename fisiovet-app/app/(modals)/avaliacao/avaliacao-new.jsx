@@ -1,4 +1,4 @@
-// app/(phone)/pacientes/[id]/avaliacao-form.jsx
+// app/(modals)/pets/[id]/avaliacao-form.jsx
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
     View, Text, ScrollView, TouchableOpacity, TextInput, Switch,
@@ -323,7 +323,7 @@ export default function AvaliacaoFormScreen() {
                 // navega para a mesma tela já populada (read-only)
             }
 
-            router.replace({ pathname: '/(phone)/pacientes/[id]/avaliacao', params: { id: String(petId) } });
+            router.replace({ pathname: '/(modals)/pets/[id]/avaliacao', params: { id: String(petId) } });
             dispatch(clearDraft({ petId: String(petId) }));
         } catch (e) {
             console.log('save avaliacao error', e);
@@ -357,7 +357,7 @@ export default function AvaliacaoFormScreen() {
                         // limpa rascunho local (se houver)
                         dispatch(clearDraft({ petId: String(petId) }));
                         // volta para a lista
-                        router.replace({ pathname: '/(phone)/pacientes/[id]/avaliacao', params: { id: String(petId) } });
+                        router.replace({ pathname: '/(modals)/pets/[id]/avaliacao', params: { id: String(petId) } });
                     } catch (e) {
                         console.log('delete avaliacao error', e);
                         Alert.alert('Avaliação', 'Não foi possível apagar.');
