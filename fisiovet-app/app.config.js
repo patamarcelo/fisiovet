@@ -18,7 +18,7 @@ const MAPS_KEY =
 
 
 // Controle de versão centralizado
-const versionControl = "1.0.15";
+const versionControl = "1.0.16";
 
 
 module.exports = {
