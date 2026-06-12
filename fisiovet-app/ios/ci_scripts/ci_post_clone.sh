@@ -4,7 +4,6 @@ set -e
 
 echo "===== XCODE CLOUD: POST CLONE ====="
 echo "PWD inicial: $(pwd)"
-echo "CI_WORKSPACE: $CI_WORKSPACE"
 echo "CI_PRIMARY_REPOSITORY_PATH: $CI_PRIMARY_REPOSITORY_PATH"
 
 echo "===== ENTRANDO NO APP ====="
