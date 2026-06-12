@@ -18,7 +18,62 @@ const MAPS_KEY =
 
 
 // Controle de versão centralizado
-const versionControl = "1.0.16";
+const fs = require("fs");
+const path = require("path");
+
+const versionPath = path.join(__dirname, "version.json");
+const bumpMarkerPath = path.join(__dirname, ".last-prebuild-bump");
+
+function isExpoPrebuildCommand() {
+	const argv = process.argv.join(" ");
+	return argv.includes("prebuild") && process.env.SKIP_VERSION_BUMP !== "1";
+}
+
+function bumpBuildNumberOnce() {
+	// Evita incrementar mais de uma vez se o Expo ler o app.config.js mais de uma vez
+	const now = Date.now();
+
+	try {
+		const markerStat = fs.statSync(bumpMarkerPath);
+		const secondsSinceLastBump = (now - markerStat.mtimeMs) / 1000;
+
+		if (secondsSinceLastBump < 60) {
+			console.log("Version bump ignorado: já executado recentemente.");
+			return;
+		}
+	} catch (_) {
+		// marker ainda não existe
+	}
+
+	const versionInfo = JSON.parse(fs.readFileSync(versionPath, "utf8"));
+
+	versionInfo.iosBuildNumber = Number(versionInfo.iosBuildNumber || 0) + 1;
+	versionInfo.androidVersionCode = Number(versionInfo.androidVersionCode || 0) + 1;
+
+	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2) + "\n");
+	fs.writeFileSync(bumpMarkerPath, String(now));
+
+	console.log("Build number incrementado automaticamente:");
+	console.log(`version: ${versionInfo.version}`);
+	console.log(`iosBuildNumber: ${versionInfo.iosBuildNumber}`);
+	console.log(`androidVersionCode: ${versionInfo.androidVersionCode}`);
+}
+
+if (isExpoPrebuildCommand()) {
+	bumpBuildNumberOnce();
+}
+
+const versionInfo = require("./version.json");
+
+const versionControl = versionInfo.version;
+
+const iosBuildNumber = String(
+	process.env.IOS_BUILD_NUMBER || versionInfo.iosBuildNumber
+);
+
+const androidVersionCode = Number(
+	process.env.ANDROID_VERSION_CODE || versionInfo.androidVersionCode
+);
 
 
 module.exports = {
@@ -45,6 +100,7 @@ module.exports = {
 			supportsTablet: true,
 			usesAppleSignIn: true,
 			requireFullScreen: false,
+			buildNumber: iosBuildNumber,
 			bundleIdentifier: process.env.IOS_BUNDLE_IDENTIFIER,
 			scheme: "fisiovetapp",
 			googleServicesFile: "./GoogleService-Info.plist",
@@ -78,6 +134,7 @@ module.exports = {
 		},
 
 		android: {
+			versionCode: androidVersionCode,
 			adaptiveIcon: {
 				foregroundImage: "./assets/images/adaptive-icon.png",
 				backgroundColor: "#ffffff",
