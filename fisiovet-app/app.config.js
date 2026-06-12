@@ -184,7 +184,7 @@ module.exports = {
 			],
 
 			"./plugins/withIosRemoveGoogleMapsPod",
-			// "./plugins/withIosNonModularHeaders",
+			"./plugins/withXcodeCloudScripts",
 
 			[
 				"expo-location",
