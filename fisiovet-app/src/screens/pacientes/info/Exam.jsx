@@ -490,29 +490,55 @@ export default function ExamsList() {
 	}, [petId]);
 
 	useLayoutEffect(() => {
-		navigation.setOptions({
-			headerShown: true,
-			headerTitle: "Exames",
-			headerLargeTitle: false,
-			headerTintColor: tint,
-			headerStyle: { backgroundColor: bg },
-			headerTitleStyle: { color: tint, fontWeight: "800" },
-			headerRight: () => (
-				<Pressable
-					onPress={handleAdd}
-					hitSlop={10}
-					style={({ pressed }) => [
-						styles.navAddButton,
-						{ opacity: pressed ? 0.65 : 1 },
-					]}
-					accessibilityRole="button"
-					accessibilityLabel="Adicionar exame"
-				>
-					<Ionicons name="add-circle" size={24} color={tint} />
-				</Pressable>
-			),
-		});
-	}, [navigation, tint, bg, handleAdd]);
+	navigation.setOptions({
+		headerShown: true,
+		headerTitle: "Exames",
+		headerLargeTitle: false,
+		headerTintColor: tint,
+		headerStyle: { backgroundColor: bg },
+		headerTitleStyle: { color: tint, fontWeight: "800" },
+
+		headerLeft: () => (
+			<Pressable
+				onPress={() => {
+					if (navigation.canGoBack()) {
+						navigation.goBack();
+						return;
+					}
+
+					router.replace({
+						pathname: "/(phone)/pacientes/[id]",
+						params: { id: String(petId) },
+					});
+				}}
+				hitSlop={12}
+				style={({ pressed }) => [
+					styles.navBackButton,
+					{ opacity: pressed ? 0.55 : 1 },
+				]}
+				accessibilityRole="button"
+				accessibilityLabel="Voltar"
+			>
+				<Ionicons name="chevron-back" size={26} color={tint} />
+			</Pressable>
+		),
+
+		headerRight: () => (
+			<Pressable
+				onPress={handleAdd}
+				hitSlop={10}
+				style={({ pressed }) => [
+					styles.navAddButton,
+					{ opacity: pressed ? 0.65 : 1 },
+				]}
+				accessibilityRole="button"
+				accessibilityLabel="Adicionar exame"
+			>
+				<Ionicons name="add-circle" size={24} color={tint} />
+			</Pressable>
+		),
+	});
+}, [navigation, tint, bg, handleAdd, petId]);
 
 	useEffect(() => {
 		if (!firestore) return;

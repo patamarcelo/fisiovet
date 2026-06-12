@@ -523,7 +523,7 @@ export default function PetNewModal() {
 		<SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={[]}>
 			<Stack.Screen
 				options={{
-					presentation: "modal",
+					presentation: "fullScreenModal",
 					title: isEdit ? "Editar pet" : "Novo pet",
 					headerBackTitleVisible: false,
 					headerStyle: { backgroundColor: "#FFFFFF" },

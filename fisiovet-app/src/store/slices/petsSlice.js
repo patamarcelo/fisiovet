@@ -254,6 +254,14 @@ export const selectPetsByTutorId = (tutorId) =>
 export const selectLoadingPetsByTutor = (tutorId) =>
     createSelector(selectPetsState, (pets) => (pets.loadingByTutor?.[String(tutorId)] === 'loading'));
 
+
+export const selectPetsByTutorStatus = (tutorId) =>
+	createSelector(
+		selectPetsState,
+		(pets) => pets.loadingByTutor?.[String(tutorId)] || "idle"
+	);
+
+    
 export const selectAllPetsStatus = createSelector(
     selectPetsState,
     (pets) => pets.statusAll

@@ -64,6 +64,7 @@ export default function ModalLayout() {
                 name="tutor-new"
                 options={{
                     title: 'Novo Tutor',
+                    presentation: "fullScreenModal",
                     // Nada de headerRight aqui! Deixa a própria tela controlar.
                     headerTitleAlign: 'center',
                     headerTitleContainerStyle: { flex: 1, alignItems: 'center' },

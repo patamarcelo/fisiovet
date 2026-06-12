@@ -417,7 +417,7 @@ export default function PetDetail() {
 						onPress={() =>
 							pet.tutor?.id
 								? router.push({
-										pathname: "/(phone)/tutores/[id]",
+										pathname: "/(modals)/tutores/[id]/detail",
 										params: { id: String(pet.tutor.id) },
 								  })
 								: Alert.alert("Tutor não vinculado")
@@ -458,7 +458,7 @@ export default function PetDetail() {
 						subtle={subtle}
 						onPress={() =>
 							router.push({
-								pathname: "/(phone)/pacientes/[id]/exam",
+								pathname: "/(modals)/pets/[id]/exam",
 								params: { id: String(pet.id) },
 							})
 						}

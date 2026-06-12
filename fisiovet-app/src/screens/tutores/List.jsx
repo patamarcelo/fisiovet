@@ -205,7 +205,7 @@ function TutorRow({ item, tint, subtle, text, border }) {
 		<Pressable
 			onPress={async () => {
 				await Haptics.selectionAsync();
-				router.push(`/(phone)/tutores/${item.id}`);
+				router.push(`/(modals)/tutores/${item.id}/detail`);
 			}}
 			style={({ pressed }) => [
 				styles.rowCard,
