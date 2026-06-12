@@ -1,6 +1,9 @@
 // app.config.js
 require("dotenv").config();
 
+const fs = require("fs");
+const path = require("path");
+
 const APP_ENV = process.env.APP_ENV ?? "production"; // development | preview | production
 
 // Sufixos por ambiente
@@ -16,21 +19,38 @@ const MAPS_KEY =
 	process.env[`EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_${APP_ENV.toUpperCase()}`] ||
 	process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
-
 // Controle de versão centralizado
-const fs = require("fs");
-const path = require("path");
-
 const versionPath = path.join(__dirname, "version.json");
 const bumpMarkerPath = path.join(__dirname, ".last-prebuild-bump");
 
+function readVersionInfo() {
+	return JSON.parse(fs.readFileSync(versionPath, "utf8"));
+}
+
+function writeVersionInfo(versionInfo) {
+	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2) + "\n");
+}
+
+function bumpPatchVersion(version) {
+	const parts = String(version).split(".").map(Number);
+
+	if (parts.length !== 3 || parts.some(Number.isNaN)) {
+		throw new Error(`Versão inválida: ${version}. Use o formato x.y.z`);
+	}
+
+	const [major, minor, patch] = parts;
+
+	return `${major}.${minor}.${patch + 1}`;
+}
+
 function isExpoPrebuildCommand() {
 	const argv = process.argv.join(" ");
+
 	return argv.includes("prebuild") && process.env.SKIP_VERSION_BUMP !== "1";
 }
 
-function bumpBuildNumberOnce() {
-	// Evita incrementar mais de uma vez se o Expo ler o app.config.js mais de uma vez
+function bumpVersionOnce() {
+	// Evita incrementar mais de uma vez se o Expo ler o app.config.js várias vezes no mesmo comando
 	const now = Date.now();
 
 	try {
@@ -45,25 +65,26 @@ function bumpBuildNumberOnce() {
 		// marker ainda não existe
 	}
 
-	const versionInfo = JSON.parse(fs.readFileSync(versionPath, "utf8"));
+	const versionInfo = readVersionInfo();
 
+	versionInfo.version = bumpPatchVersion(versionInfo.version);
 	versionInfo.iosBuildNumber = Number(versionInfo.iosBuildNumber || 0) + 1;
 	versionInfo.androidVersionCode = Number(versionInfo.androidVersionCode || 0) + 1;
 
-	fs.writeFileSync(versionPath, JSON.stringify(versionInfo, null, 2) + "\n");
+	writeVersionInfo(versionInfo);
 	fs.writeFileSync(bumpMarkerPath, String(now));
 
-	console.log("Build number incrementado automaticamente:");
+	console.log("Versão incrementada automaticamente:");
 	console.log(`version: ${versionInfo.version}`);
 	console.log(`iosBuildNumber: ${versionInfo.iosBuildNumber}`);
 	console.log(`androidVersionCode: ${versionInfo.androidVersionCode}`);
 }
 
 if (isExpoPrebuildCommand()) {
-	bumpBuildNumberOnce();
+	bumpVersionOnce();
 }
 
-const versionInfo = require("./version.json");
+const versionInfo = readVersionInfo();
 
 const versionControl = versionInfo.version;
 
@@ -74,7 +95,6 @@ const iosBuildNumber = String(
 const androidVersionCode = Number(
 	process.env.ANDROID_VERSION_CODE || versionInfo.androidVersionCode
 );
-
 
 module.exports = {
 	expo: {
@@ -106,7 +126,8 @@ module.exports = {
 			googleServicesFile: "./GoogleService-Info.plist",
 			infoPlist: {
 				UIUserInterfaceStyle: "Light",
-
+				ITSAppUsesNonExemptEncryption: false,
+				
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
 					"UIInterfaceOrientationLandscapeLeft",
@@ -170,9 +191,9 @@ module.exports = {
 					backgroundColor: "#F7F8FA",
 					dark: {
 						image: "./assets/images/splash-fisiovet.png",
-						backgroundColor: "#F7F8FA"
-					}
-				}
+						backgroundColor: "#F7F8FA",
+					},
+				},
 			],
 
 			[
