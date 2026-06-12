@@ -13,36 +13,39 @@ import {
     Pressable,
     StyleSheet,
     Platform,
-    SectionList,
-    useWindowDimensions,
     ScrollView,
 } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, router, useFocusEffect } from 'expo-router';
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/useThemeColor';
+import { Image } from 'expo-image';
+import { BlurView } from 'expo-blur';
 
 import { loadAgenda, selectAllEventos } from '@/src/store/slices/agendaSlice';
 import { loadSyncQueue } from '@/src/store/slices/syncQueueSlice';
 import { selectUserName, selectUserPhoto } from '@/src/store/slices/userSlice';
 import { selectTutores } from '@/src/store/slices/tutoresSlice';
 import { selectPetsState } from '@/src/store/slices/petsSlice';
-
-import { Image } from 'expo-image';
 import { storage } from '@/src/services/firebaseClient';
 import { getCachedAvatar } from '../utils/avatarCache';
-
 import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';
-import { BlurView } from 'expo-blur';
-
 import { updateSystem } from '@/src/store/slices/systemSlice';
-import { processSyncQueue } from "@/src/services/syncProcessor";
+import { processSyncQueue } from '@/src/services/syncProcessor';
 
-/* ---------- Consts & helpers ---------- */
+/* ---------- Assets ---------- */
+
+const HOME_LOGO = require('../../assets/images/splash-fisiovet.png');
+
+/* ---------- Visual tokens ---------- */
+
+const PAGE_BG = '#F2F5F0';
+const CARD_BORDER = '#E5E7EB';
 
 const STATUS_COLORS = {
     confirmado: '#16A34A',
@@ -57,6 +60,16 @@ const CARD_ELEVATION = {
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
 };
+
+const SOFT_ELEVATION = {
+    elevation: 4,
+    shadowColor: '#0F172A',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+};
+
+/* ---------- Helpers ---------- */
 
 const fmtHour = (iso) => {
     try {
@@ -89,7 +102,6 @@ const toSections = (items) => {
 
     for (const ev of items || []) {
         const d = new Date(ev.start);
-
         if (Number.isNaN(d.getTime())) continue;
 
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -123,11 +135,89 @@ const toSections = (items) => {
 function countPetsFromState(petsState) {
     const itemsCount = Array.isArray(petsState?.items) ? petsState.items.length : 0;
     const byIdCount = petsState?.byId ? Object.keys(petsState.byId).length : 0;
-
     return Math.max(itemsCount, byIdCount);
 }
 
+/* ---------- Background art ---------- */
+
+function HomeBackgroundArt({ topInset = 0 }) {
+    return (
+        <View pointerEvents="none" style={styles.bgArt}>
+            <LinearGradient
+                colors={[
+                    '#F4F8F3',
+                    '#EEF5EF',
+                    '#F8FAF7',
+                ]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.bgBase}
+            />
+
+            <LinearGradient
+                colors={[
+                    'rgba(141, 196, 161, 0.32)',
+                    'rgba(157, 218, 208, 0.20)',
+                    'rgba(238, 245, 239, 0.50)',
+                    'rgba(255, 255, 255, 0)',
+                ]}
+                locations={[0, 0.34, 0.68, 1]}
+                start={{ x: 0.15, y: 0 }}
+                end={{ x: 0.85, y: 1 }}
+                style={[
+                    styles.bgSingleWave,
+                    {
+                        top: -topInset - 28,
+                        height: topInset + 520,
+                    },
+                ]}
+            />
+        </View>
+    );
+}
 /* ---------- UI subcomponents ---------- */
+
+function ShortcutButton({
+    label,
+    icon,
+    onPress,
+    accessibilityLabel,
+    textIcon,
+}) {
+    return (
+        <Pressable
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+                    () => { }
+                );
+                onPress?.();
+            }}
+            android_ripple={{ color: '#E5E7EB' }}
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel}
+            hitSlop={8}
+            style={({ pressed }) => [
+                styles.storyItem,
+                pressed && {
+                    opacity: 0.92,
+                    transform: [{ scale: 0.97 }],
+                },
+            ]}
+        >
+            <View style={[styles.storyCircle, SOFT_ELEVATION]}>
+                {icon}
+
+                <View style={styles.storyAddBadge}>
+                    <Ionicons name="add" size={13} color="#8DC4A1" />
+                </View>
+            </View>
+
+            <Text style={[styles.storyLabel, { color: textIcon }]}>
+                {label}
+            </Text>
+        </Pressable>
+    );
+}
 
 function MiniEventRow({ item }) {
     const { title, start, end, status, local } = item;
@@ -148,16 +238,11 @@ function MiniEventRow({ item }) {
                 pressed && Platform.OS === 'ios'
                     ? { backgroundColor: '#F7F8FA' }
                     : null,
-                {
-                    paddingLeft: 4,
-                    alignItems: 'center',
-                    marginVertical: 4,
-                },
             ]}
         >
             <View style={[styles.statusBar, { backgroundColor: color }]} />
 
-            <View style={{ flex: 1, paddingHorizontal: 12, paddingVertical: 10 }}>
+            <View style={styles.rowContent}>
                 <View style={styles.rowTop}>
                     <Text style={styles.rowTitle} numberOfLines={1}>
                         {title || 'Evento'}
@@ -179,7 +264,7 @@ function MiniEventRow({ item }) {
                 name="chevron-forward-sharp"
                 size={18}
                 color="#4B5563"
-                style={{ marginRight: 2 }}
+                style={styles.rowChevron}
             />
         </Pressable>
     );
@@ -209,16 +294,14 @@ function UpcomingEventsList({
                     Nenhum evento futuro encontrado
                 </Text>
 
-                <Text style={styles.emptyEventsSub}>
-                    {emptySubtitle}
-                </Text>
+                <Text style={styles.emptyEventsSub}>{emptySubtitle}</Text>
 
                 {canCreateEvent && (
                     <Pressable
                         onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                () => { }
-                            );
+                            Haptics.impactAsync(
+                                Haptics.ImpactFeedbackStyle.Medium
+                            ).catch(() => { });
 
                             router.push({
                                 pathname: '/(modals)/agenda-new',
@@ -236,7 +319,9 @@ function UpcomingEventsList({
                             pressed && { opacity: 0.85 },
                         ]}
                     >
-                        <Text style={styles.emptyEventsButtonText}>+ Adicionar evento</Text>
+                        <Text style={styles.emptyEventsButtonText}>
+                            + Adicionar evento
+                        </Text>
                     </Pressable>
                 )}
             </View>
@@ -248,11 +333,13 @@ function UpcomingEventsList({
             {sections.map((section) => (
                 <View key={section.title} style={styles.eventsSection}>
                     <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderText}>{section.title}</Text>
+                        <Text style={styles.sectionHeaderText}>
+                            {section.title}
+                        </Text>
                     </View>
 
                     {section.data.map((item) => (
-                        <View key={String(item.id)} style={{ marginBottom: 6 }}>
+                        <View key={String(item.id)} style={styles.eventRowWrapper}>
                             <MiniEventRow item={item} />
                         </View>
                     ))}
@@ -273,12 +360,8 @@ export default function Home() {
 
     const tint = useThemeColor({}, 'tint');
     const colorIcon = useThemeColor({}, 'colorIcon');
-    const bg = useThemeColor({}, 'background');
     const text = useThemeColor({}, 'text');
     const textIcon = useThemeColor({}, 'textIcon');
-
-    const border = '#E5E7EB';
-    const subtle = '#6B7280';
 
     const userName = useSelector(selectUserName);
     const photoURL = useSelector(selectUserPhoto);
@@ -293,7 +376,6 @@ export default function Home() {
     );
 
     const tutoresCount = tutores?.length || 0;
-
     const petsCount = useMemo(() => countPetsFromState(petsState), [petsState]);
 
     const hasTutor = tutoresCount > 0;
@@ -306,8 +388,6 @@ export default function Home() {
         navigation.setOptions({ headerShown: false });
     }, [navigation]);
 
-    // Garante carga inicial da agenda/financeiro ao abrir a Home.
-    // O financeiro pendente deriva dos eventos.
     useEffect(() => {
         let alive = true;
 
@@ -317,10 +397,9 @@ export default function Home() {
                 await dispatch(loadSyncQueue()).unwrap();
 
                 if (!alive) return;
-
                 await processSyncQueue(dispatch, store.getState);
             } catch (err) {
-                console.log("Boot Home ignorou sync inicial:", err?.message);
+                console.log('Boot Home ignorou sync inicial:', err?.message);
             }
         }
 
@@ -353,13 +432,10 @@ export default function Home() {
 
             try {
                 const res = await getCachedAvatar(storage, photoURL);
-
                 if (!alive) return;
-
                 setLocalAvatar(res?.localUri || photoURL);
             } catch {
                 if (!alive) return;
-
                 setLocalAvatar(photoURL);
             }
         })();
@@ -384,16 +460,19 @@ export default function Home() {
     const avatarUri = localAvatar || photoURL;
 
     return (
-        <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={['left', 'right']}>
-            <View style={{ flex: 1 }}>
+        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
+            <StatusBar style="dark" translucent backgroundColor="transparent" />
+            <View style={styles.root}>
+                <HomeBackgroundArt topInset={insets.top} />
+
                 <BlurView
-                    intensity={10}
+                    intensity={8}
                     tint="light"
                     style={[
                         styles.headerContainer,
                         {
                             paddingTop: insets.top + 16,
-                            paddingHorizontal: 16,
+                            paddingHorizontal: 18,
                         },
                     ]}
                 >
@@ -410,13 +489,19 @@ export default function Home() {
                             ) : (
                                 <View style={[styles.avatarWrapper, CARD_ELEVATION]}>
                                     <View style={styles.avatarFallback}>
-                                        <Ionicons name="person" size={20} color="#9CA3AF" />
+                                        <Ionicons
+                                            name="person"
+                                            size={20}
+                                            color="#9CA3AF"
+                                        />
                                     </View>
                                 </View>
                             )}
 
                             <View style={styles.nameBox}>
-                                <Text style={[styles.hello, { color: text }]}>Olá 👋</Text>
+                                <Text style={[styles.hello, { color: text }]}>
+                                    Olá 👋
+                                </Text>
 
                                 <Text
                                     style={[styles.userName, { color: text }]}
@@ -436,11 +521,14 @@ export default function Home() {
                             hitSlop={10}
                             accessibilityLabel="Configurações"
                             android_ripple={{ color: '#E5E7EB', borderless: true }}
-                            style={styles.gearBtn}
+                            style={({ pressed }) => [
+                                styles.gearBtn,
+                                pressed && { opacity: 0.72 },
+                            ]}
                         >
-                            <Ionicons
-                                name="settings-outline"
-                                size={22}
+                            <MaterialIcons
+                                name="settings"
+                                size={24}
                                 color={colorIcon}
                             />
                         </Pressable>
@@ -459,109 +547,71 @@ export default function Home() {
                     }}
                     showsVerticalScrollIndicator={false}
                 >
-                    <View style={styles.shortcuts}>
-                        {canCreatePet && (
-                            <Pressable
-                                onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                        () => { }
-                                    );
-                                    router.push('/(modals)/pet-new');
-                                }}
-                                android_ripple={{ color: '#E5E7EB' }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Adicionar pet"
-                                hitSlop={8}
-                                style={({ pressed }) => [
-                                    styles.storyItem,
-                                    CARD_ELEVATION,
-                                    pressed && {
-                                        opacity: 0.9,
-                                        transform: [{ scale: 0.97 }],
-                                    },
-                                ]}
-                            >
-                                <View style={styles.storyCircle}>
-                                    <MaterialIcons name="pets" size={24} color={tint} />
-                                    <Ionicons
-                                        name="add-circle-sharp"
-                                        size={18}
-                                        color={tint}
-                                        style={styles.storyAddIcon}
-                                    />
-                                </View>
-                                <Text style={[styles.storyLabel, { color: textIcon }]}>Pet</Text>
-                            </Pressable>
-                        )}
+                    <View style={styles.shortcutsArea}>
+                        <View style={styles.brandBox}>
+                            <Image
+                                source={HOME_LOGO}
+                                style={styles.homeLogo}
+                                contentFit="contain"
+                            />
+                        </View>
 
-                        <Pressable
-                            onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                    () => { }
-                                );
-                                router.push('/(modals)/tutor-new');
-                            }}
-                            android_ripple={{ color: '#E5E7EB' }}
-                            accessibilityRole="button"
-                            accessibilityLabel="Adicionar tutor"
-                            hitSlop={8}
-                            style={({ pressed }) => [
-                                styles.storyItem,
-                                CARD_ELEVATION,
-                                pressed && {
-                                    opacity: 0.9,
-                                    transform: [{ scale: 0.97 }],
-                                },
-                            ]}
-                        >
-                            <View style={styles.storyCircle}>
-                                <Ionicons name="person-sharp" size={26} color={tint} />
-                                <Ionicons
-                                    name="add-circle-sharp"
-                                    size={18}
-                                    color={tint}
-                                    style={styles.storyAddIcon}
+                        <View style={styles.shortcuts}>
+                            {canCreatePet && (
+                                <ShortcutButton
+                                    label="Pet"
+                                    accessibilityLabel="Adicionar pet"
+                                    textIcon={textIcon}
+                                    onPress={() => router.push('/(modals)/pet-new')}
+                                    icon={
+                                        <MaterialIcons
+                                            name="pets"
+                                            size={25}
+                                            color="#8DC4A1"
+                                        />
+                                    }
                                 />
-                            </View>
-                            <Text style={[styles.storyLabel, { color: textIcon }]}>Tutor</Text>
-                        </Pressable>
+                            )}
 
-                        {canCreateEvent && (
-                            <Pressable
-                                onPress={() => {
-                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                                        () => { }
-                                    );
-                                    router.push('/(modals)/agenda-new');
-                                }}
-                                android_ripple={{ color: '#E5E7EB' }}
-                                accessibilityRole="button"
-                                accessibilityLabel="Adicionar evento"
-                                hitSlop={8}
-                                style={({ pressed }) => [
-                                    styles.storyItem,
-                                    CARD_ELEVATION,
-                                    pressed && {
-                                        opacity: 0.9,
-                                        transform: [{ scale: 0.97 }],
-                                    },
-                                ]}
-                            >
-                                <View style={styles.storyCircle}>
-                                    <Ionicons name="calendar-outline" size={26} color={tint} />
+                            <ShortcutButton
+                                label="Tutor"
+                                accessibilityLabel="Adicionar tutor"
+                                textIcon={textIcon}
+                                onPress={() => router.push('/(modals)/tutor-new')}
+                                icon={
                                     <Ionicons
-                                        name="add-circle-sharp"
-                                        size={18}
-                                        color={tint}
-                                        style={styles.storyAddIcon}
+                                        name="person-sharp"
+                                        size={26}
+                                        color="#8DC4A1"
                                     />
-                                </View>
-                                <Text style={[styles.storyLabel, { color: textIcon }]}>Evento</Text>
-                            </Pressable>
-                        )}
+                                }
+                            />
+
+                            {canCreateEvent && (
+                                <ShortcutButton
+                                    label="Evento"
+                                    accessibilityLabel="Adicionar evento"
+                                    textIcon={textIcon}
+                                    onPress={() => router.push('/(modals)/agenda-new')}
+                                    icon={
+                                        <Ionicons
+                                            name="calendar-outline"
+                                            size={26}
+                                            color="#8DC4A1"
+                                        />
+                                    }
+                                />
+                            )}
+                        </View>
                     </View>
 
-                    <View style={[styles.card, CARD_ELEVATION, { borderColor: border }]}>
+                    <View
+                        style={[
+                            styles.card,
+                            CARD_ELEVATION,
+                            { borderColor: CARD_BORDER },
+                        ]}
+                    >
                         <View style={styles.cardHeader}>
                             <Text style={styles.cardTitle}>Próximos eventos</Text>
 
@@ -575,7 +625,10 @@ export default function Home() {
                                     color: '#E5E7EB',
                                     borderless: true,
                                 }}
-                                style={styles.headerLinkButton}
+                                style={({ pressed }) => [
+                                    styles.headerLinkButton,
+                                    pressed && { opacity: 0.72 },
+                                ]}
                             >
                                 <Text style={{ color: tint, fontWeight: '700' }}>
                                     Ver tudo
@@ -585,7 +638,6 @@ export default function Home() {
 
                         <UpcomingEventsList
                             upcoming={upcoming}
-                            subtle={subtle}
                             tint={tint}
                             hasTutor={hasTutor}
                             hasPet={hasPet}
@@ -613,9 +665,81 @@ export default function Home() {
 }
 
 /* ---------- Styles ---------- */
+
 const styles = StyleSheet.create({
     safe: {
         flex: 1,
+        backgroundColor: PAGE_BG,
+    },
+
+    root: {
+        flex: 1,
+        position: 'relative',
+        backgroundColor: PAGE_BG,
+        overflow: 'hidden',
+    },
+
+    bgArt: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 0,
+        backgroundColor: PAGE_BG,
+        overflow: 'hidden',
+    },
+
+    bgTopLayer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 0,
+        borderBottomLeftRadius: 70,
+        borderBottomRightRadius: 130,
+    },
+
+    bgMainWave: {
+        position: 'absolute',
+        left: -40,
+        right: -30,
+        height: 240,
+        borderTopLeftRadius: 110,
+        borderTopRightRadius: 180,
+        borderBottomLeftRadius: 150,
+        borderBottomRightRadius: 150,
+    },
+
+    bgMiddleWave: {
+        position: 'absolute',
+        left: -40,
+        right: -20,
+        top: 330,
+        height: 270,
+        borderTopLeftRadius: 180,
+        borderTopRightRadius: 130,
+        borderBottomLeftRadius: 120,
+        borderBottomRightRadius: 180,
+    },
+
+    bgBottomWave: {
+        position: 'absolute',
+        left: -60,
+        right: -10,
+        bottom: -90,
+        height: 360,
+        borderTopLeftRadius: 180,
+        borderTopRightRadius: 140,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
+    },
+
+    bgCornerSoft: {
+        position: 'absolute',
+        right: -40,
+        bottom: -40,
+        width: 240,
+        height: 180,
+        borderTopLeftRadius: 120,
+        borderTopRightRadius: 0,
+        borderBottomLeftRadius: 0,
+        borderBottomRightRadius: 0,
     },
 
     headerContainer: {
@@ -624,10 +748,14 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 10,
+        paddingBottom: 8,
+        backgroundColor: 'transparent',
     },
 
     scrollArea: {
         flex: 1,
+        zIndex: 1,
+        backgroundColor: 'transparent',
     },
 
     topBar: {
@@ -652,18 +780,20 @@ const styles = StyleSheet.create({
     hello: {
         fontSize: 13,
         fontWeight: '600',
+        letterSpacing: -0.1,
     },
 
     userName: {
         fontSize: 22,
         fontWeight: '800',
         marginTop: 2,
+        letterSpacing: -0.4,
     },
 
     gearBtn: {
-        height: 36,
-        width: 36,
-        borderRadius: 18,
+        height: 38,
+        width: 38,
+        borderRadius: 19,
         alignItems: 'center',
         justifyContent: 'center',
         marginLeft: 10,
@@ -699,13 +829,36 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
 
+    shortcutsArea: {
+        marginTop: 18,
+        minHeight: 118,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+
+    brandBox: {
+        width: 100,
+        height: 92,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: -2,
+        marginTop: 12,
+    },
+
+    homeLogo: {
+        width: 98,
+        height: 86,
+    },
+
     shortcuts: {
-        marginTop: 16,
+        flex: 1,
+        minHeight: 94,
         flexDirection: 'row',
         alignItems: 'flex-start',
         justifyContent: 'flex-end',
-        gap: 16,
-        minHeight: 94,
+        gap: 14,
     },
 
     storyItem: {
@@ -714,39 +867,48 @@ const styles = StyleSheet.create({
     },
 
     storyCircle: {
-        width: 68,
-        height: 68,
-        borderRadius: 34,
-        backgroundColor: '#fff',
+        width: 66,
+        height: 66,
+        borderRadius: 33,
+        backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: 'rgba(141, 196, 161, 0.28)',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 4,
         position: 'relative',
     },
 
-    storyAddIcon: {
+    storyAddBadge: {
         position: 'absolute',
-        right: 12,
-        bottom: 12,
+        right: 9,
+        bottom: 9,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(141, 196, 161, 0.35)',
+        shadowColor: '#0F172A',
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        shadowOffset: { width: 0, height: 2 },
+        elevation: 2,
     },
 
     storyLabel: {
-        marginTop: 6,
+        marginTop: 7,
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
+        letterSpacing: -0.1,
         textAlign: 'center',
     },
 
     card: {
         borderWidth: 1,
-        borderRadius: 14,
+        borderRadius: 18,
         paddingVertical: 12,
         backgroundColor: '#FFF',
     },
@@ -756,12 +918,13 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         marginBottom: 6,
-        paddingHorizontal: 12,
+        paddingHorizontal: 14,
     },
 
     cardTitle: {
         fontSize: 16,
         fontWeight: '800',
+        letterSpacing: -0.2,
     },
 
     headerLinkButton: {
@@ -771,12 +934,25 @@ const styles = StyleSheet.create({
 
     row: {
         flexDirection: 'row',
-        alignItems: 'stretch',
+        alignItems: 'center',
         backgroundColor: '#FFF',
-        borderRadius: 10,
+        borderRadius: 12,
         overflow: 'hidden',
+        marginVertical: 4,
+        marginHorizontal: 4,
+        paddingLeft: 4,
         borderWidth: Platform.OS === 'android' ? StyleSheet.hairlineWidth : 0,
         borderColor: '#F1F5F9',
+    },
+
+    rowContent: {
+        flex: 1,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+
+    rowChevron: {
+        marginRight: 2,
     },
 
     statusBar: {
@@ -796,35 +972,42 @@ const styles = StyleSheet.create({
     },
 
     rowTitle: {
+        flex: 1,
         fontWeight: '700',
         fontSize: 15,
-        flex: 1,
+        color: '#111827',
     },
 
     rowHour: {
         color: '#6B7280',
+        fontSize: 13,
     },
 
     rowSub: {
         color: '#6B7280',
+        fontSize: 13,
     },
 
     sectionHeader: {
         backgroundColor: '#F3F4F6',
         paddingVertical: 6,
-        paddingHorizontal: 6,
+        paddingHorizontal: 8,
+        marginHorizontal: 8,
+        borderRadius: 8,
     },
 
     sectionHeaderText: {
         fontWeight: '700',
         color: '#374151',
+        fontSize: 13,
+        textTransform: 'capitalize',
     },
 
     emptyEventsBox: {
         marginVertical: 12,
         marginHorizontal: 10,
         padding: 16,
-        borderRadius: 12,
+        borderRadius: 14,
         borderWidth: 1,
         borderColor: '#E5E7EB',
         backgroundColor: '#F9FAFB',
@@ -849,7 +1032,7 @@ const styles = StyleSheet.create({
     },
 
     emptyEventsButton: {
-        borderRadius: 8,
+        borderRadius: 10,
         paddingHorizontal: 20,
         paddingVertical: 10,
     },
@@ -860,6 +1043,7 @@ const styles = StyleSheet.create({
         fontSize: 14,
         textAlign: 'center',
     },
+
     eventsInlineList: {
         paddingTop: 4,
         paddingBottom: 4,
@@ -867,5 +1051,47 @@ const styles = StyleSheet.create({
 
     eventsSection: {
         marginBottom: 8,
+    },
+
+    eventRowWrapper: {
+        marginBottom: 6,
+    },
+    safe: {
+        flex: 1,
+        backgroundColor: '#F4F8F3',
+    },
+
+    root: {
+        flex: 1,
+        position: 'relative',
+        backgroundColor: '#F4F8F3',
+        overflow: 'hidden',
+    },
+
+    bgArt: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 0,
+        backgroundColor: '#F4F8F3',
+        overflow: 'hidden',
+    },
+
+    bgBase: {
+        ...StyleSheet.absoluteFillObject,
+    },
+
+    bgSingleWave: {
+        position: 'absolute',
+        left: -90,
+        right: -70,
+
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+
+        borderBottomLeftRadius: 260,
+        borderBottomRightRadius: 190,
+
+        transform: [
+            { scaleX: 1.08 },
+        ],
     },
 });

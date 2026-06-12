@@ -41,6 +41,7 @@ import { useStore } from "react-redux";
 
 import { EmptyAgendaCard } from "./_ListEmpty";
 import { processSyncQueue } from "@/src/services/syncProcessor";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const STATUS_COLORS = {
   confirmado: "#1ABC9C",
@@ -72,6 +73,14 @@ const STATUS_FILTERS = [
   { key: "pendente", label: "Pendentes", tone: "orange" },
   { key: "cancelado", label: "Cancelados", tone: "red" },
 ];
+
+const AGENDA_FILTERS_STORAGE_KEY = "@fisiovet:agenda:list-filters:v1";
+
+const DEFAULT_AGENDA_FILTERS = {
+  scope: "todos",
+  temporal: "futuros",
+  statusFilter: "todos",
+};
 
 function norm(s) {
   return String(s || "")
@@ -304,9 +313,9 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
 
   const hasActiveFilters =
     !!query ||
-    scope !== "todos" ||
-    temporal !== "todos" ||
-    statusFilter !== "todos";
+    scope !== DEFAULT_AGENDA_FILTERS.scope ||
+    temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+    statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
 
   return (
     <View style={styles.listHeader}>
@@ -438,9 +447,11 @@ export default function AgendaScreen() {
   const store = useStore();
 
   const [query, setQuery] = useState("");
-  const [scope, setScope] = useState("todos");
-  const [temporal, setTemporal] = useState("todos");
-  const [statusFilter, setStatusFilter] = useState("todos");
+  const [scope, setScope] = useState(DEFAULT_AGENDA_FILTERS.scope);
+  const [temporal, setTemporal] = useState(DEFAULT_AGENDA_FILTERS.temporal);
+  const [statusFilter, setStatusFilter] = useState(DEFAULT_AGENDA_FILTERS.statusFilter);
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
+
   const [refreshing, setRefreshing] = useState(false);
 
   const tint = useThemeColor({}, "tint");
@@ -449,6 +460,76 @@ export default function AgendaScreen() {
   const eventos = useSelector(selectAllEventos);
   const petsState = useSelector(selectPetsState, shallowEqual);
   const petsById = petsState?.byId || {};
+
+  useEffect(() => {
+    let alive = true;
+
+    async function hydrateFilters() {
+      try {
+        const raw = await AsyncStorage.getItem(AGENDA_FILTERS_STORAGE_KEY);
+
+        if (!alive) return;
+
+        if (!raw) {
+          setScope(DEFAULT_AGENDA_FILTERS.scope);
+          setTemporal(DEFAULT_AGENDA_FILTERS.temporal);
+          setStatusFilter(DEFAULT_AGENDA_FILTERS.statusFilter);
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+
+        const savedScope = SCOPE_FILTERS.some((item) => item.key === parsed?.scope)
+          ? parsed.scope
+          : DEFAULT_AGENDA_FILTERS.scope;
+
+        const savedTemporal = TEMPORAL_FILTERS.some(
+          (item) => item.key === parsed?.temporal
+        )
+          ? parsed.temporal
+          : DEFAULT_AGENDA_FILTERS.temporal;
+
+        const savedStatus = STATUS_FILTERS.some(
+          (item) => item.key === parsed?.statusFilter
+        )
+          ? parsed.statusFilter
+          : DEFAULT_AGENDA_FILTERS.statusFilter;
+
+        setScope(savedScope);
+        setTemporal(savedTemporal);
+        setStatusFilter(savedStatus);
+      } catch (err) {
+        console.log("Erro ao carregar filtros da agenda:", err?.message);
+
+        setScope(DEFAULT_AGENDA_FILTERS.scope);
+        setTemporal(DEFAULT_AGENDA_FILTERS.temporal);
+        setStatusFilter(DEFAULT_AGENDA_FILTERS.statusFilter);
+      } finally {
+        if (alive) setFiltersHydrated(true);
+      }
+    }
+
+    hydrateFilters();
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!filtersHydrated) return;
+
+    AsyncStorage.setItem(
+      AGENDA_FILTERS_STORAGE_KEY,
+      JSON.stringify({
+        scope,
+        temporal,
+        statusFilter,
+      })
+    ).catch((err) => {
+      console.log("Erro ao salvar filtros da agenda:", err?.message);
+    });
+  }, [filtersHydrated, scope, temporal, statusFilter]);
 
   useEffect(() => {
     let alive = true;
@@ -477,7 +558,7 @@ export default function AgendaScreen() {
       alive = false;
     };
   }, [dispatch, store]);
-  
+
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLargeTitle: false,
@@ -622,10 +703,12 @@ export default function AgendaScreen() {
 
   const clearAllFilters = useCallback(() => {
     Haptics.selectionAsync().catch(() => { });
+
     setQuery("");
-    setScope("todos");
-    setTemporal("todos");
-    setStatusFilter("todos");
+    setScope(DEFAULT_AGENDA_FILTERS.scope);
+    setTemporal(DEFAULT_AGENDA_FILTERS.temporal);
+    setStatusFilter(DEFAULT_AGENDA_FILTERS.statusFilter);
+
     scrollToTop(false);
   }, [scrollToTop]);
 
@@ -694,7 +777,10 @@ export default function AgendaScreen() {
   );
 
   const hasFilters =
-    !!query || scope !== "todos" || temporal !== "todos" || statusFilter !== "todos";
+    !!query ||
+    scope !== DEFAULT_AGENDA_FILTERS.scope ||
+    temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+    statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={["left", "right"]}>

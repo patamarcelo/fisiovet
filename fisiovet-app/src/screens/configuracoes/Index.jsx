@@ -49,6 +49,10 @@ import {
 
 import Constants from "expo-constants";
 
+
+
+const HOME_LOGO = require('../../../assets/images/splash-fisiovet.png');
+
 function SectionLabel({ children }) {
   return <Text style={styles.sectionLabel}>{children}</Text>;
 }
@@ -82,9 +86,9 @@ function Cell({
   const badgeStyle = leftImageSource
     ? [styles.iconBadge, { backgroundColor: "transparent", padding: 0 }]
     : [
-        styles.iconBadge,
-        { backgroundColor: destructive ? "#EF4444" : "#25D366" }
-      ];
+      styles.iconBadge,
+      { backgroundColor: destructive ? "#EF4444" : "#25D366" }
+    ];
 
   const titleColor = destructive ? "#EF4444" : textColor;
   const finalSubtle = destructive ? "#FCA5A5" : subtleColor;
@@ -228,8 +232,8 @@ function CellValue({
   const isString = typeof value === "string" || typeof value === "number";
   const badgeColor =
     title.includes("Integração") ||
-    title.includes("Navegação") ||
-    title.includes("Assinar calendário")
+      title.includes("Navegação") ||
+      title.includes("Assinar calendário")
       ? "#8B5CF6"
       : "#8E8E93";
 
@@ -340,8 +344,8 @@ export default function ConfigIndex() {
 
       if (loggedWithGoogle) {
         // seguro chamar mesmo sem estar logado no Google
-        await GoogleSignin.revokeAccess().catch(() => {});
-        await GoogleSignin.signOut().catch(() => {});
+        await GoogleSignin.revokeAccess().catch(() => { });
+        await GoogleSignin.signOut().catch(() => { });
       }
 
       await signOut(auth);
@@ -456,6 +460,13 @@ export default function ConfigIndex() {
         showsVerticalScrollIndicator
         contentContainerStyle={{ paddingBottom: 24 }}
       >
+        <View style={styles.brandBox}>
+          <Image
+            source={HOME_LOGO}
+            style={styles.homeLogo}
+            contentFit="contain"
+          />
+        </View>
         {/* CONTA */}
         <SectionLabel>CONTA</SectionLabel>
         <Group bg={card}>
@@ -491,7 +502,7 @@ export default function ConfigIndex() {
             onPress={() => router.push("/configuracoes/aparencia")}
             subtleColor={subtle}
             textColor={text}
-            // disabled
+          // disabled
           />
           <Divider />
           {/* <Cell
@@ -654,7 +665,7 @@ export default function ConfigIndex() {
             onPress={() => router.push("/configuracoes/termos")}
             subtleColor={subtle}
             textColor={text}
-            // disabled
+          // disabled
           />
           <Divider />
           <Cell
@@ -840,5 +851,17 @@ const styles = StyleSheet.create({
     marginTop: 15,
     marginBottom: 8,
     fontWeight: "600"
-  }
+  },
+  brandBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: -2,
+    marginBottom: -10,
+    marginTop: 10,
+  },
+
+  homeLogo: {
+    width:96,
+    height: 84,
+  },
 });

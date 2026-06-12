@@ -9,11 +9,11 @@
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
-		8C184A5B7B15E48040AED02C /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33ACE915713BB1BEBCC0F040 /* ExpoModulesProvider.swift */; };
+		8484D3D55ED301EBE7BF60D1 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4456046582E42A9EF66D47E /* ExpoModulesProvider.swift */; };
+		B476E12E9C2D4724B235D171 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 49CFF8F634AF4156A905CFB6 /* GoogleService-Info.plist */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		D6A3829BCE032BD1DF00EBC3 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = C2B7AF24DF7ACB40EBBA3610 /* PrivacyInfo.xcprivacy */; };
-		E19930554ED50E3F166CFA9B /* libPods-FisioVet.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 8168464D367F07B1ABBE91C6 /* libPods-FisioVet.a */; };
-		EE5C44708D9F448BA3AD5DCA /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4F170EF798D1434988E997F6 /* GoogleService-Info.plist */; };
+		BF9E3367FDD8CDC8E8CEA0D0 /* libPods-FisioVet.a in Frameworks */ = {isa = PBXBuildFile; fileRef = E7A29F38D2C2A7FA3DF4E0BE /* libPods-FisioVet.a */; };
+		D83EE456E0970D2B679DBFC6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = E1A0D88D3AEF6B953BF9AC3D /* PrivacyInfo.xcprivacy */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -21,14 +21,14 @@
 		13B07F961A680F5B00A75B9A /* FisioVet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FisioVet.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = FisioVet/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = FisioVet/Info.plist; sourceTree = "<group>"; };
-		1C4D2288110936E8143212D0 /* Pods-FisioVet.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FisioVet.release.xcconfig"; path = "Target Support Files/Pods-FisioVet/Pods-FisioVet.release.xcconfig"; sourceTree = "<group>"; };
-		33ACE915713BB1BEBCC0F040 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-FisioVet/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		44C05876311ABEBF84725C36 /* Pods-FisioVet.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FisioVet.debug.xcconfig"; path = "Target Support Files/Pods-FisioVet/Pods-FisioVet.debug.xcconfig"; sourceTree = "<group>"; };
-		4F170EF798D1434988E997F6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "FisioVet/GoogleService-Info.plist"; sourceTree = "<group>"; };
-		8168464D367F07B1ABBE91C6 /* libPods-FisioVet.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FisioVet.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		49CFF8F634AF4156A905CFB6 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "FisioVet/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		92C4E528F8A5D636D64FC974 /* Pods-FisioVet.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FisioVet.release.xcconfig"; path = "Target Support Files/Pods-FisioVet/Pods-FisioVet.release.xcconfig"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = FisioVet/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		C2B7AF24DF7ACB40EBBA3610 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = FisioVet/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		BD9F6E1D65359E851080980C /* Pods-FisioVet.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-FisioVet.debug.xcconfig"; path = "Target Support Files/Pods-FisioVet/Pods-FisioVet.debug.xcconfig"; sourceTree = "<group>"; };
+		D4456046582E42A9EF66D47E /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-FisioVet/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		E1A0D88D3AEF6B953BF9AC3D /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = FisioVet/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		E7A29F38D2C2A7FA3DF4E0BE /* libPods-FisioVet.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-FisioVet.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = FisioVet/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* FisioVet-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "FisioVet-Bridging-Header.h"; path = "FisioVet/FisioVet-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -39,21 +39,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E19930554ED50E3F166CFA9B /* libPods-FisioVet.a in Frameworks */,
+				BF9E3367FDD8CDC8E8CEA0D0 /* libPods-FisioVet.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0D9AE1E7DF52DEFE5A63CE07 /* FisioVet */ = {
-			isa = PBXGroup;
-			children = (
-				33ACE915713BB1BEBCC0F040 /* ExpoModulesProvider.swift */,
-			);
-			name = FisioVet;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* FisioVet */ = {
 			isa = PBXGroup;
 			children = (
@@ -63,8 +55,8 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				4F170EF798D1434988E997F6 /* GoogleService-Info.plist */,
-				C2B7AF24DF7ACB40EBBA3610 /* PrivacyInfo.xcprivacy */,
+				49CFF8F634AF4156A905CFB6 /* GoogleService-Info.plist */,
+				E1A0D88D3AEF6B953BF9AC3D /* PrivacyInfo.xcprivacy */,
 			);
 			name = FisioVet;
 			sourceTree = "<group>";
@@ -73,19 +65,9 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				8168464D367F07B1ABBE91C6 /* libPods-FisioVet.a */,
+				E7A29F38D2C2A7FA3DF4E0BE /* libPods-FisioVet.a */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		628A6F9E59EF1FF52C24FFE0 /* Pods */ = {
-			isa = PBXGroup;
-			children = (
-				44C05876311ABEBF84725C36 /* Pods-FisioVet.debug.xcconfig */,
-				1C4D2288110936E8143212D0 /* Pods-FisioVet.release.xcconfig */,
-			);
-			name = Pods;
-			path = Pods;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -102,8 +84,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				628A6F9E59EF1FF52C24FFE0 /* Pods */,
-				8E51BB3C9E44421AE4942AEB /* ExpoModulesProviders */,
+				C23B8BB185AB58860CABE4BD /* Pods */,
+				8DAE4FD2279218A77328E786 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -118,10 +100,10 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		8E51BB3C9E44421AE4942AEB /* ExpoModulesProviders */ = {
+		8DAE4FD2279218A77328E786 /* ExpoModulesProviders */ = {
 			isa = PBXGroup;
 			children = (
-				0D9AE1E7DF52DEFE5A63CE07 /* FisioVet */,
+				ED8D0C59C4E1F89E066B0EBA /* FisioVet */,
 			);
 			name = ExpoModulesProviders;
 			sourceTree = "<group>";
@@ -135,6 +117,24 @@
 			path = FisioVet/Supporting;
 			sourceTree = "<group>";
 		};
+		C23B8BB185AB58860CABE4BD /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				BD9F6E1D65359E851080980C /* Pods-FisioVet.debug.xcconfig */,
+				92C4E528F8A5D636D64FC974 /* Pods-FisioVet.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
+		ED8D0C59C4E1F89E066B0EBA /* FisioVet */ = {
+			isa = PBXGroup;
+			children = (
+				D4456046582E42A9EF66D47E /* ExpoModulesProvider.swift */,
+			);
+			name = FisioVet;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -143,13 +143,13 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "FisioVet" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				689691E6E7F827BC5CB15CB7 /* [Expo] Configure project */,
+				41ABC351CD06B318232B2082 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				BB504FF77CA188DEC0A00BD7 /* [CP] Embed Pods Frameworks */,
+				8B51C368CA8383AE75CCC906 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -170,6 +170,8 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
+						DevelopmentTeam = "JND35MTK35";
+						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -199,8 +201,8 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				EE5C44708D9F448BA3AD5DCA /* GoogleService-Info.plist in Resources */,
-				D6A3829BCE032BD1DF00EBC3 /* PrivacyInfo.xcprivacy in Resources */,
+				B476E12E9C2D4724B235D171 /* GoogleService-Info.plist in Resources */,
+				D83EE456E0970D2B679DBFC6 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,7 +248,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		689691E6E7F827BC5CB15CB7 /* [Expo] Configure project */ = {
+		41ABC351CD06B318232B2082 /* [Expo] Configure project */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -332,7 +334,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-FisioVet/Pods-FisioVet-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		BB504FF77CA188DEC0A00BD7 /* [CP] Embed Pods Frameworks */ = {
+		8B51C368CA8383AE75CCC906 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -362,7 +364,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				8C184A5B7B15E48040AED02C /* ExpoModulesProvider.swift in Sources */,
+				8484D3D55ED301EBE7BF60D1 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -371,7 +373,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 44C05876311ABEBF84725C36 /* Pods-FisioVet.debug.xcconfig */;
+			baseConfigurationReference = BD9F6E1D65359E851080980C /* Pods-FisioVet.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -402,12 +404,15 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = "JND35MTK35";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1C4D2288110936E8143212D0 /* Pods-FisioVet.release.xcconfig */;
+			baseConfigurationReference = 92C4E528F8A5D636D64FC974 /* Pods-FisioVet.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -432,6 +437,9 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+				DEVELOPMENT_TEAM = "JND35MTK35";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
 		};
