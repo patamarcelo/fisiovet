@@ -146,8 +146,22 @@ function UploadOverlay({ visible, progress = 0 }) {
 
 export default function PetDetail() {
 	const params = useLocalSearchParams();
-	const rawId = Array.isArray(params.id) ? params.id[0] : params.id;
+
+	const rawId = Array.isArray(params.id)
+		? params.id[0]
+		: params.id;
+
+	const rawFrom = Array.isArray(params.from)
+		? params.from[0]
+		: params.from;
+
+	const rawTutorId = Array.isArray(params.tutorId)
+		? params.tutorId[0]
+		: params.tutorId;
+
 	const id = rawId ? String(rawId) : null;
+	const from = rawFrom ? String(rawFrom) : null;
+	const tutorId = rawTutorId ? String(rawTutorId) : null;
 
 	const dispatch = useDispatch();
 	const navigation = useNavigation();
@@ -173,13 +187,30 @@ export default function PetDetail() {
 	}, [dispatch, id, pet]);
 
 	const goBack = useCallback(() => {
-		if (navigation.canGoBack()) {
-			navigation.goBack();
+		if (from === "tutor") {
+			if (router.canDismiss()) {
+				router.dismiss();
+				return;
+			}
+
+			if (tutorId) {
+				router.replace({
+					pathname: "/(phone)/tutores/[id]",
+					params: {
+						id: String(tutorId),
+					},
+				});
+				return;
+			}
+		}
+
+		if (router.canGoBack()) {
+			router.back();
 			return;
 		}
 
 		router.replace("/(phone)/pacientes");
-	}, [navigation]);
+	}, [from, tutorId]);
 
 	useLayoutEffect(() => {
 		navigation.setOptions({
@@ -257,11 +288,11 @@ export default function PetDetail() {
 			setProgress(100);
 			setUploading(false);
 
-			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => { });
 			Alert.alert("Exames", "Arquivo salvo!");
 		} catch (e) {
 			setUploading(false);
-			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+			Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => { });
 			console.log("Erro ao salvar exame:", e);
 			Alert.alert("Exames", "Falha ao salvar o arquivo.");
 		}
@@ -414,22 +445,54 @@ export default function PetDetail() {
 						border={border}
 						text={text}
 						subtle={subtle}
-						onPress={() =>
-							pet.tutor?.id
-								? router.push({
-										pathname: "/(modals)/tutores/[id]/detail",
-										params: { id: String(pet.tutor.id) },
-								  })
-								: Alert.alert("Tutor não vinculado")
-						}
+						onPress={() => {
+							if (!pet?.tutor?.id) {
+								Alert.alert("Tutor não vinculado");
+								return;
+							}
+
+							/*
+							 * Pet aberto a partir do tutor:
+							 * fecha o modal do pet e revela o tutor que já está embaixo.
+							 */
+							if (from === "tutor") {
+								if (router.canDismiss()) {
+									router.dismiss();
+									return;
+								}
+
+								router.replace({
+									pathname: "/(phone)/tutores/[id]",
+									params: {
+										id: String(tutorId || pet.tutor.id),
+									},
+								});
+
+								return;
+							}
+
+							/*
+							 * Pet aberto pela lista de pets:
+							 * abre o tutor dentro do grupo de modais,
+							 * preservando o detalhe do pet embaixo.
+							 */
+							router.push({
+								pathname: "/(modals)/tutores/[id]/detail",
+								params: {
+									id: String(pet.tutor.id),
+									from: "pet",
+									petId: String(pet.id),
+								},
+							});
+						}}
 						onAdd={
 							pet.tutor?.id
 								? undefined
 								: () =>
-										Alert.alert(
-											"Vincular tutor",
-											"Escolher/vincular um tutor para este pet"
-										)
+									Alert.alert(
+										"Vincular tutor",
+										"Escolher/vincular um tutor para este pet"
+									)
 						}
 					/>
 

@@ -6,7 +6,7 @@ import * as Sharing from "expo-sharing";
 import * as FileSystem from "expo-file-system/legacy";
 import { Asset } from "expo-asset";
 
-const FISIOVET_ICON = require("../../assets/images/icon-hand.png");
+const FISIOVET_LOGO = require("../../assets/images/splash-fisiovet.png");
 
 const REPORT_FILE_NAME = "report-fisiovet.pdf";
 
@@ -55,7 +55,7 @@ function toDate(value) {
 	if (typeof value?.toDate === "function") {
 		try {
 			return value.toDate();
-		} catch {}
+		} catch { }
 	}
 
 	const d = new Date(value);
@@ -138,9 +138,10 @@ function getKindColor(item) {
 	};
 }
 
-async function getFisioVetIconDataUri() {
+async function getFisioVetLogoDataUri() {
 	try {
-		const asset = Asset.fromModule(FISIOVET_ICON);
+		const asset = Asset.fromModule(FISIOVET_LOGO);
+
 		await asset.downloadAsync();
 
 		const uri = asset.localUri || asset.uri;
@@ -152,21 +153,31 @@ async function getFisioVetIconDataUri() {
 		});
 
 		return `data:image/png;base64,${base64}`;
-	} catch (e) {
-		console.log("getFisioVetIconDataUri error", e);
+	} catch (error) {
+		console.log("getFisioVetLogoDataUri error", error);
 		return "";
 	}
 }
 
-function renderBrand(iconDataUri) {
-	const icon = iconDataUri
-		? `<img class="brand-icon-img" src="${iconDataUri}" />`
-		: `<div class="brand-icon-fallback">FV</div>`;
+function renderBrand(logoDataUri) {
+	const logo = logoDataUri
+		? `
+			<img
+				class="brand-logo-img"
+				src="${logoDataUri}"
+				alt="FisioVet"
+			/>
+		`
+		: `
+			<div class="brand-logo-fallback">
+				FisioVet
+			</div>
+		`;
 
 	return `
 		<div class="brand">
-			<div class="brand-icon">
-				${icon}
+			<div class="brand-logo">
+				${logo}
 			</div>
 
 			<div class="brand-copy">
@@ -210,15 +221,15 @@ function renderSelectedList(labels, values, maxItems = 8) {
 	return `
 		<div class="selected-list">
 			${selected
-				.map(
-					(label) => `
+			.map(
+				(label) => `
 						<div class="selected-pill">
 							<span class="selected-check">✓</span>
 							<span>${escapeHtml(label)}</span>
 						</div>
 					`
-				)
-				.join("")}
+			)
+			.join("")}
 		</div>
 	`;
 }
@@ -384,106 +395,106 @@ function renderAnamnese(item) {
 
 	return `
 		${renderSection(
-			"1",
-			"Queixa principal",
-			renderTextField("Descrição", textos.queixaPrincipal, {
-				max: MAX_FIELD_CHARS,
-				wide: true,
-			}),
-			{ compact: true }
-		)}
+		"1",
+		"Queixa principal",
+		renderTextField("Descrição", textos.queixaPrincipal, {
+			max: MAX_FIELD_CHARS,
+			wide: true,
+		}),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"2",
-			"História da doença atual",
-			renderTextField("Evolução do quadro", textos.historiaDoencaAtual, {
-				max: MAX_FIELD_CHARS,
-				wide: true,
-			}),
-			{ compact: true }
-		)}
+		"2",
+		"História da doença atual",
+		renderTextField("Evolução do quadro", textos.historiaDoencaAtual, {
+			max: MAX_FIELD_CHARS,
+			wide: true,
+		}),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"3",
-			"Antecedentes médicos",
+		"3",
+		"Antecedentes médicos",
+		renderFieldGrid([
+			renderTextField("Vacinas e vermífugos", textos.vacinasVermifugos, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Alimentação", textos.alimentacao, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Hidratação", textos.hidratacao, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Fezes e urina", textos.fezesUrina, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Medicações anteriores", textos.medicacoesAnteriores, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Medicações em uso", textos.medicacoesUso, {
+				max: MAX_SHORT_CHARS,
+			}),
+			renderTextField("Histórico de neoplasias", textos.historicoNeoplasias, {
+				max: MAX_SHORT_CHARS,
+			}),
+		]),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"4",
+		"Hábitos e rotina",
+		[
+			renderSelectedList(anamneseHabitosLabels, f.habitos),
 			renderFieldGrid([
-				renderTextField("Vacinas e vermífugos", textos.vacinasVermifugos, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Alimentação", textos.alimentacao, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Hidratação", textos.hidratacao, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Fezes e urina", textos.fezesUrina, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Medicações anteriores", textos.medicacoesAnteriores, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Medicações em uso", textos.medicacoesUso, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Histórico de neoplasias", textos.historicoNeoplasias, {
+				renderTextField("Local onde dorme", textos.localDormir, {
 					max: MAX_SHORT_CHARS,
 				}),
 			]),
-			{ compact: true }
-		)}
+		].join(""),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"4",
-			"Hábitos e rotina",
-			[
-				renderSelectedList(anamneseHabitosLabels, f.habitos),
-				renderFieldGrid([
-					renderTextField("Local onde dorme", textos.localDormir, {
-						max: MAX_SHORT_CHARS,
-					}),
-				]),
-			].join(""),
-			{ compact: true }
-		)}
+		"5",
+		"Avaliação funcional",
+		renderSelectedList(anamneseFuncionalLabels, f.funcional),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"5",
-			"Avaliação funcional",
-			renderSelectedList(anamneseFuncionalLabels, f.funcional),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"6",
-			"Avaliação da dor",
-			[
-				renderStatusGrid([
-					renderStatusRow("Intensidade", humanStatus(dor.nivel || "leve"), "Leve"),
-				]),
-				renderTextField("Descrição da dor", textos.descricaoDor, {
-					max: MAX_SHORT_CHARS,
-					wide: true,
-				}),
-			].join(""),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"7",
-			"Expectativas do tutor",
-			renderSelectedList(anamneseExpectativasLabels, f.expectativas),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"8",
-			"Observações gerais",
-			renderTextField("Informações adicionais", textos.observacoesGerais, {
-				max: MAX_OBS_CHARS,
+		"6",
+		"Avaliação da dor",
+		[
+			renderStatusGrid([
+				renderStatusRow("Intensidade", humanStatus(dor.nivel || "leve"), "Leve"),
+			]),
+			renderTextField("Descrição da dor", textos.descricaoDor, {
+				max: MAX_SHORT_CHARS,
 				wide: true,
 			}),
-			{ compact: true }
-		)}
+		].join(""),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"7",
+		"Expectativas do tutor",
+		renderSelectedList(anamneseExpectativasLabels, f.expectativas),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"8",
+		"Observações gerais",
+		renderTextField("Informações adicionais", textos.observacoesGerais, {
+			max: MAX_OBS_CHARS,
+			wide: true,
+		}),
+		{ compact: true }
+	)}
 	`;
 }
 
@@ -497,92 +508,92 @@ function renderNeurologica(item) {
 
 	return `
 		${renderSection(
-			"1",
-			"Estado mental e consciência",
-			renderStatusGrid([
-				renderStatusRow(
-					"Nível de consciência",
-					humanStatus(estadoMental.nivelConsciencia || "alerta"),
-					"Alerta"
-				),
-				renderStatusRow(
-					"Comportamento",
-					humanStatus(estadoMental.comportamento || "normal"),
-					"Normal"
-				),
-			]),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"2",
-			"Postura, marcha e reações",
-			renderFieldGrid([
-				renderTextField("Postura", textos.postura, { max: MAX_SHORT_CHARS }),
-				renderTextField("Marcha / locomoção", textos.marcha, {
-					max: MAX_SHORT_CHARS,
-				}),
-				renderTextField("Reações posturais", textos.reacoesPosturais, {
-					max: MAX_SHORT_CHARS,
-				}),
-			]),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"3",
-			"Nervos cranianos",
-			renderStatusGrid(
-				Object.entries(nervosCranianosLabels).map(([key, label]) =>
-					renderStatusRow(
-						label,
-						humanStatus(nervos[key] || "normal"),
-						"Normal"
-					)
-				)
+		"1",
+		"Estado mental e consciência",
+		renderStatusGrid([
+			renderStatusRow(
+				"Nível de consciência",
+				humanStatus(estadoMental.nivelConsciencia || "alerta"),
+				"Alerta"
 			),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"4",
-			"Reflexos espinhais",
-			renderStatusGrid(
-				Object.entries(reflexosLabels).map(([key, label]) =>
-					renderStatusRow(
-						label,
-						humanStatus(reflexos[key] || "normal"),
-						"Normal"
-					)
-				)
+			renderStatusRow(
+				"Comportamento",
+				humanStatus(estadoMental.comportamento || "normal"),
+				"Normal"
 			),
-			{ compact: true }
-		)}
+		]),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"5",
-			"Avaliação sensitiva",
-			renderStatusGrid(
-				Object.entries(sensibilidadeLabels).map(([key, label]) =>
-					renderStatusRow(
-						label,
-						humanStatus(sensibilidade[key] || "normal"),
-						"Normal"
-					)
-				)
-			),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"6",
-			"Observações gerais",
-			renderTextField("Informações adicionais", textos.observacoesGerais, {
-				max: MAX_OBS_CHARS,
-				wide: true,
+		"2",
+		"Postura, marcha e reações",
+		renderFieldGrid([
+			renderTextField("Postura", textos.postura, { max: MAX_SHORT_CHARS }),
+			renderTextField("Marcha / locomoção", textos.marcha, {
+				max: MAX_SHORT_CHARS,
 			}),
-			{ compact: true }
-		)}
+			renderTextField("Reações posturais", textos.reacoesPosturais, {
+				max: MAX_SHORT_CHARS,
+			}),
+		]),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"3",
+		"Nervos cranianos",
+		renderStatusGrid(
+			Object.entries(nervosCranianosLabels).map(([key, label]) =>
+				renderStatusRow(
+					label,
+					humanStatus(nervos[key] || "normal"),
+					"Normal"
+				)
+			)
+		),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"4",
+		"Reflexos espinhais",
+		renderStatusGrid(
+			Object.entries(reflexosLabels).map(([key, label]) =>
+				renderStatusRow(
+					label,
+					humanStatus(reflexos[key] || "normal"),
+					"Normal"
+				)
+			)
+		),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"5",
+		"Avaliação sensitiva",
+		renderStatusGrid(
+			Object.entries(sensibilidadeLabels).map(([key, label]) =>
+				renderStatusRow(
+					label,
+					humanStatus(sensibilidade[key] || "normal"),
+					"Normal"
+				)
+			)
+		),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"6",
+		"Observações gerais",
+		renderTextField("Informações adicionais", textos.observacoesGerais, {
+			max: MAX_OBS_CHARS,
+			wide: true,
+		}),
+		{ compact: true }
+	)}
 	`;
 }
 
@@ -594,105 +605,105 @@ function renderOrtopedica(item) {
 
 	return `
 		${renderSection(
-			"1",
-			"Queixa e histórico",
+		"1",
+		"Queixa e histórico",
+		renderFieldGrid([
+			renderTextField("Queixa principal", textos.queixaPrincipal, {
+				max: MAX_FIELD_CHARS,
+			}),
+			renderTextField("Histórico ortopédico", textos.historicoOrtopedico, {
+				max: MAX_FIELD_CHARS,
+			}),
+		]),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"2",
+		"Localização principal",
+		renderSelectedList(ortopedicaLocalizacaoLabels, f.localizacao),
+		{ compact: true }
+	)}
+
+		${renderSection(
+		"3",
+		"Inspeção e marcha",
+		[
+			renderStatusGrid([
+				renderStatusRow(
+					"Claudicação",
+					humanStatus(marcha.claudicacao || "ausente"),
+					"Ausente"
+				),
+				renderStatusRow("Apoio", humanStatus(marcha.apoio || "normal"), "Normal"),
+				renderStatusRow(
+					"Compensação",
+					humanStatus(marcha.compensacao || "ausente"),
+					"Ausente"
+				),
+			]),
 			renderFieldGrid([
-				renderTextField("Queixa principal", textos.queixaPrincipal, {
-					max: MAX_FIELD_CHARS,
+				renderTextField("Inspeção estática", textos.inspecaoEstatica, {
+					max: MAX_SHORT_CHARS,
 				}),
-				renderTextField("Histórico ortopédico", textos.historicoOrtopedico, {
-					max: MAX_FIELD_CHARS,
+				renderTextField("Inspeção dinâmica", textos.inspecaoDinamica, {
+					max: MAX_SHORT_CHARS,
 				}),
 			]),
-			{ compact: true }
-		)}
+		].join(""),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"2",
-			"Localização principal",
-			renderSelectedList(ortopedicaLocalizacaoLabels, f.localizacao),
-			{ compact: true }
-		)}
+		"4",
+		"Palpação, dor e amplitude",
+		[
+			renderStatusGrid([
+				renderStatusRow("Nível de dor", humanStatus(dor.nivel || "leve"), "Leve"),
+				renderStatusRow(
+					"Resposta à palpação",
+					humanStatus(dor.respostaPalpacao || "normal"),
+					"Normal"
+				),
+			]),
+			renderFieldGrid([
+				renderTextField("Palpação", textos.palpacao, {
+					max: MAX_SHORT_CHARS,
+				}),
+				renderTextField("Amplitude de movimento", textos.amplitudeMovimento, {
+					max: MAX_SHORT_CHARS,
+				}),
+				renderTextField("Descrição da dor", textos.dor, {
+					max: MAX_SHORT_CHARS,
+				}),
+			]),
+		].join(""),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"3",
-			"Inspeção e marcha",
-			[
-				renderStatusGrid([
-					renderStatusRow(
-						"Claudicação",
-						humanStatus(marcha.claudicacao || "ausente"),
-						"Ausente"
-					),
-					renderStatusRow("Apoio", humanStatus(marcha.apoio || "normal"), "Normal"),
-					renderStatusRow(
-						"Compensação",
-						humanStatus(marcha.compensacao || "ausente"),
-						"Ausente"
-					),
-				]),
-				renderFieldGrid([
-					renderTextField("Inspeção estática", textos.inspecaoEstatica, {
-						max: MAX_SHORT_CHARS,
-					}),
-					renderTextField("Inspeção dinâmica", textos.inspecaoDinamica, {
-						max: MAX_SHORT_CHARS,
-					}),
-				]),
-			].join(""),
-			{ compact: true }
-		)}
+		"5",
+		"Funcionalidade",
+		renderSelectedList(ortopedicaFuncionalLabels, f.funcional),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"4",
-			"Palpação, dor e amplitude",
-			[
-				renderStatusGrid([
-					renderStatusRow("Nível de dor", humanStatus(dor.nivel || "leve"), "Leve"),
-					renderStatusRow(
-						"Resposta à palpação",
-						humanStatus(dor.respostaPalpacao || "normal"),
-						"Normal"
-					),
-				]),
-				renderFieldGrid([
-					renderTextField("Palpação", textos.palpacao, {
-						max: MAX_SHORT_CHARS,
-					}),
-					renderTextField("Amplitude de movimento", textos.amplitudeMovimento, {
-						max: MAX_SHORT_CHARS,
-					}),
-					renderTextField("Descrição da dor", textos.dor, {
-						max: MAX_SHORT_CHARS,
-					}),
-				]),
-			].join(""),
-			{ compact: true }
-		)}
+		"6",
+		"Conduta inicial",
+		renderSelectedList(ortopedicaCondutaLabels, f.conduta),
+		{ compact: true }
+	)}
 
 		${renderSection(
-			"5",
-			"Funcionalidade",
-			renderSelectedList(ortopedicaFuncionalLabels, f.funcional),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"6",
-			"Conduta inicial",
-			renderSelectedList(ortopedicaCondutaLabels, f.conduta),
-			{ compact: true }
-		)}
-
-		${renderSection(
-			"7",
-			"Observações gerais",
-			renderTextField("Informações adicionais", textos.observacoesGerais, {
-				max: MAX_OBS_CHARS,
-				wide: true,
-			}),
-			{ compact: true }
-		)}
+		"7",
+		"Observações gerais",
+		renderTextField("Informações adicionais", textos.observacoesGerais, {
+			max: MAX_OBS_CHARS,
+			wide: true,
+		}),
+		{ compact: true }
+	)}
 	`;
 }
 
@@ -725,7 +736,7 @@ function renderAvaliacaoPage(item, index, meta = {}) {
 				<div class="top-accent" style="background:${colors.primary};"></div>
 
 				<header class="doc-header">
-					${renderBrand(meta.iconDataUri)}
+					${renderBrand(meta.logoDataUri)}
 
 					<div class="doc-badge" style="background:${colors.soft}; color:${colors.softText};">
 						${escapeHtml(kindLabel)}
@@ -774,7 +785,7 @@ function renderAvaliacaoPage(item, index, meta = {}) {
 }
 
 async function buildHtml({ evaluations, petName }) {
-	const iconDataUri = await getFisioVetIconDataUri();
+	const logoDataUri = await getFisioVetLogoDataUri();
 
 	return `
 		<!DOCTYPE html>
@@ -854,35 +865,33 @@ async function buildHtml({ evaluations, petName }) {
 						min-width: 0;
 					}
 
-					.brand-icon {
-						width: 30px;
-						height: 30px;
-						border-radius: 10px;
-						overflow: hidden;
-						background: #EFF6FF;
+					.brand-logo {
+						width: 38px;
+						height: 38px;
 						display: flex;
 						align-items: center;
 						justify-content: center;
 						flex-shrink: 0;
+						overflow: visible;
 					}
 
-					.brand-icon-img {
-						width: 30px;
-						height: 30px;
-						object-fit: cover;
+					.brand-logo-img {
+						width: 38px;
+						height: 38px;
+						object-fit: contain;
 						display: block;
 					}
 
-					.brand-icon-fallback {
-						width: 30px;
-						height: 30px;
-						border-radius: 10px;
-						background: #2563EB;
+					.brand-logo-fallback {
+						width: 38px;
+						height: 38px;
+						border-radius: 11px;
+						background: #159E9C;
 						color: #FFFFFF;
 						display: flex;
 						align-items: center;
 						justify-content: center;
-						font-size: 10px;
+						font-size: 8px;
 						font-weight: 900;
 					}
 
@@ -1180,14 +1189,14 @@ async function buildHtml({ evaluations, petName }) {
 
 			<body>
 				${evaluations
-					.map((item, index) =>
-						renderAvaliacaoPage(item, index, {
-							petName,
-							total: evaluations.length,
-							iconDataUri,
-						})
-					)
-					.join("")}
+			.map((item, index) =>
+				renderAvaliacaoPage(item, index, {
+					petName,
+					total: evaluations.length,
+					logoDataUri,
+				})
+			)
+			.join("")}
 			</body>
 		</html>
 	`;
@@ -1221,7 +1230,7 @@ export async function exportAvaliacoesPdf({
 
 	try {
 		await FileSystem.deleteAsync(targetUri, { idempotent: true });
-	} catch {}
+	} catch { }
 
 	await FileSystem.copyAsync({
 		from: result.uri,

@@ -414,6 +414,7 @@ export default function PetsList() {
 			title: "Pets",
 			headerTintColor: tint,
 			headerTitleStyle: { color: tint, fontWeight: "800" },
+			headerShadowVisible: false,
 			headerStyle: { backgroundColor: bg },
 			headerRight: () => (
 				<Pressable

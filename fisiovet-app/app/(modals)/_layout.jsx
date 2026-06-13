@@ -53,11 +53,22 @@ export default function ModalLayout() {
                 name="agenda-new"
                 options={{
                     title: 'Agendar',
+                    presentation: 'fullScreenModal',
+                    animation: "slide_from_bottom",
                     // Nada de headerRight aqui! Deixa a própria tela controlar.
                     headerTitleAlign: 'center',
                     headerTitleContainerStyle: { flex: 1, alignItems: 'center' },
                     headerLeftContainerStyle: { minWidth: 72 },
                     headerRightContainerStyle: { minWidth: 72 },
+                }}
+            />
+            <Stack.Screen
+                name="tutores/[id]/detail"
+                options={{
+                    headerShown: false,
+                    presentation: "card",
+                    animation: "slide_from_right",
+                    gestureEnabled: true,
                 }}
             />
             <Stack.Screen
@@ -129,6 +140,15 @@ export default function ModalLayout() {
                 }}
             />
 
+            <Stack.Screen
+                name="pets/[id]/detail"
+                options={{
+                    headerShown: true,
+                    presentation: "card",
+                    animation: "slide_from_right",
+                    gestureEnabled: true,
+                }}
+            />
 
             {/* Adicione aqui outras telas modais, cada uma com suas opções:
         */}

@@ -3,10 +3,13 @@
 import React from "react";
 import { Stack } from "expo-router";
 
+export const unstable_settings = {
+	initialRouteName: "index",
+};
+
 export default function PacientesLayout() {
 	return (
 		<Stack
-			initialRouteName="index"
 			screenOptions={{
 				headerShown: false,
 				headerLargeTitle: false,
@@ -19,6 +22,7 @@ export default function PacientesLayout() {
 					title: "Pets",
 					headerShown: true,
 					headerLargeTitle: false,
+					headerShadowVisible: false,
 				}}
 			/>
 
@@ -28,6 +32,7 @@ export default function PacientesLayout() {
 					title: "Detalhe",
 					headerShown: true,
 					headerLargeTitle: false,
+					headerShadowVisible: false,
 				}}
 			/>
 
@@ -37,6 +42,7 @@ export default function PacientesLayout() {
 					title: "Exames",
 					headerShown: true,
 					headerLargeTitle: false,
+					headerShadowVisible: false,
 				}}
 			/>
 
@@ -46,6 +52,7 @@ export default function PacientesLayout() {
 					title: "Avaliações",
 					headerShown: true,
 					headerLargeTitle: false,
+					headerShadowVisible: false,
 				}}
 			/>
 		</Stack>

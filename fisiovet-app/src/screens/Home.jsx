@@ -44,8 +44,9 @@ const HOME_LOGO = require('../../assets/images/splash-fisiovet.png');
 
 /* ---------- Visual tokens ---------- */
 
-const PAGE_BG = '#F2F5F0';
+const PAGE_BG = '#F4F8F3';
 const CARD_BORDER = '#E5E7EB';
+const ACTION_COLOR = '#8DC4A1';
 
 const STATUS_COLORS = {
     confirmado: '#16A34A',
@@ -74,6 +75,7 @@ const SOFT_ELEVATION = {
 const fmtHour = (iso) => {
     try {
         const d = new Date(iso);
+
         return d.toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit',
@@ -85,6 +87,7 @@ const fmtHour = (iso) => {
 
 const fmtDay = (iso) => {
     const d = new Date(iso);
+
     return d.toLocaleDateString('pt-BR', {
         weekday: 'short',
         day: '2-digit',
@@ -102,6 +105,7 @@ const toSections = (items) => {
 
     for (const ev of items || []) {
         const d = new Date(ev.start);
+
         if (Number.isNaN(d.getTime())) continue;
 
         const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
@@ -109,7 +113,10 @@ const toSections = (items) => {
             '0'
         )}-${String(d.getDate()).padStart(2, '0')}`;
 
-        if (!map.has(key)) map.set(key, []);
+        if (!map.has(key)) {
+            map.set(key, []);
+        }
+
         map.get(key).push(ev);
     }
 
@@ -133,22 +140,24 @@ const toSections = (items) => {
 };
 
 function countPetsFromState(petsState) {
-    const itemsCount = Array.isArray(petsState?.items) ? petsState.items.length : 0;
-    const byIdCount = petsState?.byId ? Object.keys(petsState.byId).length : 0;
+    const itemsCount = Array.isArray(petsState?.items)
+        ? petsState.items.length
+        : 0;
+
+    const byIdCount = petsState?.byId
+        ? Object.keys(petsState.byId).length
+        : 0;
+
     return Math.max(itemsCount, byIdCount);
 }
 
-/* ---------- Background art ---------- */
+/* ---------- Background ---------- */
 
 function HomeBackgroundArt({ topInset = 0 }) {
     return (
         <View pointerEvents="none" style={styles.bgArt}>
             <LinearGradient
-                colors={[
-                    '#F4F8F3',
-                    '#EEF5EF',
-                    '#F8FAF7',
-                ]}
+                colors={['#F4F8F3', '#EEF5EF', '#F8FAF7']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.bgBase}
@@ -175,6 +184,7 @@ function HomeBackgroundArt({ topInset = 0 }) {
         </View>
     );
 }
+
 /* ---------- UI subcomponents ---------- */
 
 function ShortcutButton({
@@ -183,36 +193,50 @@ function ShortcutButton({
     onPress,
     accessibilityLabel,
     textIcon,
+    showAddBadge = true,
 }) {
     return (
         <Pressable
             onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-                    () => { }
-                );
+                Haptics.impactAsync(
+                    Haptics.ImpactFeedbackStyle.Medium
+                ).catch(() => { });
+
                 onPress?.();
             }}
-            android_ripple={{ color: '#E5E7EB' }}
+            android_ripple={{
+                color: '#E5E7EB',
+                borderless: true,
+            }}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
-            hitSlop={8}
+            hitSlop={6}
             style={({ pressed }) => [
                 styles.storyItem,
                 pressed && {
-                    opacity: 0.92,
-                    transform: [{ scale: 0.97 }],
+                    opacity: 0.9,
+                    transform: [{ scale: 0.96 }],
                 },
             ]}
         >
             <View style={[styles.storyCircle, SOFT_ELEVATION]}>
                 {icon}
 
-                <View style={styles.storyAddBadge}>
-                    <Ionicons name="add" size={13} color="#8DC4A1" />
-                </View>
+                {showAddBadge && (
+                    <View style={styles.storyAddBadge}>
+                        <Ionicons
+                            name="add"
+                            size={13}
+                            color={ACTION_COLOR}
+                        />
+                    </View>
+                )}
             </View>
 
-            <Text style={[styles.storyLabel, { color: textIcon }]}>
+            <Text
+                style={[styles.storyLabel, { color: textIcon }]}
+                numberOfLines={1}
+            >
                 {label}
             </Text>
         </Pressable>
@@ -227,34 +251,54 @@ function MiniEventRow({ item }) {
         <Pressable
             onPress={() => {
                 Haptics.selectionAsync().catch(() => { });
+
                 router.push({
                     pathname: '/(modals)/agenda-new',
-                    params: { id: String(item.id) },
+                    params: {
+                        id: String(item.id),
+                    },
                 });
             }}
             android_ripple={{ color: '#ECEFF3' }}
             style={({ pressed }) => [
                 styles.row,
-                pressed && Platform.OS === 'ios'
-                    ? { backgroundColor: '#F7F8FA' }
-                    : null,
+                pressed &&
+                Platform.OS === 'ios' && {
+                    backgroundColor: '#F7F8FA',
+                },
             ]}
         >
-            <View style={[styles.statusBar, { backgroundColor: color }]} />
+            <View
+                style={[
+                    styles.statusBar,
+                    {
+                        backgroundColor: color,
+                    },
+                ]}
+            />
 
             <View style={styles.rowContent}>
                 <View style={styles.rowTop}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
+                    <Text
+                        style={styles.rowTitle}
+                        numberOfLines={1}
+                    >
                         {title || 'Evento'}
                     </Text>
 
-                    <Text style={styles.rowHour} numberOfLines={1}>
+                    <Text
+                        style={styles.rowHour}
+                        numberOfLines={1}
+                    >
                         {fmtHour(start)} — {fmtHour(end)}
                     </Text>
                 </View>
 
                 {!!local && (
-                    <Text style={styles.rowSub} numberOfLines={1}>
+                    <Text
+                        style={styles.rowSub}
+                        numberOfLines={1}
+                    >
                         • {local}
                     </Text>
                 )}
@@ -277,7 +321,10 @@ function UpcomingEventsList({
     hasPet,
     canCreateEvent,
 }) {
-    const sections = useMemo(() => toSections(upcoming), [upcoming]);
+    const sections = useMemo(
+        () => toSections(upcoming),
+        [upcoming]
+    );
 
     if (!upcoming?.length) {
         const emptySubtitle = !hasTutor
@@ -288,13 +335,19 @@ function UpcomingEventsList({
 
         return (
             <View style={styles.emptyEventsBox}>
-                <Ionicons name="calendar-outline" size={42} color="#A1A1AA" />
+                <Ionicons
+                    name="calendar-outline"
+                    size={42}
+                    color="#A1A1AA"
+                />
 
                 <Text style={styles.emptyEventsTitle}>
                     Nenhum evento futuro encontrado
                 </Text>
 
-                <Text style={styles.emptyEventsSub}>{emptySubtitle}</Text>
+                <Text style={styles.emptyEventsSub}>
+                    {emptySubtitle}
+                </Text>
 
                 {canCreateEvent && (
                     <Pressable
@@ -315,8 +368,12 @@ function UpcomingEventsList({
                         }}
                         style={({ pressed }) => [
                             styles.emptyEventsButton,
-                            { backgroundColor: tint },
-                            pressed && { opacity: 0.85 },
+                            {
+                                backgroundColor: tint,
+                            },
+                            pressed && {
+                                opacity: 0.85,
+                            },
                         ]}
                     >
                         <Text style={styles.emptyEventsButtonText}>
@@ -331,7 +388,10 @@ function UpcomingEventsList({
     return (
         <View style={styles.eventsInlineList}>
             {sections.map((section) => (
-                <View key={section.title} style={styles.eventsSection}>
+                <View
+                    key={section.title}
+                    style={styles.eventsSection}
+                >
                     <View style={styles.sectionHeader}>
                         <Text style={styles.sectionHeaderText}>
                             {section.title}
@@ -339,7 +399,10 @@ function UpcomingEventsList({
                     </View>
 
                     {section.data.map((item) => (
-                        <View key={String(item.id)} style={styles.eventRowWrapper}>
+                        <View
+                            key={String(item.id)}
+                            style={styles.eventRowWrapper}
+                        >
                             <MiniEventRow item={item} />
                         </View>
                     ))}
@@ -359,7 +422,6 @@ export default function Home() {
     const store = useStore();
 
     const tint = useThemeColor({}, 'tint');
-    const colorIcon = useThemeColor({}, 'colorIcon');
     const text = useThemeColor({}, 'text');
     const textIcon = useThemeColor({}, 'textIcon');
 
@@ -372,11 +434,15 @@ export default function Home() {
     const [localAvatar, setLocalAvatar] = useState(null);
 
     const showFinanceValues = useSelector(
-        (s) => s.system?.financeiro?.showValues ?? false
+        (state) => state.system?.financeiro?.showValues ?? false
     );
 
     const tutoresCount = tutores?.length || 0;
-    const petsCount = useMemo(() => countPetsFromState(petsState), [petsState]);
+
+    const petsCount = useMemo(
+        () => countPetsFromState(petsState),
+        [petsState]
+    );
 
     const hasTutor = tutoresCount > 0;
     const hasPet = petsCount > 0;
@@ -385,7 +451,9 @@ export default function Home() {
     const canCreateEvent = hasTutor && hasPet;
 
     useEffect(() => {
-        navigation.setOptions({ headerShown: false });
+        navigation.setOptions({
+            headerShown: false,
+        });
     }, [navigation]);
 
     useEffect(() => {
@@ -397,9 +465,16 @@ export default function Home() {
                 await dispatch(loadSyncQueue()).unwrap();
 
                 if (!alive) return;
-                await processSyncQueue(dispatch, store.getState);
+
+                await processSyncQueue(
+                    dispatch,
+                    store.getState
+                );
             } catch (err) {
-                console.log('Boot Home ignorou sync inicial:', err?.message);
+                console.log(
+                    'Boot Home ignorou sync inicial:',
+                    err?.message
+                );
             }
         }
 
@@ -431,11 +506,19 @@ export default function Home() {
             }
 
             try {
-                const res = await getCachedAvatar(storage, photoURL);
+                const result = await getCachedAvatar(
+                    storage,
+                    photoURL
+                );
+
                 if (!alive) return;
-                setLocalAvatar(res?.localUri || photoURL);
+
+                setLocalAvatar(
+                    result?.localUri || photoURL
+                );
             } catch {
                 if (!alive) return;
+
                 setLocalAvatar(photoURL);
             }
         })();
@@ -449,19 +532,34 @@ export default function Home() {
         const now = new Date();
 
         return (eventos || [])
-            .filter((e) => {
-                const start = new Date(e.start);
-                return !Number.isNaN(start.getTime()) && start >= now;
+            .filter((event) => {
+                const start = new Date(event.start);
+
+                return (
+                    !Number.isNaN(start.getTime()) &&
+                    start >= now
+                );
             })
-            .sort((a, b) => new Date(a.start) - new Date(b.start))
+            .sort(
+                (a, b) =>
+                    new Date(a.start) - new Date(b.start)
+            )
             .slice(0, 12);
     }, [eventos]);
 
     const avatarUri = localAvatar || photoURL;
 
     return (
-        <SafeAreaView style={styles.safe} edges={['left', 'right']}>
-            <StatusBar style="dark" translucent backgroundColor="transparent" />
+        <SafeAreaView
+            style={styles.safe}
+            edges={['left', 'right']}
+        >
+            <StatusBar
+                style="dark"
+                translucent
+                backgroundColor="transparent"
+            />
+
             <View style={styles.root}>
                 <HomeBackgroundArt topInset={insets.top} />
 
@@ -479,7 +577,12 @@ export default function Home() {
                     <View style={styles.topBar}>
                         <View style={styles.topLeft}>
                             {avatarUri ? (
-                                <View style={[styles.avatarWrapper, CARD_ELEVATION]}>
+                                <View
+                                    style={[
+                                        styles.avatarWrapper,
+                                        CARD_ELEVATION,
+                                    ]}
+                                >
                                     <Image
                                         source={{ uri: avatarUri }}
                                         style={styles.avatar}
@@ -487,7 +590,12 @@ export default function Home() {
                                     />
                                 </View>
                             ) : (
-                                <View style={[styles.avatarWrapper, CARD_ELEVATION]}>
+                                <View
+                                    style={[
+                                        styles.avatarWrapper,
+                                        CARD_ELEVATION,
+                                    ]}
+                                >
                                     <View style={styles.avatarFallback}>
                                         <Ionicons
                                             name="person"
@@ -499,12 +607,24 @@ export default function Home() {
                             )}
 
                             <View style={styles.nameBox}>
-                                <Text style={[styles.hello, { color: text }]}>
+                                <Text
+                                    style={[
+                                        styles.hello,
+                                        {
+                                            color: text,
+                                        },
+                                    ]}
+                                >
                                     Olá 👋
                                 </Text>
 
                                 <Text
-                                    style={[styles.userName, { color: text }]}
+                                    style={[
+                                        styles.userName,
+                                        {
+                                            color: text,
+                                        },
+                                    ]}
                                     numberOfLines={1}
                                     ellipsizeMode="tail"
                                 >
@@ -513,50 +633,48 @@ export default function Home() {
                             </View>
                         </View>
 
-                        <Pressable
-                            onPress={() => {
-                                Haptics.selectionAsync().catch(() => { });
-                                router.push('/configuracoes');
-                            }}
-                            hitSlop={10}
-                            accessibilityLabel="Configurações"
-                            android_ripple={{ color: '#E5E7EB', borderless: true }}
-                            style={({ pressed }) => [
-                                styles.gearBtn,
-                                pressed && { opacity: 0.72 },
-                            ]}
+                        <View
+                            pointerEvents="none"
+                            style={styles.headerLogoBox}
                         >
-                            <MaterialIcons
-                                name="settings"
-                                size={24}
-                                color={colorIcon}
+                            <Image
+                                source={HOME_LOGO}
+                                style={styles.headerLogo}
+                                contentFit="contain"
                             />
-                        </Pressable>
+                        </View>
                     </View>
                 </BlurView>
 
                 <ScrollView
                     ref={scrollRef}
                     style={styles.scrollArea}
-                    contentContainerStyle={{
-                        paddingHorizontal: 16,
-                        paddingBottom: 12 + insets.bottom + 50,
-                        paddingTop: 26,
-                        marginTop: 100,
-                        gap: 16,
-                    }}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        {
+                            paddingBottom:
+                                12 + insets.bottom + 50,
+                        },
+                    ]}
                     showsVerticalScrollIndicator={false}
                 >
                     <View style={styles.shortcutsArea}>
-                        <View style={styles.brandBox}>
-                            <Image
-                                source={HOME_LOGO}
-                                style={styles.homeLogo}
-                                contentFit="contain"
+                        <View style={styles.shortcutsGroup}>
+                            <ShortcutButton
+                                label="Ajustes"
+                                accessibilityLabel="Abrir configurações"
+                                textIcon={textIcon}
+                                showAddBadge={false}
+                                onPress={() => router.push('/configuracoes')}
+                                icon={
+                                    <MaterialIcons
+                                        name="settings"
+                                        size={27}
+                                        color={ACTION_COLOR}
+                                    />
+                                }
                             />
-                        </View>
 
-                        <View style={styles.shortcuts}>
                             {canCreatePet && (
                                 <ShortcutButton
                                     label="Pet"
@@ -567,7 +685,7 @@ export default function Home() {
                                         <MaterialIcons
                                             name="pets"
                                             size={25}
-                                            color="#8DC4A1"
+                                            color={ACTION_COLOR}
                                         />
                                     }
                                 />
@@ -582,7 +700,7 @@ export default function Home() {
                                     <Ionicons
                                         name="person-sharp"
                                         size={26}
-                                        color="#8DC4A1"
+                                        color={ACTION_COLOR}
                                     />
                                 }
                             />
@@ -597,7 +715,7 @@ export default function Home() {
                                         <Ionicons
                                             name="calendar-outline"
                                             size={26}
-                                            color="#8DC4A1"
+                                            color={ACTION_COLOR}
                                         />
                                     }
                                 />
@@ -608,16 +726,24 @@ export default function Home() {
                     <View
                         style={[
                             styles.card,
+                            styles.eventsCard,
                             CARD_ELEVATION,
-                            { borderColor: CARD_BORDER },
+                            {
+                                borderColor: CARD_BORDER,
+                            },
                         ]}
                     >
                         <View style={styles.cardHeader}>
-                            <Text style={styles.cardTitle}>Próximos eventos</Text>
+                            <Text style={styles.cardTitle}>
+                                Próximos eventos
+                            </Text>
 
                             <Pressable
                                 onPress={() => {
-                                    Haptics.selectionAsync().catch(() => { });
+                                    Haptics.selectionAsync().catch(
+                                        () => { }
+                                    );
+
                                     router.push('/(phone)/agenda');
                                 }}
                                 hitSlop={8}
@@ -627,10 +753,17 @@ export default function Home() {
                                 }}
                                 style={({ pressed }) => [
                                     styles.headerLinkButton,
-                                    pressed && { opacity: 0.72 },
+                                    pressed && {
+                                        opacity: 0.72,
+                                    },
                                 ]}
                             >
-                                <Text style={{ color: tint, fontWeight: '700' }}>
+                                <Text
+                                    style={{
+                                        color: tint,
+                                        fontWeight: '700',
+                                    }}
+                                >
                                     Ver tudo
                                 </Text>
                             </Pressable>
@@ -686,60 +819,19 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
     },
 
-    bgTopLayer: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        top: 0,
-        borderBottomLeftRadius: 70,
-        borderBottomRightRadius: 130,
+    bgBase: {
+        ...StyleSheet.absoluteFillObject,
     },
 
-    bgMainWave: {
+    bgSingleWave: {
         position: 'absolute',
-        left: -40,
-        right: -30,
-        height: 240,
-        borderTopLeftRadius: 110,
-        borderTopRightRadius: 180,
-        borderBottomLeftRadius: 150,
-        borderBottomRightRadius: 150,
-    },
-
-    bgMiddleWave: {
-        position: 'absolute',
-        left: -40,
-        right: -20,
-        top: 330,
-        height: 270,
-        borderTopLeftRadius: 180,
-        borderTopRightRadius: 130,
-        borderBottomLeftRadius: 120,
-        borderBottomRightRadius: 180,
-    },
-
-    bgBottomWave: {
-        position: 'absolute',
-        left: -60,
-        right: -10,
-        bottom: -90,
-        height: 360,
-        borderTopLeftRadius: 180,
-        borderTopRightRadius: 140,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
-    },
-
-    bgCornerSoft: {
-        position: 'absolute',
-        right: -40,
-        bottom: -40,
-        width: 240,
-        height: 180,
-        borderTopLeftRadius: 120,
+        left: -90,
+        right: -70,
+        borderTopLeftRadius: 0,
         borderTopRightRadius: 0,
-        borderBottomLeftRadius: 0,
-        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 260,
+        borderBottomRightRadius: 190,
+        transform: [{ scaleX: 1.08 }],
     },
 
     headerContainer: {
@@ -752,24 +844,20 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
 
-    scrollArea: {
-        flex: 1,
-        zIndex: 1,
-        backgroundColor: 'transparent',
-    },
-
     topBar: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
+        minHeight: 60,
     },
 
     topLeft: {
         flex: 1,
+        minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        minWidth: 0,
+        paddingRight: 8,
     },
 
     nameBox: {
@@ -784,82 +872,73 @@ const styles = StyleSheet.create({
     },
 
     userName: {
+        marginTop: 2,
         fontSize: 22,
         fontWeight: '800',
-        marginTop: 2,
         letterSpacing: -0.4,
     },
 
-    gearBtn: {
-        height: 38,
-        width: 38,
-        borderRadius: 19,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: 10,
-    },
+  headerLogoBox: {
+    width: 92,
+    height: 68,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 8,
+    marginRight: -6,
+},
+
+headerLogo: {
+    width: 90,
+    height: 66,
+},
 
     avatarWrapper: {
         width: 60,
         height: 60,
-        borderRadius: 40,
+        borderRadius: 30,
         backgroundColor: '#FFF',
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.12,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 4,
     },
 
     avatar: {
         width: 54,
         height: 54,
-        borderRadius: 40,
+        borderRadius: 27,
         overflow: 'hidden',
     },
 
     avatarFallback: {
         width: 54,
         height: 54,
-        borderRadius: 40,
+        borderRadius: 27,
         backgroundColor: '#E5E7EB',
         alignItems: 'center',
         justifyContent: 'center',
     },
 
-    shortcutsArea: {
-        marginTop: 18,
-        minHeight: 118,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+    scrollArea: {
+        flex: 1,
+        zIndex: 1,
+        backgroundColor: 'transparent',
+    },
+
+    scrollContent: {
+        paddingHorizontal: 16,
+        paddingTop: 26,
+        marginTop: 100,
         gap: 10,
     },
 
-    brandBox: {
-        width: 100,
-        height: 92,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginLeft: -2,
-        marginTop: 12,
-    },
-
-    homeLogo: {
-        width: 98,
-        height: 86,
-    },
-
-    shortcuts: {
-        flex: 1,
-        minHeight: 94,
+    shortcutsArea: {
+        marginTop: 32,
+        minHeight: 96,
         flexDirection: 'row',
         alignItems: 'flex-start',
         justifyContent: 'flex-end',
-        gap: 14,
     },
+
+
 
     storyItem: {
         width: 72,
@@ -872,7 +951,7 @@ const styles = StyleSheet.create({
         borderRadius: 33,
         backgroundColor: '#FFFFFF',
         borderWidth: 1,
-        borderColor: 'rgba(141, 196, 161, 0.28)',
+        borderColor: 'rgba(141, 196, 161, 0.30)',
         alignItems: 'center',
         justifyContent: 'center',
         overflow: 'hidden',
@@ -890,12 +969,25 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(141, 196, 161, 0.35)',
+        borderColor: 'rgba(141, 196, 161, 0.38)',
         shadowColor: '#0F172A',
         shadowOpacity: 0.08,
         shadowRadius: 4,
-        shadowOffset: { width: 0, height: 2 },
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         elevation: 2,
+    },
+    shortcutsGroup: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-end',
+        gap: 14,
+    },
+
+    eventsCard: {
+        marginTop: -4,
     },
 
     storyLabel: {
@@ -905,7 +997,6 @@ const styles = StyleSheet.create({
         letterSpacing: -0.1,
         textAlign: 'center',
     },
-
     card: {
         borderWidth: 1,
         borderRadius: 18,
@@ -941,7 +1032,10 @@ const styles = StyleSheet.create({
         marginVertical: 4,
         marginHorizontal: 4,
         paddingLeft: 4,
-        borderWidth: Platform.OS === 'android' ? StyleSheet.hairlineWidth : 0,
+        borderWidth:
+            Platform.OS === 'android'
+                ? StyleSheet.hairlineWidth
+                : 0,
         borderColor: '#F1F5F9',
     },
 
@@ -989,11 +1083,11 @@ const styles = StyleSheet.create({
     },
 
     sectionHeader: {
-        backgroundColor: '#F3F4F6',
-        paddingVertical: 6,
-        paddingHorizontal: 8,
         marginHorizontal: 8,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
         borderRadius: 8,
+        backgroundColor: '#F3F4F6',
     },
 
     sectionHeaderText: {
@@ -1024,11 +1118,11 @@ const styles = StyleSheet.create({
     },
 
     emptyEventsSub: {
+        marginBottom: 4,
         fontSize: 12,
+        lineHeight: 17,
         color: '#9CA3AF',
         textAlign: 'center',
-        marginBottom: 4,
-        lineHeight: 17,
     },
 
     emptyEventsButton: {
@@ -1038,7 +1132,7 @@ const styles = StyleSheet.create({
     },
 
     emptyEventsButtonText: {
-        color: '#fff',
+        color: '#FFF',
         fontWeight: '700',
         fontSize: 14,
         textAlign: 'center',
@@ -1055,43 +1149,5 @@ const styles = StyleSheet.create({
 
     eventRowWrapper: {
         marginBottom: 6,
-    },
-    safe: {
-        flex: 1,
-        backgroundColor: '#F4F8F3',
-    },
-
-    root: {
-        flex: 1,
-        position: 'relative',
-        backgroundColor: '#F4F8F3',
-        overflow: 'hidden',
-    },
-
-    bgArt: {
-        ...StyleSheet.absoluteFillObject,
-        zIndex: 0,
-        backgroundColor: '#F4F8F3',
-        overflow: 'hidden',
-    },
-
-    bgBase: {
-        ...StyleSheet.absoluteFillObject,
-    },
-
-    bgSingleWave: {
-        position: 'absolute',
-        left: -90,
-        right: -70,
-
-        borderTopLeftRadius: 0,
-        borderTopRightRadius: 0,
-
-        borderBottomLeftRadius: 260,
-        borderBottomRightRadius: 190,
-
-        transform: [
-            { scaleX: 1.08 },
-        ],
     },
 });

@@ -29,12 +29,28 @@ import * as Haptics from "expo-haptics";
 import * as Location from "expo-location";
 
 export default function TutorDetail() {
-	const { id } = useLocalSearchParams();
+	const params = useLocalSearchParams();
+
+	const rawId = Array.isArray(params.id)
+		? params.id[0]
+		: params.id;
+
+	const rawFrom = Array.isArray(params.from)
+		? params.from[0]
+		: params.from;
+
+	const rawPetId = Array.isArray(params.petId)
+		? params.petId[0]
+		: params.petId;
+
+	const safeId = rawId ? String(rawId) : "";
+	const from = rawFrom ? String(rawFrom) : null;
+	const petId = rawPetId ? String(rawPetId) : null;
+
 	const navigation = useNavigation();
 	const dispatch = useDispatch();
 	const insets = useSafeAreaInsets();
 
-	const safeId = Array.isArray(id) ? id[0] : String(id || "");
 	const tutor = useSelector((s) => s.tutores.byId[safeId]);
 
 	const text = useThemeColor({}, "text");
@@ -45,6 +61,36 @@ export default function TutorDetail() {
 		{ light: "rgba(15,23,42,0.08)", dark: "rgba(255,255,255,0.12)" },
 		"border"
 	);
+
+	const goBack = () => {
+		/*
+		 * Tutor aberto a partir do detalhe do pet.
+		 * Volta para o pet que está embaixo.
+		 */
+		if (from === "pet") {
+			if (router.canGoBack()) {
+				router.back();
+				return;
+			}
+
+			if (petId) {
+				router.replace({
+					pathname: "/(phone)/pacientes/[id]",
+					params: {
+						id: String(petId),
+					},
+				});
+				return;
+			}
+		}
+
+		if (router.canGoBack()) {
+			router.back();
+			return;
+		}
+
+		router.replace("/(phone)/tutores");
+	};
 
 	useEffect(() => {
 		if (safeId && !tutor) dispatch(fetchTutor(safeId));
@@ -73,7 +119,7 @@ export default function TutorDetail() {
 	};
 
 	const maps = async () => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => { });
 
 		try {
 			const lat = tutor?.geo?.lat;
@@ -93,7 +139,7 @@ export default function TutorDetail() {
 					const pos = await Location.getCurrentPositionAsync({});
 					origin = `${pos.coords.latitude},${pos.coords.longitude}`;
 				}
-			} catch {}
+			} catch { }
 
 			const dest = `${lat},${lng}`;
 
@@ -141,19 +187,16 @@ export default function TutorDetail() {
 		<SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={["top", "left", "right"]}>
 			<View style={styles.topBar}>
 				<Pressable
-					onPress={() => {
-						if (navigation.canGoBack()) {
-							navigation.goBack();
-							return;
-						}
-
-						router.replace("/(phone)/tutores");
-					}}
+					onPress={goBack}
 					hitSlop={10}
 					style={styles.topButton}
 					accessibilityLabel="Voltar"
 				>
-					<IconSymbol name="chevron.left" size={22} color={tint} />
+					<IconSymbol
+						name="chevron.left"
+						size={22}
+						color={tint}
+					/>
 				</Pressable>
 
 				<Text style={[styles.topTitle, { color: text }]} numberOfLines={1}>
