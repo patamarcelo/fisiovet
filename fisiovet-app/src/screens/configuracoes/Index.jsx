@@ -1,74 +1,86 @@
-// src/screens/config/Index.jsx (ou onde preferir)
+// src/screens/config/Index.jsx
 // @ts-nocheck
-import React, { useState } from "react";
+
+import React, { useLayoutEffect, useState } from "react";
+
 import {
-  View,
-  Text,
+  ActivityIndicator,
+  Alert,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
-  ScrollView,
-  Platform,
-  ActivityIndicator,
-  Alert
+  Text,
+  View
 } from "react-native";
-import { router } from "expo-router";
-import { useThemeColor } from "@/hooks/useThemeColor";
-import { IconSymbol } from "@/components/ui/IconSymbol";
-import Screen from "../_ui/Screen";
-import { SafeAreaView } from "react-native-safe-area-context";
+
+import { BlurView } from "expo-blur";
+import { Image } from "expo-image";
+import Constants from "expo-constants";
+import { router, useNavigation } from "expo-router";
+import {
+  SafeAreaView,
+  useSafeAreaInsets
+} from "react-native-safe-area-context";
+
 import { Ionicons } from "@expo/vector-icons";
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
+import { GoogleSignin } from "@react-native-google-signin/google-signin";
+import { signOut } from "firebase/auth";
+
+import { useThemeColor } from "@/hooks/useThemeColor";
+import { IconSymbol } from "@/components/ui/IconSymbol";
 import { useColorMode } from "@/src/theme/color-scheme";
+
 import {
   selectDefaultDuracao,
+  selectGoogleCalendarIntegration,
+  selectNavPreference,
   selectStartOfDay
 } from "@/src/store/slices/systemSlice";
 
-import { useDispatch } from "react-redux";
-import { setUser } from "@/src/store/slices/userSlice";
-import { ensureFirebase } from "@/firebase/firebase";
-import { GoogleSignin } from "@react-native-google-signin/google-signin";
-
-import { signOut } from "firebase/auth";
-import { auth } from "@/src/services/firebaseClient";
-
-import * as SecureStore from "expo-secure-store";
 import { clearSession } from "@/src/store/sessionActions";
-
 import { persistor } from "@/src/store";
-import { Image } from "expo-image";
+
+import { auth } from "@/src/services/firebaseClient";
+import { ensureFirebase } from "@/firebase/firebase";
 import { openWhatsapp } from "@/src/utils/openWhatsapp";
 
-import {
-  selectNavPreference,
-  selectGoogleCalendarIntegration
-} from "@/src/store/slices/systemSlice";
+const HOME_LOGO = require("../../../assets/images/splash-fisiovet.png");
 
-import Constants from "expo-constants";
-
-
-
-const HOME_LOGO = require('../../../assets/images/splash-fisiovet.png');
+const HEADER_HEIGHT = 108;
+const HEADER_CONTENT_HEIGHT = 108;
 
 function SectionLabel({ children }) {
-  return <Text style={styles.sectionLabel}>{children}</Text>;
+  return (
+    <Text style={styles.sectionLabel}>
+      {children}
+    </Text>
+  );
 }
 
 function Group({ children, bg }) {
   return (
-    <View style={[styles.group, { backgroundColor: bg }]}>{children}</View>
+    <View
+      style={[
+        styles.group,
+        {
+          backgroundColor: bg
+        }
+      ]}
+    >
+      {children}
+    </View>
   );
 }
 
-// Divisor fino entre as células (estilo iOS)
 function Divider() {
   return <View style={styles.divider} />;
 }
 
-// Célula padrão com ícone à esquerda, título, valor à direita e chevron
 function Cell({
   title,
   subtitle,
@@ -81,17 +93,34 @@ function Cell({
   subtleColor,
   textColor,
   loading,
-  destructive // NOVO
+  destructive
 }) {
   const badgeStyle = leftImageSource
-    ? [styles.iconBadge, { backgroundColor: "transparent", padding: 0 }]
+    ? [
+      styles.iconBadge,
+      styles.transparentIconBadge
+    ]
     : [
       styles.iconBadge,
-      { backgroundColor: destructive ? "#EF4444" : "#25D366" }
+      {
+        backgroundColor: destructive
+          ? "#EF4444"
+          : "#25D366"
+      }
     ];
 
-  const titleColor = destructive ? "#EF4444" : textColor;
-  const finalSubtle = destructive ? "#FCA5A5" : subtleColor;
+  const titleColor = destructive
+    ? "#EF4444"
+    : textColor;
+
+  const finalSubtle = destructive
+    ? "#FCA5A5"
+    : subtleColor;
+
+  const hasValue =
+    value !== undefined &&
+    value !== null &&
+    value !== "";
 
   return (
     <Pressable
@@ -99,42 +128,73 @@ function Cell({
       disabled={disabled}
       style={({ pressed }) => [
         styles.cell,
-        pressed && !disabled && { opacity: 0.85 },
-        disabled && { opacity: 0.55 }
+        pressed &&
+        !disabled &&
+        styles.cellPressed,
+        disabled && styles.cellDisabled
       ]}
-      accessibilityRole={disabled ? "text" : "button"}
+      accessibilityRole={
+        disabled ? "text" : "button"
+      }
       accessibilityLabel={title}
-      accessibilityState={{ disabled: !!disabled }}
+      accessibilityState={{
+        disabled: !!disabled
+      }}
     >
       <View style={styles.cellLeft}>
         {!!(leftIcon || leftImageSource) && (
           <View style={badgeStyle}>
             {leftImageSource ? (
-              <Image source={leftImageSource} style={styles.iconImage} />
+              <Image
+                source={leftImageSource}
+                style={styles.iconImage}
+                contentFit="contain"
+              />
             ) : (
-              <IconSymbol name={leftIcon} size={16} color="#fff" />
+              <IconSymbol
+                name={leftIcon}
+                size={16}
+                color="#FFFFFF"
+              />
             )}
           </View>
         )}
 
-        <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={styles.cellTextContainer}>
           <Text
-            style={[styles.cellTitle, { color: titleColor }]}
+            style={[
+              styles.cellTitle,
+              {
+                color: titleColor
+              }
+            ]}
             numberOfLines={1}
           >
             {title}
           </Text>
+
           {!!subtitle && (
             <Text
-              style={[styles.cellSubtitle, { color: finalSubtle }]}
+              style={[
+                styles.cellSubtitle,
+                {
+                  color: finalSubtle
+                }
+              ]}
               numberOfLines={1}
             >
               {subtitle}
             </Text>
           )}
+
           {disabled && (
             <Text
-              style={[styles.cellSubtitle, { color: finalSubtle }]}
+              style={[
+                styles.cellSubtitle,
+                {
+                  color: finalSubtle
+                }
+              ]}
               numberOfLines={1}
             >
               Em breve
@@ -146,9 +206,14 @@ function Cell({
       {loading ? (
         <ActivityIndicator size="small" />
       ) : (
-        !!value && (
+        hasValue && (
           <Text
-            style={[styles.cellValue, { color: finalSubtle }]}
+            style={[
+              styles.cellValue,
+              {
+                color: finalSubtle
+              }
+            ]}
             numberOfLines={1}
           >
             {value}
@@ -156,15 +221,17 @@ function Cell({
         )
       )}
 
-      {/* Se disabled, não mostra chevron (não parece navegável) */}
       {!disabled && !!rightIcon && (
-        <IconSymbol name={rightIcon} size={14} color={finalSubtle} />
+        <IconSymbol
+          name={rightIcon}
+          size={14}
+          color={finalSubtle}
+        />
       )}
     </Pressable>
   );
 }
 
-// Célula com Switch (sem navegação)
 function CellSwitch({
   title,
   subtitle,
@@ -176,31 +243,65 @@ function CellSwitch({
   disabled
 }) {
   return (
-    <View style={[styles.cell, disabled && styles.cellDisabled]}>
+    <View
+      style={[
+        styles.cell,
+        disabled && styles.cellDisabled
+      ]}
+    >
       <View style={styles.cellLeft}>
         {!!leftIcon && (
-          <View style={[styles.iconBadge, { backgroundColor: "#34C759" }]}>
-            <IconSymbol name={leftIcon} size={16} color="#fff" />
+          <View
+            style={[
+              styles.iconBadge,
+              {
+                backgroundColor: "#34C759"
+              }
+            ]}
+          >
+            <IconSymbol
+              name={leftIcon}
+              size={16}
+              color="#FFFFFF"
+            />
           </View>
         )}
-        <View style={{ flex: 1, minWidth: 0 }}>
+
+        <View style={styles.cellTextContainer}>
           <Text
-            style={[styles.cellTitle, { color: textColor }]}
+            style={[
+              styles.cellTitle,
+              {
+                color: textColor
+              }
+            ]}
             numberOfLines={1}
           >
             {title}
           </Text>
+
           {!!subtitle && (
             <Text
-              style={[styles.cellSubtitle, { color: subtleColor }]}
+              style={[
+                styles.cellSubtitle,
+                {
+                  color: subtleColor
+                }
+              ]}
               numberOfLines={1}
             >
               {subtitle}
             </Text>
           )}
+
           {disabled && (
             <Text
-              style={[styles.cellSubtitle, { color: subtleColor }]}
+              style={[
+                styles.cellSubtitle,
+                {
+                  color: subtleColor
+                }
+              ]}
               numberOfLines={1}
             >
               Em breve
@@ -211,14 +312,17 @@ function CellSwitch({
 
       <Switch
         value={value}
-        onValueChange={disabled ? undefined : onValueChange}
+        onValueChange={
+          disabled
+            ? undefined
+            : onValueChange
+        }
         disabled={!!disabled}
       />
     </View>
   );
 }
 
-// Célula “texto à direita” (valor editável futuramente via modal)
 function CellValue({
   title,
   value,
@@ -229,7 +333,10 @@ function CellValue({
   disabled,
   subtitle
 }) {
-  const isString = typeof value === "string" || typeof value === "number";
+  const isPrimitiveValue =
+    typeof value === "string" ||
+    typeof value === "number";
+
   const badgeColor =
     title.includes("Integração") ||
       title.includes("Navegação") ||
@@ -237,25 +344,33 @@ function CellValue({
       ? "#8B5CF6"
       : "#8E8E93";
 
-  const RightValue = isString ? (
-    <Text style={[styles.cellValue, { color: subtleColor }]} numberOfLines={1}>
-      {value}
-    </Text>
-  ) : (
-    <View style={{ marginRight: 6 }}>{value}</View>
-  );
-
-  const LeftContent = (
+  const leftContent = (
     <View style={styles.cellLeft}>
       {!!leftIcon && (
-        <View style={[styles.iconBadge, { backgroundColor: badgeColor }]}>
-          <IconSymbol name={leftIcon} size={16} color="#fff" />
+        <View
+          style={[
+            styles.iconBadge,
+            {
+              backgroundColor: badgeColor
+            }
+          ]}
+        >
+          <IconSymbol
+            name={leftIcon}
+            size={16}
+            color="#FFFFFF"
+          />
         </View>
       )}
 
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={styles.cellTextContainer}>
         <Text
-          style={[styles.cellTitle, { color: textColor }]}
+          style={[
+            styles.cellTitle,
+            {
+              color: textColor
+            }
+          ]}
           numberOfLines={1}
         >
           {title}
@@ -263,7 +378,12 @@ function CellValue({
 
         {!!subtitle && (
           <Text
-            style={[styles.cellSubtitle, { color: subtleColor }]}
+            style={[
+              styles.cellSubtitle,
+              {
+                color: subtleColor
+              }
+            ]}
             numberOfLines={1}
           >
             {subtitle}
@@ -272,7 +392,12 @@ function CellValue({
 
         {disabled && (
           <Text
-            style={[styles.cellSubtitle, { color: subtleColor }]}
+            style={[
+              styles.cellSubtitle,
+              {
+                color: subtleColor
+              }
+            ]}
             numberOfLines={1}
           >
             Em breve
@@ -282,16 +407,39 @@ function CellValue({
     </View>
   );
 
+  const rightContent = isPrimitiveValue ? (
+    <Text
+      style={[
+        styles.cellValue,
+        {
+          color: subtleColor
+        }
+      ]}
+      numberOfLines={1}
+    >
+      {value}
+    </Text>
+  ) : (
+    <View style={styles.customRightValue}>
+      {value}
+    </View>
+  );
+
   if (disabled) {
     return (
       <View
-        style={[styles.cell, styles.cellDisabled]}
+        style={[
+          styles.cell,
+          styles.cellDisabled
+        ]}
         accessibilityRole="text"
         accessibilityLabel={title}
-        accessibilityState={{ disabled: true }}
+        accessibilityState={{
+          disabled: true
+        }}
       >
-        {LeftContent}
-        {RightValue}
+        {leftContent}
+        {rightContent}
       </View>
     );
   }
@@ -299,451 +447,854 @@ function CellValue({
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.cell, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [
+        styles.cell,
+        pressed && styles.cellPressed
+      ]}
       accessibilityRole="button"
       accessibilityLabel={title}
-      accessibilityState={{ disabled: false }}
     >
-      {LeftContent}
+      {leftContent}
 
-      {RightValue}
+      {rightContent}
 
-      <IconSymbol name="chevron.right" size={14} color={subtleColor} />
+      <IconSymbol
+        name="chevron.right"
+        size={14}
+        color={subtleColor}
+      />
     </Pressable>
   );
 }
 
 export default function ConfigIndex() {
-  // cores do tema
+  const navigation = useNavigation();
+  const dispatch = useDispatch();
+  const insets = useSafeAreaInsets();
+  const totalHeaderHeight =
+    insets.top + HEADER_CONTENT_HEIGHT;
+
   const bgScreen = useThemeColor(
-    { light: "#F2F2F7", dark: "#000000" },
+    {
+      light: "#F2F2F7",
+      dark: "#000000"
+    },
     "background"
   );
+
   const card = useThemeColor(
-    { light: "#FFFFFF", dark: "#1C1C1E" },
+    {
+      light: "#FFFFFF",
+      dark: "#1C1C1E"
+    },
     "background"
   );
+
   const text = useThemeColor({}, "text");
-  const subtle = useThemeColor({ light: "#6B7280", dark: "#9AA0A6" }, "text");
+
+  const subtle = useThemeColor(
+    {
+      light: "#6B7280",
+      dark: "#9AA0A6"
+    },
+    "text"
+  );
+
   const tint = useThemeColor({}, "tint");
+
   const { mode, scheme } = useColorMode();
 
-  const fb = ensureFirebase();
-  const dispatch = useDispatch();
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] =
+    useState(false);
+
+  const [
+    loadingSupport,
+    setLoadingSupport
+  ] = useState(false);
+
+  const [notifAgenda, setNotifAgenda] =
+    useState(true);
+
+  const [
+    notifLembretes,
+    setNotifLembretes
+  ] = useState(false);
+
+  const defaultDur = useSelector(
+    selectDefaultDuracao
+  );
+
+  const defaultStartDay = useSelector(
+    selectStartOfDay
+  );
+
+  const navPreference = useSelector(
+    selectNavPreference
+  );
+
+  const googleCalendar = useSelector(
+    selectGoogleCalendarIntegration
+  );
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerShown: false
+    });
+  }, [navigation]);
+
+  const handleGoBack = () => {
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+
+    router.replace("/");
+  };
 
   const handleLogout = async () => {
     try {
       setLoggingOut(true);
 
       const user = auth.currentUser;
-      const loggedWithGoogle = user?.providerData?.some(
-        (p) => p.providerId === "google.com"
-      );
+
+      const loggedWithGoogle =
+        user?.providerData?.some(
+          provider =>
+            provider.providerId ===
+            "google.com"
+        );
 
       if (loggedWithGoogle) {
-        // seguro chamar mesmo sem estar logado no Google
-        await GoogleSignin.revokeAccess().catch(() => { });
-        await GoogleSignin.signOut().catch(() => { });
+        await GoogleSignin.revokeAccess().catch(
+          () => { }
+        );
+
+        await GoogleSignin.signOut().catch(
+          () => { }
+        );
       }
 
       await signOut(auth);
 
-      // 🔒 trava persist, esvazia buffer e apaga storage
       persistor.pause();
       await persistor.flush();
-      // dispara reset na memória (zera todos os slices)
+
       dispatch(clearSession());
-      // remove tudo do AsyncStorage
+
       await persistor.purge();
 
-      // navega para login
       router.replace("/(auth)/login");
-    } catch (e) {
-      console.warn("Erro ao sair:", e);
-      Alert.alert("Erro", "Não foi possível sair da conta.");
+    } catch (error) {
+      console.warn(
+        "Erro ao sair:",
+        error
+      );
+
+      Alert.alert(
+        "Erro",
+        "Não foi possível sair da conta."
+      );
     } finally {
       setLoggingOut(false);
     }
   };
 
   const handleCallSupport = async () => {
-    setLoading(true);
+    setLoadingSupport(true);
+
     try {
-      const fb = ensureFirebase();
-      if (!fb) {
-        Alert.alert("Suporte", "Firebase não inicializado.");
+      const firebase = ensureFirebase();
+
+      if (!firebase) {
+        Alert.alert(
+          "Suporte",
+          "Firebase não inicializado."
+        );
         return;
       }
 
-      // RN Firebase (namespaced): firestoreModule().collection(...).limit(1).get()
-      const snap = await fb
+      const snapshot = await firebase
         .firestoreModule()
         .collection("suport")
         .limit(1)
         .get();
 
-      if (snap.empty) {
-        Alert.alert("Suporte", "Nenhum número de suporte encontrado.");
+      if (snapshot.empty) {
+        Alert.alert(
+          "Suporte",
+          "Nenhum número de suporte encontrado."
+        );
         return;
       }
 
-      const data = snap.docs[0].data() || {};
+      const data =
+        snapshot.docs[0].data() || {};
+
       const phone =
-        data.celphone ?? data.cellphone ?? data.whatsapp ?? data.phone ?? null;
+        data.celphone ??
+        data.cellphone ??
+        data.whatsapp ??
+        data.phone ??
+        null;
 
       if (!phone) {
-        Alert.alert("Suporte", "Campo de telefone não encontrado.");
+        Alert.alert(
+          "Suporte",
+          "Campo de telefone não encontrado."
+        );
         return;
       }
-      console.log("phone: ", phone);
-      const formatPhone = `+${phone}`;
-      openWhatsapp(formatPhone, "Olá! Preciso de suporte no FisioVet.");
-    } catch (err) {
-      console.log(err);
-      Alert.alert("Suporte", "Erro ao buscar o número de suporte.");
+
+      openWhatsapp(
+        `+${phone}`,
+        "Olá! Preciso de suporte no FisioVet."
+      );
+    } catch (error) {
+      console.warn(
+        "Erro ao abrir suporte:",
+        error
+      );
+
+      Alert.alert(
+        "Suporte",
+        "Erro ao buscar o número de suporte."
+      );
     } finally {
-      setLoading(false);
+      setLoadingSupport(false);
     }
   };
 
-  // VALORES DEFAULTS
-  // TEMA
   const modeLabel =
-    mode === "light" ? "Claro" : mode === "dark" ? "Escuro" : "Automático";
+    mode === "light"
+      ? "Claro"
+      : mode === "dark"
+        ? "Escuro"
+        : "Automático";
+
   const subtitleTema =
     mode === "system"
-      ? `Ativo: ${scheme === "dark" ? "Escuro" : "Claro"}`
+      ? `Ativo: ${scheme === "dark"
+        ? "Escuro"
+        : "Claro"
+      }`
       : "Claro / Escuro / Automático";
 
-  // DURACAO
-  const defaultDur = useSelector(selectDefaultDuracao);
-  const defaultStartDay = useSelector(selectStartOfDay);
-
-  //sistema de navegacao
-  const navPreference = useSelector(selectNavPreference);
-
   const appVersion =
-    Constants?.expoConfig?.version || Constants?.manifest?.version || "1.0.0";
+    Constants?.expoConfig?.version ||
+    Constants?.manifest?.version ||
+    "1.0.0";
 
   const buildNumber =
     Platform.OS === "ios"
-      ? Constants?.expoConfig?.ios?.buildNumber
-      : Constants?.expoConfig?.android?.versionCode;
+      ? Constants?.expoConfig?.ios
+        ?.buildNumber
+      : Constants?.expoConfig?.android
+        ?.versionCode;
 
   const appVersionLabel = buildNumber
     ? `${appVersion} (${buildNumber})`
     : appVersion;
 
-  // estados locais (exemplo; depois pode ligar no Redux)
-  const [notifAgenda, setNotifAgenda] = useState(true);
-  const [notifLembretes, setNotifLembretes] = useState(false);
-  const googleCalendar = useSelector(selectGoogleCalendarIntegration);
-
   const isGoogleConnected =
-    googleCalendar?.status === "ready" || googleCalendar?.connected === true;
+    googleCalendar?.status === "ready" ||
+    googleCalendar?.connected === true;
 
-  const isCalendarSubscriptionReady = Boolean(
-    googleCalendar?.enabled &&
-    googleCalendar?.feedToken &&
-    googleCalendar?.status !== "disabled"
-  );
+  const isCalendarSubscriptionReady =
+    Boolean(
+      googleCalendar?.enabled &&
+      googleCalendar?.feedToken &&
+      googleCalendar?.status !==
+      "disabled"
+    );
+
+  const blurTint =
+    scheme === "dark"
+      ? "dark"
+      : "light";
+
+  const backButtonOverlay =
+    scheme === "dark"
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(255,255,255,0.28)";
 
   return (
-    <View style={[styles.screen, { backgroundColor: bgScreen }]}>
-      <ScrollView
-        // ESSENCIAL para largeTitle não “sobrepor”
-        contentInsetAdjustmentBehavior="automatic"
-        automaticallyAdjustsScrollIndicatorInsets
-        scrollEventThrottle={16}
-        showsVerticalScrollIndicator
-        contentContainerStyle={{ paddingBottom: 24 }}
+    <SafeAreaView
+      style={[
+        styles.safeArea,
+        {
+          backgroundColor: bgScreen
+        }
+      ]}
+      edges={["", ""]}
+    >
+      <View
+        style={[
+          styles.screen,
+          {
+            backgroundColor: bgScreen
+          }
+        ]}
       >
-        <View style={styles.brandBox}>
-          <Image
-            source={HOME_LOGO}
-            style={styles.homeLogo}
-            contentFit="contain"
-          />
-        </View>
-        {/* CONTA */}
-        <SectionLabel>CONTA</SectionLabel>
-        <Group bg={card}>
-          <Cell
-            title="Usuário"
-            subtitle="Dados pessoais e credenciais"
-            leftIcon="person.crop.circle.fill"
-            value=""
-            onPress={() => router.push("/configuracoes/perfil")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-          <Cell
-            title="Assinatura"
-            subtitle="Plano Free, limites e planos premium"
-            leftIcon="sparkles"
-            onPress={() => router.push("/configuracoes/assinatura")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-        </Group>
-
-        {/* APARÊNCIA */}
-        <SectionLabel>APARÊNCIA</SectionLabel>
-        <Group bg={card}>
-          <Cell
-            title="Tema"
-            subtitle="Claro / Escuro / Automático"
-            leftIcon="paintbrush.fill"
-            value={modeLabel}
-            subtitle={subtitleTema}
-            onPress={() => router.push("/configuracoes/aparencia")}
-            subtleColor={subtle}
-            textColor={text}
-          // disabled
-          />
-          <Divider />
-          {/* <Cell
-            title="Tamanho da fonte"
-            subtitle="Ajuste o tamanho do texto no app"
-            leftIcon="textformat.size"
-            value="Padrão"
-            onPress={() => router.push('/configuracoes/fonte')}
-            subtleColor={subtle}
-            textColor={text}
-            disabled
-          /> */}
-        </Group>
-
-        {/* AGENDA */}
-        <SectionLabel>AGENDA</SectionLabel>
-        <Group bg={card}>
-          <CellValue
-            title="Duração padrão"
-            value={defaultDur}
-            leftIcon="clock.fill"
-            onPress={() => router.push("/configuracoes/duration")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-          <CellValue
-            title="Início do dia"
-            value={defaultStartDay}
-            leftIcon="sunrise.fill"
-            onPress={() => router.push("/configuracoes/startevent")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-        </Group>
-        {/* INTEGRACOES */}
-        <SectionLabel>INTEGRAÇÕES</SectionLabel>
-        <Group bg={card}>
-          <CellValue
-            title="App de Navegação"
-            value={navPreference}
-            leftIcon="location.circle"
-            onPress={() => router.push("/configuracoes/navegador")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-          <CellValue
-            title="Assinar calendário"
-            subtitle="Google Agenda, Apple Calendar e Outlook"
-            value={
-              isCalendarSubscriptionReady ? (
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <FontAwesome name="check-circle" size={20} color="#16A34A" />
-                </View>
-              ) : googleCalendar?.enabled ? (
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <Ionicons name="time-outline" size={20} color="#D97706" />
-                </View>
-              ) : (
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                </View>
-              )
+        <ScrollView
+          style={styles.scrollView}
+          contentInsetAdjustmentBehavior="never"
+          automaticallyAdjustsScrollIndicatorInsets={
+            false
+          }
+          showsVerticalScrollIndicator
+          scrollEventThrottle={16}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingTop: totalHeaderHeight + 8
             }
-            leftIcon="calendar"
-            onPress={() => router.push("/configuracoes/agenda")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-          <CellValue
-            title="Integração Asaas"
-            value={
-              !isGoogleConnected ? (
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <FontAwesome name="check-circle" size={20} color="#16A34A" />
-                </View>
-              ) : (
-                <View
-                  style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
-                >
-                  <Ionicons name="close-circle" size={20} color="#EF4444" />
-                </View>
-              )
-            }
-            leftIcon="creditcard.fill"
-            onPress={() => router.push("/configuracoes/asaas")}
-            subtleColor={subtle}
-            textColor={text}
-            disabled
-          />
-        </Group>
-
-        {/* NOTIFICAÇÕES */}
-        <SectionLabel>NOTIFICAÇÕES</SectionLabel>
-        <Group bg={card}>
-          <CellSwitch
-            title="Lembretes de eventos"
-            subtitle="Alertas antes das consultas"
-            leftIcon="bell.fill"
-            value={notifAgenda}
-            onValueChange={setNotifAgenda}
-            subtleColor={subtle}
-            textColor={text}
-            disabled
-          />
-          <Divider />
-          <CellSwitch
-            title="Lembretes de tarefas"
-            subtitle="Checklist pré-atendimento"
-            leftIcon="checkmark.seal.fill"
-            value={notifLembretes}
-            onValueChange={setNotifLembretes}
-            subtleColor={subtle}
-            textColor={text}
-            disabled
-          />
-        </Group>
-
-        {/* DADOS & BACKUP */}
-        <SectionLabel>DADOS & BACKUP</SectionLabel>
-        <Group bg={card}>
-          <Cell
-            title="Backup local"
-            subtitle="Exportar dados em JSON ou Excel"
-            leftIcon="externaldrive.fill"
-            onPress={() => router.push("/configuracoes/backup")}
-            subtleColor={subtle}
-            textColor={text}
-          />
-          <Divider />
-          <Cell
-            title="Restaurar backup"
-            subtitle="Importar de arquivo .json"
-            leftIcon="arrow.down.doc.fill"
-            onPress={() => router.push("/configuracoes/restaurar")}
-            subtleColor={subtle}
-            textColor={text}
-            disabled
-          />
-          <Divider />
-        </Group>
-
-        {/* SOBRE */}
-        <SectionLabel>SOBRE</SectionLabel>
-        <Group bg={card}>
-          <Cell
-            title="Termos & Privacidade"
-            leftIcon="doc.text.fill"
-            onPress={() => router.push("/configuracoes/termos")}
-            subtleColor={subtle}
-            textColor={text}
-          // disabled
-          />
-          <Divider />
-          <Cell
-            title="Versão"
-            value={appVersionLabel}
-            leftIcon="info.circle.fill"
-            onPress={undefined}
-            rightIcon={null}
-            // disabled={true}
-            subtleColor={subtle}
-            textColor={text}
-          />
-
-          <Divider />
-          <Cell
-            title="Suporte"
-            value="Chamar"
-            subtitle="Dúvidas, Sugestões, Reports"
-            // use o seu png salvo em /assets/images/whatsapp.png (ajuste o path)
-            leftImageSource={require("@/assets/images/whatsapp.png")}
-            rightIcon="chevron.right"
-            onPress={handleCallSupport}
-            subtleColor={"#9CA3AF"}
-            textColor={"#111827"}
-            loading={loading}
-          />
-          <Divider />
-          <Cell
-            title="Deletar a conta"
-            subtitle="Remover permanentemente sua conta e dados"
-            leftIcon="trash.fill"
-            onPress={() => router.push("/configuracoes/deleteaccount")}
-            subtleColor={subtle}
-            textColor={text}
-            destructive
-          />
-        </Group>
-        <Pressable
-          onPress={handleLogout}
-          disabled={loggingOut}
-          style={({ pressed }) => [
-            styles.logoutButton,
-            (pressed || loggingOut) && { opacity: 0.82 }
           ]}
         >
-          {loggingOut ? (
-            <>
-              <ActivityIndicator color="#FFF" size="small" />
-              <Text style={styles.logoutText}>Saindo…</Text>
-            </>
-          ) : (
-            <>
-              <Ionicons name="log-out-outline" size={17} color="#FFF" />
-              <Text style={styles.logoutText}>Sair da conta</Text>
-            </>
-          )}
-        </Pressable>
-        {/* Rodapé opcional */}
-        <Text style={[styles.footerText, { color: subtle }]}>
-          FisioVet • Configurações
-        </Text>
-      </ScrollView>
-    </View>
+          <SectionLabel>
+            CONTA
+          </SectionLabel>
+
+          <Group bg={card}>
+            <Cell
+              title="Usuário"
+              subtitle="Dados pessoais e credenciais"
+              leftIcon="person.crop.circle.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/perfil"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <Cell
+              title="Assinatura"
+              subtitle="Plano Free, limites e planos premium"
+              leftIcon="sparkles"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/assinatura"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+          </Group>
+
+          <SectionLabel>
+            APARÊNCIA
+          </SectionLabel>
+
+          <Group bg={card}>
+            <Cell
+              title="Tema"
+              subtitle={subtitleTema}
+              leftIcon="paintbrush.fill"
+              value={modeLabel}
+              onPress={() =>
+                router.push(
+                  "/configuracoes/aparencia"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+          </Group>
+
+          <SectionLabel>
+            AGENDA
+          </SectionLabel>
+
+          <Group bg={card}>
+            <CellValue
+              title="Duração padrão"
+              value={defaultDur}
+              leftIcon="clock.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/duration"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <CellValue
+              title="Início do dia"
+              value={defaultStartDay}
+              leftIcon="sunrise.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/startevent"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+          </Group>
+
+          <SectionLabel>
+            INTEGRAÇÕES
+          </SectionLabel>
+
+          <Group bg={card}>
+            <CellValue
+              title="App de Navegação"
+              value={navPreference}
+              leftIcon="location.circle"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/navegador"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <CellValue
+              title="Assinar calendário"
+              subtitle="Google Agenda, Apple Calendar e Outlook"
+              value={
+                isCalendarSubscriptionReady ? (
+                  <FontAwesome
+                    name="check-circle"
+                    size={20}
+                    color="#16A34A"
+                  />
+                ) : googleCalendar?.enabled ? (
+                  <Ionicons
+                    name="time-outline"
+                    size={20}
+                    color="#D97706"
+                  />
+                ) : (
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color="#EF4444"
+                  />
+                )
+              }
+              leftIcon="calendar"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/agenda"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <CellValue
+              title="Integração Asaas"
+              value={
+                isGoogleConnected ? (
+                  <FontAwesome
+                    name="check-circle"
+                    size={20}
+                    color="#16A34A"
+                  />
+                ) : (
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color="#EF4444"
+                  />
+                )
+              }
+              leftIcon="creditcard.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/asaas"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+              disabled
+            />
+          </Group>
+
+          <SectionLabel>
+            NOTIFICAÇÕES
+          </SectionLabel>
+
+          <Group bg={card}>
+            <CellSwitch
+              title="Lembretes de eventos"
+              subtitle="Alertas antes das consultas"
+              leftIcon="bell.fill"
+              value={notifAgenda}
+              onValueChange={
+                setNotifAgenda
+              }
+              subtleColor={subtle}
+              textColor={text}
+              disabled
+            />
+
+            <Divider />
+
+            <CellSwitch
+              title="Lembretes de tarefas"
+              subtitle="Checklist pré-atendimento"
+              leftIcon="checkmark.seal.fill"
+              value={notifLembretes}
+              onValueChange={
+                setNotifLembretes
+              }
+              subtleColor={subtle}
+              textColor={text}
+              disabled
+            />
+          </Group>
+
+          <SectionLabel>
+            DADOS & BACKUP
+          </SectionLabel>
+
+          <Group bg={card}>
+            <Cell
+              title="Backup local"
+              subtitle="Exportar dados em JSON ou Excel"
+              leftIcon="externaldrive.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/backup"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <Cell
+              title="Restaurar backup"
+              subtitle="Importar de arquivo .json"
+              leftIcon="arrow.down.doc.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/restaurar"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+              disabled
+            />
+          </Group>
+
+          <SectionLabel>
+            SOBRE
+          </SectionLabel>
+
+          <Group bg={card}>
+            <Cell
+              title="Termos & Privacidade"
+              leftIcon="doc.text.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/termos"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <Cell
+              title="Versão"
+              value={appVersionLabel}
+              leftIcon="info.circle.fill"
+              rightIcon={null}
+              subtleColor={subtle}
+              textColor={text}
+            />
+
+            <Divider />
+
+            <Cell
+              title="Suporte"
+              value="Chamar"
+              subtitle="Dúvidas, sugestões e relatos"
+              leftImageSource={require("@/assets/images/whatsapp.png")}
+              onPress={handleCallSupport}
+              subtleColor={subtle}
+              textColor={text}
+              loading={loadingSupport}
+            />
+
+            <Divider />
+
+            <Cell
+              title="Deletar a conta"
+              subtitle="Remover permanentemente sua conta e dados"
+              leftIcon="trash.fill"
+              onPress={() =>
+                router.push(
+                  "/configuracoes/deleteaccount"
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+              destructive
+            />
+          </Group>
+
+          <Pressable
+            onPress={handleLogout}
+            disabled={loggingOut}
+            style={({ pressed }) => [
+              styles.logoutButton,
+              (pressed || loggingOut) &&
+              styles.logoutButtonPressed
+            ]}
+          >
+            {loggingOut ? (
+              <>
+                <ActivityIndicator
+                  color="#FFFFFF"
+                  size="small"
+                />
+
+                <Text
+                  style={styles.logoutText}
+                >
+                  Saindo…
+                </Text>
+              </>
+            ) : (
+              <>
+                <Ionicons
+                  name="log-out-outline"
+                  size={17}
+                  color="#FFFFFF"
+                />
+
+                <Text
+                  style={styles.logoutText}
+                >
+                  Sair da conta
+                </Text>
+              </>
+            )}
+          </Pressable>
+
+          <Text
+            style={[
+              styles.footerText,
+              {
+                color: subtle
+              }
+            ]}
+          >
+            FisioVet • Configurações
+          </Text>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.floatingHeader,
+            {
+              height: totalHeaderHeight
+            }
+          ]}
+          pointerEvents="box-none"
+        >
+          <View
+            style={[
+              styles.headerRow,
+              {
+                paddingTop: insets.top + 8
+              }
+            ]}
+          >
+              <BlurView
+                tint={blurTint}
+                intensity={100}
+                experimentalBlurMethod="dimezisBlurView"
+                style={StyleSheet.absoluteFill}
+              />
+            <View style={styles.backButtonWrapper}>
+
+              <View
+                pointerEvents="none"
+                style={[
+                  StyleSheet.absoluteFill,
+                  styles.backButtonGlass,
+                  {
+                    backgroundColor:
+                      scheme === "dark"
+                        ? "rgba(35,35,38,0.58)"
+                        : "rgba(255,255,255,0.58)",
+                    borderColor:
+                      scheme === "dark"
+                        ? "rgba(255,255,255,0.18)"
+                        : "rgba(255,255,255,0.82)"
+                  }
+                ]}
+              />
+
+              <Pressable
+                onPress={handleGoBack}
+                hitSlop={12}
+                style={({ pressed }) => [
+                  styles.backButton,
+                  pressed && styles.backButtonPressed
+                ]}
+                accessibilityRole="button"
+                accessibilityLabel="Voltar"
+              >
+                <Ionicons
+                  name="chevron-back"
+                  size={25}
+                  color={tint}
+                />
+              </Pressable>
+            </View>
+
+            <View style={styles.brandBox}>
+              <Image
+                source={HOME_LOGO}
+                style={styles.homeLogo}
+                contentFit="contain"
+              />
+
+              <Text
+                style={[
+                  styles.pageTitle,
+                  {
+                    color: text
+                  }
+                ]}
+              >
+                Configurações
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.headerRightPlaceholder
+              }
+            />
+          </View>
+        </View>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
+  safeArea: {
     flex: 1
   },
 
-  sectionLabel: {
-    fontSize: 11,
+  screen: {
+    flex: 1,
+    position: "relative"
+  },
+
+  scrollView: {
+    flex: 1
+  },
+
+  scrollContent: {
+    paddingTop: HEADER_HEIGHT + 8,
+    paddingBottom: 24
+  },
+
+  floatingHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: HEADER_HEIGHT,
+    zIndex: 20,
+    elevation: 20
+  },
+
+  headerRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingTop: 8,
+    paddingHorizontal: 14
+  },
+
+  backButtonWrapper: {
+    width: 40,
+    height: 40,
+    marginTop: 6,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#000000",
+    shadowOpacity: 0.08,
+    shadowRadius: 7,
+    shadowOffset: {
+      width: 0,
+      height: 3
+    },
+    elevation: 4
+  },
+
+  backButtonOverlay: {
+    borderRadius: 20
+  },
+
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  backButtonPressed: {
+    opacity: 0.55
+  },
+
+  headerRightPlaceholder: {
+    width: 40,
+    height: 40,
+    marginTop: 6
+  },
+
+  brandBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    marginHorizontal: 6
+  },
+
+  homeLogo: {
+    width: 92,
+    height: 70
+  },
+
+  pageTitle: {
+    marginTop: 0,
+    fontSize: 14,
+    lineHeight: 20,
     fontWeight: "800",
-    color: "#8E8E93",
+    letterSpacing: -0.25
+  },
+
+  sectionLabel: {
     marginHorizontal: 18,
     marginTop: 20,
     marginBottom: 7,
+    color: "#8E8E93",
+    fontSize: 11,
+    fontWeight: "800",
     letterSpacing: 0.45
   },
 
@@ -751,32 +1302,51 @@ const styles = StyleSheet.create({
     marginHorizontal: 14,
     borderRadius: 14,
     overflow: "hidden",
-    shadowColor: "#000",
+    shadowColor: "#000000",
     shadowOpacity: 0.045,
     shadowRadius: 7,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: {
+      width: 0,
+      height: 3
+    },
     elevation: 2
   },
 
   divider: {
     height: StyleSheet.hairlineWidth,
-    backgroundColor: Platform.OS === "ios" ? "rgba(60,60,67,0.22)" : "#E5E7EB",
-    marginLeft: 54
+    marginLeft: 54,
+    backgroundColor:
+      Platform.OS === "ios"
+        ? "rgba(60,60,67,0.22)"
+        : "#E5E7EB"
   },
 
   cell: {
     minHeight: 50,
     paddingHorizontal: 13,
     paddingVertical: 7,
-    alignItems: "center",
     flexDirection: "row",
+    alignItems: "center",
     gap: 9
   },
 
+  cellPressed: {
+    opacity: 0.85
+  },
+
+  cellDisabled: {
+    opacity: 0.52
+  },
+
   cellLeft: {
+    flex: 1,
+    minWidth: 0,
     flexDirection: "row",
-    gap: 9,
     alignItems: "center",
+    gap: 9
+  },
+
+  cellTextContainer: {
     flex: 1,
     minWidth: 0
   },
@@ -789,10 +1359,14 @@ const styles = StyleSheet.create({
     justifyContent: "center"
   },
 
+  transparentIconBadge: {
+    padding: 0,
+    backgroundColor: "transparent"
+  },
+
   iconImage: {
     width: 25,
-    height: 25,
-    resizeMode: "contain"
+    height: 25
   },
 
   cellTitle: {
@@ -802,66 +1376,190 @@ const styles = StyleSheet.create({
   },
 
   cellSubtitle: {
-    fontSize: 11.3,
     marginTop: 1,
+    fontSize: 11.3,
     lineHeight: 15,
     fontWeight: "500"
   },
 
   cellValue: {
+    maxWidth: 124,
+    marginRight: 4,
     fontSize: 12.5,
     fontWeight: "600",
-    marginRight: 4,
-    maxWidth: 124,
     textAlign: "right"
   },
 
-  cellDisabled: {
-    opacity: 0.52
+  customRightValue: {
+    marginRight: 6,
+    alignItems: "center",
+    justifyContent: "center"
   },
 
   logoutButton: {
+    minHeight: 46,
     marginTop: 24,
     marginHorizontal: 16,
-    minHeight: 46,
     paddingVertical: 12,
     borderRadius: 14,
-    alignItems: "center",
-    backgroundColor: "#EF4444",
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "center",
     gap: 7,
+    backgroundColor: "#EF4444",
     shadowColor: "#EF4444",
     shadowOpacity: 0.16,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: {
+      width: 0,
+      height: 4
+    },
     elevation: 3
   },
 
+  logoutButtonPressed: {
+    opacity: 0.82
+  },
+
   logoutText: {
-    color: "#FFF",
-    fontWeight: "800",
+    color: "#FFFFFF",
     fontSize: 14.5,
+    fontWeight: "800",
     letterSpacing: -0.1
   },
 
   footerText: {
-    fontSize: 11.5,
-    textAlign: "center",
     marginTop: 15,
     marginBottom: 8,
-    fontWeight: "600"
-  },
-  brandBox: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -2,
-    marginBottom: -10,
-    marginTop: 10,
+    fontSize: 11.5,
+    fontWeight: "600",
+    textAlign: "center"
   },
 
-  homeLogo: {
-    width:96,
-    height: 84,
+  backButtonWrapper: {
+    width: 42,
+    height: 42,
+    marginTop: 6,
+    borderRadius: 21,
+    overflow: "hidden",
+
+    shadowColor: "#000000",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4
+    },
+    elevation: 6
   },
+
+  backButtonGlass: {
+    borderRadius: 21,
+    borderWidth: StyleSheet.hairlineWidth
+  },
+
+  backButton: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  backButtonPressed: {
+    opacity: 0.55,
+    transform: [{ scale: 0.96 }]
+  },
+  safeArea: {
+  flex: 1
+},
+
+screen: {
+  flex: 1,
+  position: "relative"
+},
+
+scrollView: {
+  flex: 1
+},
+
+scrollContent: {
+  paddingBottom: 24
+},
+
+floatingHeader: {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  zIndex: 20,
+  elevation: 20
+},
+
+headerRow: {
+  flex: 1,
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  paddingHorizontal: 14
+},
+
+backButtonWrapper: {
+  width: 42,
+  height: 42,
+  marginTop: 6,
+  borderRadius: 21,
+  overflow: "hidden",
+
+  shadowColor: "#000000",
+  shadowOpacity: 0.14,
+  shadowRadius: 10,
+  shadowOffset: {
+    width: 0,
+    height: 4
+  },
+  elevation: 6
+},
+
+backButtonGlass: {
+  borderRadius: 21,
+  borderWidth: StyleSheet.hairlineWidth
+},
+
+backButton: {
+  width: 42,
+  height: 42,
+  alignItems: "center",
+  justifyContent: "center"
+},
+
+backButtonPressed: {
+  opacity: 0.55,
+  transform: [{ scale: 0.96 }]
+},
+
+headerRightPlaceholder: {
+  width: 42,
+  height: 42,
+  marginTop: 6
+},
+
+brandBox: {
+  flex: 1,
+  alignItems: "center",
+  justifyContent: "flex-start",
+  marginHorizontal: 6
+},
+
+homeLogo: {
+  width: 92,
+  height: 54
+},
+
+pageTitle: {
+  marginTop: -2,
+  fontSize: 14,
+  lineHeight: 20,
+  fontWeight: "800",
+  letterSpacing: -0.25
+},
 });
