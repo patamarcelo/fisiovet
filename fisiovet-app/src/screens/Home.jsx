@@ -35,9 +35,10 @@ import { selectPetsState } from '@/src/store/slices/petsSlice';
 import { storage } from '@/src/services/firebaseClient';
 import { getCachedAvatar } from '../utils/avatarCache';
 import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';
-import { updateSystem } from '@/src/store/slices/systemSlice';
+import { updateSystem, selectNavPreference } from '@/src/store/slices/systemSlice';
 import { processSyncQueue } from '@/src/services/syncProcessor';
 
+import MiniEventRow from '@/components/agenda/MiniEventRow';
 /* ---------- Assets ---------- */
 
 const HOME_LOGO = require('../../assets/images/splash-fisiovet.png');
@@ -243,76 +244,7 @@ function ShortcutButton({
     );
 }
 
-function MiniEventRow({ item }) {
-    const { title, start, end, status, local } = item;
-    const color = STATUS_COLORS[status] || '#8E8E93';
 
-    return (
-        <Pressable
-            onPress={() => {
-                Haptics.selectionAsync().catch(() => { });
-
-                router.push({
-                    pathname: '/(modals)/agenda-new',
-                    params: {
-                        id: String(item.id),
-                    },
-                });
-            }}
-            android_ripple={{ color: '#ECEFF3' }}
-            style={({ pressed }) => [
-                styles.row,
-                pressed &&
-                Platform.OS === 'ios' && {
-                    backgroundColor: '#F7F8FA',
-                },
-            ]}
-        >
-            <View
-                style={[
-                    styles.statusBar,
-                    {
-                        backgroundColor: color,
-                    },
-                ]}
-            />
-
-            <View style={styles.rowContent}>
-                <View style={styles.rowTop}>
-                    <Text
-                        style={styles.rowTitle}
-                        numberOfLines={1}
-                    >
-                        {title || 'Evento'}
-                    </Text>
-
-                    <Text
-                        style={styles.rowHour}
-                        numberOfLines={1}
-                    >
-                        {fmtHour(start)} — {fmtHour(end)}
-                    </Text>
-                </View>
-
-                {!!local && (
-                    <Text
-                        style={styles.rowSub}
-                        numberOfLines={1}
-                    >
-                        • {local}
-                    </Text>
-                )}
-            </View>
-
-            <Ionicons
-                name="chevron-forward-sharp"
-                size={18}
-                color="#4B5563"
-                style={styles.rowChevron}
-            />
-        </Pressable>
-    );
-}
 
 function UpcomingEventsList({
     upcoming,
@@ -320,6 +252,8 @@ function UpcomingEventsList({
     hasTutor,
     hasPet,
     canCreateEvent,
+    tutoresById,
+    navPreference,
 }) {
     const sections = useMemo(
         () => toSections(upcoming),
@@ -387,27 +321,54 @@ function UpcomingEventsList({
 
     return (
         <View style={styles.eventsInlineList}>
-            {sections.map((section) => (
-                <View
-                    key={section.title}
-                    style={styles.eventsSection}
-                >
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionHeaderText}>
-                            {section.title}
-                        </Text>
-                    </View>
+            {sections.map((section, sectionIndex) => {
+                const isLastSection =
+                    sectionIndex === sections.length - 1;
 
-                    {section.data.map((item) => (
-                        <View
-                            key={String(item.id)}
-                            style={styles.eventRowWrapper}
-                        >
-                            <MiniEventRow item={item} />
+                return (
+                    <View
+                        key={section.title}
+                        style={[
+                            styles.eventsSection,
+                            isLastSection &&
+                            styles.eventsSectionLast,
+                        ]}
+                    >
+                        <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionHeaderText}>
+                                {section.title}
+                            </Text>
                         </View>
-                    ))}
-                </View>
-            ))}
+
+                        <View style={styles.sectionEvents}>
+                            {section.data.map((item, index) => {
+                                const isLast =
+                                    index ===
+                                    section.data.length - 1;
+
+                                return (
+                                    <MiniEventRow
+                                        key={String(item.id)}
+                                        item={item}
+                                        tutor={
+                                            tutoresById[
+                                            String(
+                                                item?.tutorId ||
+                                                ''
+                                            )
+                                            ] || null
+                                        }
+                                        navPreference={
+                                            navPreference
+                                        }
+                                        isLast={isLast}
+                                    />
+                                );
+                            })}
+                        </View>
+                    </View>
+                );
+            })}
         </View>
     );
 }
@@ -430,6 +391,24 @@ export default function Home() {
     const eventos = useSelector(selectAllEventos);
     const tutores = useSelector(selectTutores);
     const petsState = useSelector(selectPetsState);
+
+    const navPreference = useSelector(
+        selectNavPreference
+    );
+
+    const tutoresById = useMemo(() => {
+        return (tutores || []).reduce(
+            (acc, tutor) => {
+                if (tutor?.id != null) {
+                    acc[String(tutor.id)] =
+                        tutor;
+                }
+
+                return acc;
+            },
+            {}
+        );
+    }, [tutores]);
 
     const [localAvatar, setLocalAvatar] = useState(null);
 
@@ -775,6 +754,8 @@ export default function Home() {
                             hasTutor={hasTutor}
                             hasPet={hasPet}
                             canCreateEvent={canCreateEvent}
+                            tutoresById={tutoresById}
+                            navPreference={navPreference}
                         />
                     </View>
 
@@ -878,19 +859,19 @@ const styles = StyleSheet.create({
         letterSpacing: -0.4,
     },
 
-  headerLogoBox: {
-    width: 92,
-    height: 68,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-    marginRight: -6,
-},
+    headerLogoBox: {
+        width: 92,
+        height: 68,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 8,
+        marginRight: -6,
+    },
 
-headerLogo: {
-    width: 90,
-    height: 66,
-},
+    headerLogo: {
+        width: 90,
+        height: 66,
+    },
 
     avatarWrapper: {
         width: 60,
@@ -998,18 +979,20 @@ headerLogo: {
         textAlign: 'center',
     },
     card: {
-        borderWidth: 1,
+        borderWidth: StyleSheet.hairlineWidth,
         borderRadius: 18,
-        paddingVertical: 12,
-        backgroundColor: '#FFF',
+        backgroundColor: '#FFFFFF',
+        overflow: 'hidden',
     },
 
     cardHeader: {
+        minHeight: 48,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 6,
         paddingHorizontal: 14,
+        paddingTop: 10,
+        paddingBottom: 8,
     },
 
     cardTitle: {
@@ -1082,20 +1065,7 @@ headerLogo: {
         fontSize: 13,
     },
 
-    sectionHeader: {
-        marginHorizontal: 8,
-        paddingHorizontal: 8,
-        paddingVertical: 6,
-        borderRadius: 8,
-        backgroundColor: '#F3F4F6',
-    },
 
-    sectionHeaderText: {
-        fontWeight: '700',
-        color: '#374151',
-        fontSize: 13,
-        textTransform: 'capitalize',
-    },
 
     emptyEventsBox: {
         marginVertical: 12,
@@ -1139,15 +1109,40 @@ headerLogo: {
     },
 
     eventsInlineList: {
-        paddingTop: 4,
-        paddingBottom: 4,
+        paddingTop: 2,
+        paddingBottom: 0,
     },
 
     eventsSection: {
-        marginBottom: 8,
+        marginBottom: 0,
     },
 
-    eventRowWrapper: {
-        marginBottom: 6,
+    eventsSectionLast: {
+        marginBottom: 0,
     },
+
+    sectionHeader: {
+        width: '100%',
+        minHeight: 34,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        justifyContent: 'center',
+        backgroundColor: '#F2F2F7',
+    },
+
+    sectionHeaderText: {
+        color: '#6B7280',
+        fontSize: 12,
+        lineHeight: 16,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+        textTransform: 'uppercase',
+    },
+
+    sectionEvents: {
+        width: '100%',
+        backgroundColor: '#FFFFFF',
+    },
+
+
 });
