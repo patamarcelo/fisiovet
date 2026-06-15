@@ -204,6 +204,7 @@ module.exports = {
 				},
 			],
 
+			"./plugins/withIosModularHeaders",
 			"./plugins/withIosRemoveGoogleMapsPod",
 			"./plugins/withXcodeCloudScripts",
 
