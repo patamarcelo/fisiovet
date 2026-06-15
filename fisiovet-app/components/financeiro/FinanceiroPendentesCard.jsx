@@ -1,344 +1,1102 @@
 // src/components/financeiro/FinanceiroPendentesCard.jsx
 // @ts-nocheck
-import React, { useMemo, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import { useSelector } from 'react-redux';
+
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useState,
+} from 'react';
+
+import {
+    ActivityIndicator,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+
+import {
+    useDispatch,
+    useSelector,
+} from 'react-redux';
+
+import {
+    useFocusEffect,
+    router,
+} from 'expo-router';
+
 import * as Haptics from 'expo-haptics';
-import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
 
-import { useThemeColor } from '@/hooks/useThemeColor';
-import { selectAllEventos } from '@/src/store/slices/agendaSlice';
+import {
+    Ionicons,
+} from '@expo/vector-icons';
 
-/* ========== Helpers ========== */
+import {
+    useThemeColor,
+} from '@/hooks/useThemeColor';
 
-const currencyFormatterBR = new Intl.NumberFormat('pt-BR', {
-    style: 'currency',
-    currency: 'BRL',
-    minimumFractionDigits: 2,
-});
+import {
+    loadLancamentos,
+    selectAllLancamentos,
+    selectFinanceiroStatus,
+} from '@/src/store/slices/financeiroSlice';
+
+import {
+    selectAgendaState,
+} from '@/src/store/slices/agendaSlice';
+
+import {
+    selectTutores,
+} from '@/src/store/slices/tutoresSlice';
+
+import {
+    selectPetsState,
+} from '@/src/store/slices/petsSlice';
+
+import {
+    FINANCEIRO_STATUS,
+} from '@/src/features/financeiro/financeiro.constants';
+
+/* =========================================================
+   Constantes
+========================================================= */
+
+const COLORS = {
+    card: '#FFFFFF',
+
+    text: '#111827',
+    subtle: '#6B7280',
+    tertiary: '#9CA3AF',
+
+    orange: '#F97316',
+    orangeStrong: '#EA580C',
+    orangeSoft: 'rgba(249,115,22,0.09)',
+
+    green: '#16A34A',
+    blue: '#0A84FF',
+    red: '#EF4444',
+
+    border: 'rgba(15,23,42,0.08)',
+    pressed: 'rgba(249,115,22,0.07)',
+};
+
+const PENDING_FINANCIAL_STATUSES = [
+    FINANCEIRO_STATUS.PENDENTE,
+    FINANCEIRO_STATUS.PARCIAL,
+    FINANCEIRO_STATUS.VENCIDO,
+];
+
+const currencyFormatterBR =
+    new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+    });
+
+/* =========================================================
+   Helpers
+========================================================= */
 
 function formatCurrencyBRL(value) {
-    const num = Number(value || 0);
-    if (!Number.isFinite(num)) return currencyFormatterBR.format(0);
-    return currencyFormatterBR.format(num);
+    const number = Number(value || 0);
+
+    return currencyFormatterBR.format(
+        Number.isFinite(number)
+            ? number
+            : 0
+    );
 }
 
 function hiddenMoney() {
-    return '••••••';
+    return 'R$ •••••';
 }
 
-function formatDateFullBR(isoStr) {
-    if (!isoStr) return '—';
+function safeDate(value) {
+    if (!value) {
+        return null;
+    }
 
-    const d = new Date(isoStr);
+    const date = new Date(value);
 
-    if (Number.isNaN(d.getTime())) return '—';
-
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-
-    return `${dd}/${mm}/${yyyy}`;
+    return Number.isNaN(date.getTime())
+        ? null
+        : date;
 }
 
-function isConfirmadoStatus(statusRaw) {
-    const s = String(statusRaw || '').toLowerCase();
+function formatDateFullBR(value) {
+    const date = safeDate(value);
 
-    return (
-        s === 'confirmado' ||
-        s === 'confirmada' ||
-        s === 'concluido' ||
-        s === 'concluida'
+    if (!date) {
+        return '—';
+    }
+
+    return date.toLocaleDateString(
+        'pt-BR'
     );
 }
 
-function getEventoPreco(item) {
-    return Number(item?.financeiro?.preco ?? item?.preco ?? 0) || 0;
+function normalizeStatus(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase();
 }
 
-/* ========== Mini row de lançamento pendente ========== */
+function isEventoConfirmado(evento) {
+    const status =
+        normalizeStatus(
+            evento?.status
+        );
 
-const PendingRow = React.memo(function PendingRow({
-    item,
-    border,
-    textColor,
-    subtleColor,
-    showValues,
-}) {
-    const preco = getEventoPreco(item);
-    const tutorNome = item.tutorNome || item.cliente || 'Tutor não informado';
+    return [
+        'confirmado',
+        'confirmada',
+        'concluido',
+        'concluida',
+        'concluído',
+        'concluída',
+    ].includes(status);
+}
 
-    const petNome =
-        item.petNome ||
-        (Array.isArray(item.petIds) && item.petIds.length
-            ? `(${item.petIds.length} pets)`
-            : null);
+function getStatusMeta(status) {
+    if (
+        status ===
+        FINANCEIRO_STATUS.VENCIDO
+    ) {
+        return {
+            label: 'Vencido',
+            color: COLORS.red,
+            background:
+                'rgba(239,68,68,0.10)',
+        };
+    }
 
-    const valueLabel = showValues ? formatCurrencyBRL(preco) : hiddenMoney();
+    if (
+        status ===
+        FINANCEIRO_STATUS.PARCIAL
+    ) {
+        return {
+            label: 'Parcial',
+            color: COLORS.blue,
+            background:
+                'rgba(10,132,255,0.10)',
+        };
+    }
 
-    return (
-        <Pressable
-            onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
+    return {
+        label: 'Pendente',
+        color: COLORS.orangeStrong,
+        background:
+            COLORS.orangeSoft,
+    };
+}
+
+/* =========================================================
+   Linha
+========================================================= */
+
+const PendingRow = React.memo(
+    function PendingRow({
+        item,
+        tutor,
+        pets,
+        textColor,
+        subtleColor,
+        showValues,
+    }) {
+        const statusMeta =
+            getStatusMeta(
+                item.status
+            );
+
+        const saldo =
+            Number(
+                item?.valores?.saldo || 0
+            );
+
+        const tutorNome =
+            tutor?.nome ||
+            tutor?.name ||
+            'Sem tutor';
+
+        const petsLabel =
+            (pets || [])
+                .map(
+                    (pet) =>
+                        pet?.nome ||
+                        pet?.name
+                )
+                .filter(Boolean)
+                .join(', ');
+
+        const valueLabel =
+            showValues
+                ? formatCurrencyBRL(
+                    saldo
+                )
+                : hiddenMoney();
+
+        const openLancamento =
+            useCallback(() => {
+                if (!item?.id) {
+                    return;
+                }
+
+                Haptics.selectionAsync().catch(
+                    () => { }
+                );
 
                 router.push({
-                    pathname: '/(modals)/agenda-new',
-                    params: { id: String(item.id) },
+                    pathname:
+                        '/(modals)/financeiro/[id]',
+
+                    params: {
+                        id: String(
+                            item.id
+                        ),
+                    },
                 });
-            }}
-            android_ripple={{ color: 'rgba(0,0,0,0.06)' }}
-            style={({ pressed }) => [
-                styles.row,
-                { borderColor: border },
-                pressed && { backgroundColor: 'rgba(249,115,22,0.08)' },
-            ]}
-        >
-            <View style={styles.rowStripe} />
+            }, [item?.id]);
 
-            <View style={styles.rowContent}>
-                <View style={styles.rowTitleLine}>
-                    <Text
-                        style={[styles.rowTitle, { color: textColor }]}
-                        numberOfLines={1}
-                    >
-                        {item.title || 'Sessão'}
-                    </Text>
+        return (
+            <Pressable
+                onPress={
+                    openLancamento
+                }
+                android_ripple={{
+                    color:
+                        COLORS.pressed,
+                }}
+                style={({
+                    pressed,
+                }) => [
+                        styles.row,
+                        pressed &&
+                        styles.rowPressed,
+                    ]}
+            >
+                <View
+                    style={[
+                        styles.rowStripe,
+                        {
+                            backgroundColor:
+                                statusMeta.color,
+                        },
+                    ]}
+                />
 
-                    <Text
-                        style={[
-                            styles.rowValue,
-                            {
-                                color: '#F97316',
-                                fontVariant: ['tabular-nums'],
-                            },
-                        ]}
+                <View
+                    style={
+                        styles.rowContent
+                    }
+                >
+                    <View
+                        style={
+                            styles.rowTitleLine
+                        }
                     >
-                        {valueLabel}
-                    </Text>
+                        <Text
+                            style={[
+                                styles.rowTitle,
+                                {
+                                    color:
+                                        textColor,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {item.descricao ||
+                                'Lançamento'}
+                        </Text>
+
+                        <Text
+                            style={[
+                                styles.rowValue,
+                                {
+                                    color:
+                                        statusMeta.color,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {valueLabel}
+                        </Text>
+                    </View>
+
+                    <View
+                        style={
+                            styles.rowInfoLine
+                        }
+                    >
+                        <Text
+                            style={[
+                                styles.rowMeta,
+                                {
+                                    color:
+                                        subtleColor,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {tutorNome}
+                            {petsLabel
+                                ? ` · ${petsLabel}`
+                                : ''}
+                        </Text>
+
+                        <View
+                            style={[
+                                styles.statusBadge,
+                                {
+                                    backgroundColor:
+                                        statusMeta.background,
+                                },
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.statusBadgeText,
+                                    {
+                                        color:
+                                            statusMeta.color,
+                                    },
+                                ]}
+                            >
+                                {statusMeta.label}
+                            </Text>
+                        </View>
+                    </View>
+
+                    <View
+                        style={
+                            styles.rowDateLine
+                        }
+                    >
+                        <Ionicons
+                            name="calendar-outline"
+                            size={12}
+                            color={
+                                subtleColor
+                            }
+                        />
+
+                        <Text
+                            style={[
+                                styles.rowDate,
+                                {
+                                    color:
+                                        subtleColor,
+                                },
+                            ]}
+                        >
+                            {formatDateFullBR(
+                                item.vencimento ||
+                                item.competencia
+                            )}
+                        </Text>
+
+                        {item?.origem
+                            ?.tipo ===
+                            'evento' && (
+                                <>
+                                    <View
+                                        style={
+                                            styles.metaDot
+                                        }
+                                    />
+
+                                    <Text
+                                        style={[
+                                            styles.originText,
+                                            {
+                                                color:
+                                                    subtleColor,
+                                            },
+                                        ]}
+                                    >
+                                        Evento
+                                    </Text>
+                                </>
+                            )}
+                    </View>
                 </View>
 
-                <View style={styles.rowBottomLine}>
-                    <Text
-                        style={[styles.rowMeta, { color: subtleColor }]}
-                        numberOfLines={1}
-                    >
-                        {tutorNome}
-                        {petNome ? ` • ${petNome}` : ''}
-                    </Text>
-
-                    <Text
-                        style={[
-                            styles.rowMeta,
-                            {
-                                color: subtleColor,
-                                fontVariant: ['tabular-nums'],
-                            },
-                        ]}
-                    >
-                        {formatDateFullBR(item.start)}
-                    </Text>
+                <View
+                    style={
+                        styles.arrowContainer
+                    }
+                >
+                    <Ionicons
+                        name="chevron-forward"
+                        size={17}
+                        color={
+                            subtleColor
+                        }
+                    />
                 </View>
-            </View>
+            </Pressable>
+        );
+    }
+);
 
-            <View style={styles.arrowContainer}>
-                <Ionicons name="chevron-forward" size={18} color={subtleColor} />
-            </View>
-        </Pressable>
-    );
-});
-
-/* ========== Card principal ========== */
+/* =========================================================
+   Card principal
+========================================================= */
 
 export default function FinanceiroPendentesCard({
     cardelevation,
     showValues = false,
     onToggleValues,
-    loading = false,
 }) {
-    const eventos = useSelector(selectAllEventos);
+    const dispatch = useDispatch();
 
-    const text = useThemeColor({}, 'text');
-    const textIcon = useThemeColor({}, 'textIcon');
-    const tint = useThemeColor({}, 'tint');
+    const lancamentos =
+        useSelector(
+            selectAllLancamentos
+        ) || [];
 
-    const border = 'rgba(0,0,0,0.08)';
-    const bgCard = useThemeColor({ light: '#FFFFFF', dark: '#111827' }, 'card');
+    const financeiroStatus =
+        useSelector(
+            selectFinanceiroStatus
+        );
 
-    const { pendentesOrdenados, totalAReceber, totalCount, extrasCount } =
+    const agendaState =
+        useSelector(
+            selectAgendaState
+        );
+
+    const tutores =
+        useSelector(
+            selectTutores
+        ) || [];
+
+    const petsState =
+        useSelector(
+            selectPetsState
+        );
+
+    const text =
+        useThemeColor(
+            {},
+            'text'
+        );
+
+    const textIcon =
+        useThemeColor(
+            {},
+            'textIcon'
+        );
+
+    const tint =
+        useThemeColor(
+            {},
+            'tint'
+        );
+
+    const bgCard =
+        useThemeColor(
+            {
+                light: '#FFFFFF',
+                dark: '#111827',
+            },
+            'card'
+        );
+
+    const [
+        refreshing,
+        setRefreshing,
+    ] = useState(false);
+
+    const eventosById =
+        agendaState?.byId || {};
+
+    const petsById =
+        petsState?.byId || {};
+
+    const tutoresById =
         useMemo(() => {
-            const pendentes = (eventos || []).filter((e) => {
-                if (!e.financeiro) return false;
+            return tutores.reduce(
+                (
+                    accumulator,
+                    tutor
+                ) => {
+                    if (
+                        tutor?.id != null
+                    ) {
+                        accumulator[
+                            String(
+                                tutor.id
+                            )
+                        ] = tutor;
+                    }
 
-                const pago = !!e.financeiro.pago;
-                if (pago) return false;
+                    return accumulator;
+                },
+                {}
+            );
+        }, [tutores]);
 
-                if (!isConfirmadoStatus(e.status)) return false;
+    const loadData =
+        useCallback(async () => {
+            try {
+                setRefreshing(true);
 
-                return true;
-            });
+                await dispatch(
+                    loadLancamentos()
+                ).unwrap();
+            } catch (error) {
+                console.warn(
+                    'Erro ao carregar pendências financeiras:',
+                    error
+                );
+            } finally {
+                setRefreshing(false);
+            }
+        }, [dispatch]);
 
-            pendentes.sort((a, b) => new Date(a.start) - new Date(b.start));
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
-            const total = pendentes.reduce(
-                (acc, ev) => acc + getEventoPreco(ev),
+    useFocusEffect(
+        useCallback(() => {
+            loadData();
+        }, [loadData])
+    );
+
+    const {
+        pendentesOrdenados,
+        totalAReceber,
+        totalCount,
+        extrasCount,
+    } = useMemo(() => {
+        const filtered =
+            lancamentos.filter(
+                (lancamento) => {
+                    if (
+                        !PENDING_FINANCIAL_STATUSES.includes(
+                            lancamento.status
+                        )
+                    ) {
+                        return false;
+                    }
+
+                    const saldo =
+                        Number(
+                            lancamento
+                                ?.valores
+                                ?.saldo || 0
+                        );
+
+                    if (saldo <= 0) {
+                        return false;
+                    }
+
+                    const isEvento =
+                        lancamento?.origem
+                            ?.tipo ===
+                        'evento';
+
+                    if (!isEvento) {
+                        return true;
+                    }
+
+                    const eventoId =
+                        lancamento?.origem
+                            ?.eventoId;
+
+                    const evento =
+                        eventoId
+                            ? eventosById[
+                            String(
+                                eventoId
+                            )
+                            ]
+                            : null;
+
+                    /*
+                     * Eventos pendentes ou cancelados na agenda
+                     * não entram no card de valores efetivos.
+                     * Eles continuam disponíveis no filtro
+                     * "Previstos" da tela Financeiro.
+                     */
+                    return isEventoConfirmado(
+                        evento
+                    );
+                }
+            );
+
+        filtered.sort(
+            (a, b) => {
+                const dateA =
+                    safeDate(
+                        a.vencimento ||
+                        a.competencia
+                    )?.getTime() || 0;
+
+                const dateB =
+                    safeDate(
+                        b.vencimento ||
+                        b.competencia
+                    )?.getTime() || 0;
+
+                return dateA - dateB;
+            }
+        );
+
+        const total =
+            filtered.reduce(
+                (
+                    accumulator,
+                    lancamento
+                ) =>
+                    accumulator +
+                    Number(
+                        lancamento
+                            ?.valores
+                            ?.saldo || 0
+                    ),
                 0
             );
 
-            const totalCount = pendentes.length;
-            const maxHome = 5;
-            const extrasCount = Math.max(0, totalCount - maxHome);
+        const maxHome = 5;
+        const count =
+            filtered.length;
 
-            return {
-                pendentesOrdenados: pendentes.slice(0, maxHome),
-                totalAReceber: total,
-                totalCount,
-                extrasCount,
-            };
-        }, [eventos]);
+        return {
+            pendentesOrdenados:
+                filtered.slice(
+                    0,
+                    maxHome
+                ),
 
-    const temPendentes = pendentesOrdenados.length > 0;
+            totalAReceber:
+                total,
 
-    const totalLabel = showValues ? formatCurrencyBRL(totalAReceber) : hiddenMoney();
+            totalCount:
+                count,
 
-    const handleOpenFinanceiro = useCallback(() => {
-        Haptics.selectionAsync().catch(() => {});
-        router.push('/(phone)/financeiro');
-    }, []);
+            extrasCount:
+                Math.max(
+                    0,
+                    count - maxHome
+                ),
+        };
+    }, [
+        lancamentos,
+        eventosById,
+    ]);
 
-    const handleToggleValues = useCallback(() => {
-        Haptics.selectionAsync().catch(() => {});
-        onToggleValues?.();
-    }, [onToggleValues]);
+    const temPendentes =
+        pendentesOrdenados.length >
+        0;
+
+    const loading =
+        lancamentos.length === 0 &&
+        (
+            refreshing ||
+            financeiroStatus ===
+            'loading'
+        );
+
+    const totalLabel =
+        showValues
+            ? formatCurrencyBRL(
+                totalAReceber
+            )
+            : hiddenMoney();
+
+    const handleOpenFinanceiro =
+        useCallback(() => {
+            Haptics.selectionAsync().catch(
+                () => { }
+            );
+
+            router.push(
+                '/(phone)/financeiro'
+            );
+        }, []);
+
+    const handleToggleValues =
+        useCallback(() => {
+            Haptics.selectionAsync().catch(
+                () => { }
+            );
+
+            onToggleValues?.();
+        }, [onToggleValues]);
 
     return (
         <View
             style={[
                 styles.card,
                 cardelevation,
-                { borderColor: border, backgroundColor: bgCard || '#FFF' },
+                {
+                    borderColor:
+                        COLORS.border,
+
+                    backgroundColor:
+                        bgCard ||
+                        COLORS.card,
+                },
             ]}
         >
-            <View style={styles.cardHeader}>
-                <View style={styles.titleGroup}>
-                    <Ionicons name="cash-outline" size={18} color={tint} />
-                    <Text style={[styles.cardTitle, { color: text }]}>
-                        Financeiro • A receber
-                    </Text>
-                </View>
-
-                <View style={styles.headerActions}>
-                    <Pressable
-                        onPress={handleToggleValues}
-                        hitSlop={8}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                            showValues ? 'Ocultar valores' : 'Mostrar valores'
-                        }
-                        style={({ pressed }) => [
-                            styles.eyeButton,
-                            pressed && { opacity: 0.65 },
+            <View
+                style={
+                    styles.cardHeader
+                }
+            >
+                <View
+                    style={
+                        styles.titleGroup
+                    }
+                >
+                    <View
+                        style={[
+                            styles.titleIcon,
+                            {
+                                backgroundColor:
+                                    `whitesmoke`,
+                            },
                         ]}
                     >
                         <Ionicons
-                            name={showValues ? 'eye-outline' : 'eye-off-outline'}
-                            size={19}
-                            color={textIcon}
+                            name="wallet-outline"
+                            size={18}
+                            color={tint}
                         />
+                    </View>
+
+                    <View
+                        style={{
+                            flex: 1,
+                            minWidth: 0,
+                        }}
+                    >
+                        <Text
+                            style={[
+                                styles.cardTitle,
+                                {
+                                    color: text,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            Financeiro
+                        </Text>
+
+                        <Text
+                            style={[
+                                styles.cardSubtitle,
+                                {
+                                    color:
+                                        textIcon,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            Valores confirmados a receber
+                        </Text>
+                    </View>
+                </View>
+
+                <View
+                    style={
+                        styles.headerActions
+                    }
+                >
+                    <Pressable
+                        onPress={
+                            handleToggleValues
+                        }
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                            showValues
+                                ? 'Ocultar valores'
+                                : 'Mostrar valores'
+                        }
+                        style={({
+                            pressed,
+                        }) => [
+                                styles.monkeyButton,
+                                pressed && {
+                                    opacity: 0.65,
+                                },
+                            ]}
+                    >
+                        <Text
+                            style={
+                                styles.monkeyIcon
+                            }
+                        >
+                            {showValues
+                                ? '🙈'
+                                : '👁'}
+                        </Text>
                     </Pressable>
 
                     <Pressable
-                        onPress={handleOpenFinanceiro}
+                        onPress={
+                            handleOpenFinanceiro
+                        }
                         hitSlop={8}
-                        android_ripple={{
-                            color: 'rgba(0,0,0,0.06)',
-                            borderless: true,
-                        }}
-                        style={styles.openButton}
+                        style={({
+                            pressed,
+                        }) => [
+                                styles.openButton,
+                                pressed && {
+                                    opacity: 0.68,
+                                },
+                            ]}
                     >
-                        <Text style={{ color: tint, fontWeight: '700', fontSize: 12 }}>
-                            Ver financeiro
+                        <Text
+                            style={[
+                                styles.openButtonText,
+                                {
+                                    color: tint,
+                                },
+                            ]}
+                        >
+                            Ver tudo
                         </Text>
+
+                        <Ionicons
+                            name="chevron-forward"
+                            size={14}
+                            color={tint}
+                        />
                     </Pressable>
                 </View>
             </View>
 
-            <View style={styles.totalLine}>
+            <View
+                style={
+                    styles.totalLine
+                }
+            >
                 <View>
-                    <Text style={{ fontSize: 12, color: textIcon }}>Total pendente</Text>
-
                     <Text
                         style={[
-                            styles.totalValue,
+                            styles.totalLabel,
                             {
-                                color: '#F97316',
-                                fontVariant: ['tabular-nums'],
+                                color:
+                                    textIcon,
                             },
                         ]}
+                    >
+                        Total a receber
+                    </Text>
+
+                    <Text
+                        style={
+                            styles.totalValue
+                        }
                     >
                         {totalLabel}
                     </Text>
                 </View>
 
                 {loading ? (
-                    <View style={styles.loadingBadge}>
-                        <ActivityIndicator size="small" color="#EA580C" />
+                    <View
+                        style={
+                            styles.loadingBadge
+                        }
+                    >
+                        <ActivityIndicator
+                            size="small"
+                            color={
+                                COLORS.orangeStrong
+                            }
+                        />
                     </View>
                 ) : temPendentes ? (
-                    <View style={styles.badge}>
-                        <Text style={styles.badgeText}>
-                            {totalCount} pendente{totalCount > 1 ? 's' : ''}
+                    <View
+                        style={
+                            styles.countBadge
+                        }
+                    >
+                        <Text
+                            style={
+                                styles.countBadgeText
+                            }
+                        >
+                            {totalCount}{' '}
+                            {totalCount === 1
+                                ? 'pendência'
+                                : 'pendências'}
                         </Text>
                     </View>
                 ) : null}
             </View>
 
             {loading ? (
-                <View style={styles.emptyBox}>
-                    <ActivityIndicator color="#F97316" />
-                    <Text style={[styles.emptyText, { color: textIcon }]}>
+                <View
+                    style={
+                        styles.emptyBox
+                    }
+                >
+                    <ActivityIndicator
+                        color={
+                            COLORS.orange
+                        }
+                    />
+
+                    <Text
+                        style={[
+                            styles.emptyText,
+                            {
+                                color:
+                                    textIcon,
+                            },
+                        ]}
+                    >
                         Carregando pendências…
                     </Text>
                 </View>
             ) : temPendentes ? (
                 <>
-                    <View style={styles.list}>
-                        {pendentesOrdenados.map((ev) => (
-                            <PendingRow
-                                key={String(ev.id)}
-                                item={ev}
-                                border={border}
-                                textColor={text}
-                                subtleColor={textIcon}
-                                showValues={showValues}
-                            />
-                        ))}
+                    <View
+                        style={
+                            styles.list
+                        }
+                    >
+                        {pendentesOrdenados.map(
+                            (lancamento) => {
+                                const tutor =
+                                    lancamento.tutorId
+                                        ? tutoresById[
+                                        String(
+                                            lancamento.tutorId
+                                        )
+                                        ] ||
+                                        null
+                                        : null;
+
+                                const pets =
+                                    (
+                                        lancamento.petIds ||
+                                        []
+                                    )
+                                        .map(
+                                            (
+                                                petId
+                                            ) =>
+                                                petsById[
+                                                String(
+                                                    petId
+                                                )
+                                                ]
+                                        )
+                                        .filter(
+                                            Boolean
+                                        );
+
+                                return (
+                                    <PendingRow
+                                        key={String(
+                                            lancamento.id
+                                        )}
+                                        item={
+                                            lancamento
+                                        }
+                                        tutor={
+                                            tutor
+                                        }
+                                        pets={
+                                            pets
+                                        }
+                                        textColor={
+                                            text
+                                        }
+                                        subtleColor={
+                                            textIcon
+                                        }
+                                        showValues={
+                                            showValues
+                                        }
+                                    />
+                                );
+                            }
+                        )}
                     </View>
 
                     {extrasCount > 0 && (
-                        <Text style={styles.extraHint}>
-                            +{extrasCount} lançamento
-                            {extrasCount > 1 ? 's' : ''} não exibido
-                            {extrasCount > 1 ? 's' : ''} aqui. Toque em “Ver financeiro”
-                            para ver todos.
-                        </Text>
+                        <Pressable
+                            onPress={
+                                handleOpenFinanceiro
+                            }
+                            style={({
+                                pressed,
+                            }) => [
+                                    styles.extraButton,
+                                    pressed && {
+                                        opacity: 0.7,
+                                    },
+                                ]}
+                        >
+                            <Text
+                                style={
+                                    styles.extraHint
+                                }
+                            >
+                                +{extrasCount}{' '}
+                                {extrasCount === 1
+                                    ? 'lançamento'
+                                    : 'lançamentos'}
+                            </Text>
+
+                            <Ionicons
+                                name="arrow-forward"
+                                size={14}
+                                color={
+                                    COLORS.orangeStrong
+                                }
+                            />
+                        </Pressable>
                     )}
                 </>
             ) : (
-                <View style={styles.emptyBox}>
-                    <Ionicons
-                        name="checkmark-done-circle-outline"
-                        size={28}
-                        color="#16A34A"
-                    />
+                <View
+                    style={
+                        styles.emptyBox
+                    }
+                >
+                    <View
+                        style={
+                            styles.emptyIcon
+                        }
+                    >
+                        <Ionicons
+                            name="checkmark"
+                            size={21}
+                            color={
+                                COLORS.green
+                            }
+                        />
+                    </View>
 
-                    <Text style={[styles.emptyText, { color: textIcon }]}>
-                        Nenhum lançamento pendente no momento.
+                    <Text
+                        style={[
+                            styles.emptyText,
+                            {
+                                color: text,
+                            },
+                        ]}
+                    >
+                        Nenhuma pendência financeira
                     </Text>
 
-                    <Text style={[styles.emptySub, { color: textIcon }]}>
-                        Quando marcar sessões como confirmadas com financeiro pendente,
-                        elas aparecem aqui.
+                    <Text
+                        style={[
+                            styles.emptySub,
+                            {
+                                color:
+                                    textIcon,
+                            },
+                        ]}
+                    >
+                        Lançamentos confirmados com saldo em aberto aparecerão aqui.
                     </Text>
                 </View>
             )}
@@ -346,23 +1104,27 @@ export default function FinanceiroPendentesCard({
     );
 }
 
-/* ========== Styles ========== */
+/* =========================================================
+   Styles
+========================================================= */
 
 const styles = StyleSheet.create({
     card: {
-        borderWidth: 1,
-        borderRadius: 14,
-        paddingVertical: 10,
-        paddingHorizontal: 10,
+        borderWidth:
+            StyleSheet.hairlineWidth,
+        borderRadius: 18,
+        paddingVertical: 12,
+        paddingHorizontal: 12,
         marginTop: 8,
+        overflow: 'hidden',
     },
 
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 6,
-        gap: 8,
+        justifyContent:
+            'space-between',
+        gap: 10,
     },
 
     titleGroup: {
@@ -370,59 +1132,108 @@ const styles = StyleSheet.create({
         minWidth: 0,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        gap: 9,
+    },
+
+    titleIcon: {
+        width: 34,
+        height: 34,
+        borderRadius: 11,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 
     cardTitle: {
         fontSize: 15,
+        lineHeight: 18,
         fontWeight: '800',
+        letterSpacing: -0.2,
+    },
+
+    cardSubtitle: {
+        marginTop: 2,
+        fontSize: 10.5,
+        lineHeight: 14,
+        fontWeight: '500',
     },
 
     headerActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 4,
+        gap: 5,
     },
 
-    eyeButton: {
+    monkeyButton: {
         width: 34,
         height: 34,
         borderRadius: 17,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(118,118,128,0.10)',
+        backgroundColor:
+            'rgba(118,118,128,0.09)',
+    },
+
+    monkeyIcon: {
+        fontSize: 18,
+        lineHeight: 22,
     },
 
     openButton: {
-        paddingHorizontal: 6,
-        paddingVertical: 2,
+        minHeight: 34,
+        paddingHorizontal: 5,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 1,
+    },
+
+    openButtonText: {
+        fontSize: 11.5,
+        fontWeight: '750',
     },
 
     totalLine: {
+        minHeight: 62,
+        marginTop: 10,
+        paddingHorizontal: 11,
+        paddingVertical: 9,
+        borderRadius: 14,
+        backgroundColor:
+            COLORS.orangeSoft,
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        marginTop: 4,
+        justifyContent:
+            'space-between',
         gap: 10,
     },
 
+    totalLabel: {
+        fontSize: 10.5,
+        fontWeight: '650',
+    },
+
     totalValue: {
-        marginTop: 2,
+        marginTop: 3,
+        color: COLORS.orangeStrong,
         fontSize: 20,
-        fontWeight: '800',
+        lineHeight: 24,
+        fontWeight: '850',
+        fontVariant: [
+            'tabular-nums',
+        ],
     },
 
-    badge: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
+    countBadge: {
+        paddingHorizontal: 9,
+        paddingVertical: 5,
         borderRadius: 999,
-        backgroundColor: 'rgba(249,115,22,0.08)',
+        backgroundColor:
+            'rgba(249,115,22,0.11)',
     },
 
-    badgeText: {
-        fontSize: 11,
-        fontWeight: '700',
-        color: '#EA580C',
+    countBadgeText: {
+        color: COLORS.orangeStrong,
+        fontSize: 10.5,
+        fontWeight: '800',
     },
 
     loadingBadge: {
@@ -431,96 +1242,176 @@ const styles = StyleSheet.create({
         borderRadius: 17,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(249,115,22,0.08)',
+        backgroundColor:
+            'rgba(249,115,22,0.10)',
     },
 
     list: {
-        marginTop: 8,
-        gap: 6,
+        marginTop: 9,
+        gap: 7,
     },
 
     row: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderRadius: 10,
-        borderWidth: 1,
-        backgroundColor: '#FFF',
+        minHeight: 68,
+        borderRadius: 13,
+        borderWidth:
+            StyleSheet.hairlineWidth,
+        borderColor: COLORS.border,
+        backgroundColor: '#FFFFFF',
         overflow: 'hidden',
-        minHeight: 56,
+        flexDirection: 'row',
+        alignItems: 'stretch',
+    },
+
+    rowPressed: {
+        backgroundColor:
+            COLORS.pressed,
     },
 
     rowStripe: {
-        width: 4,
-        alignSelf: 'stretch',
-        backgroundColor: '#F97316',
+        width: 3,
     },
 
     rowContent: {
         flex: 1,
+        minWidth: 0,
         paddingHorizontal: 10,
-        paddingVertical: 6,
+        paddingVertical: 8,
         justifyContent: 'center',
     },
 
     rowTitleLine: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'baseline',
-        gap: 6,
+        gap: 8,
     },
 
     rowTitle: {
-        fontSize: 14,
-        fontWeight: '700',
         flex: 1,
+        minWidth: 0,
+        fontSize: 13.5,
+        lineHeight: 17,
+        fontWeight: '750',
     },
 
     rowValue: {
-        fontSize: 13,
-        fontWeight: '800',
+        flexShrink: 0,
+        maxWidth: 110,
+        fontSize: 12.5,
+        lineHeight: 16,
+        fontWeight: '850',
+        fontVariant: [
+            'tabular-nums',
+        ],
     },
 
-    rowBottomLine: {
+    rowInfoLine: {
+        marginTop: 4,
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 2,
+        alignItems: 'center',
         gap: 6,
     },
 
     rowMeta: {
-        fontSize: 11,
-        flexShrink: 1,
+        flex: 1,
+        minWidth: 0,
+        fontSize: 10.5,
+        lineHeight: 14,
+        fontWeight: '500',
     },
 
-    arrowContainer: {
-        width: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-
-    emptyBox: {
-        marginTop: 8,
-        paddingVertical: 10,
+    statusBadge: {
         paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 999,
+    },
+
+    statusBadgeText: {
+        fontSize: 9,
+        lineHeight: 12,
+        fontWeight: '800',
+    },
+
+    rowDateLine: {
+        marginTop: 4,
+        flexDirection: 'row',
         alignItems: 'center',
         gap: 4,
     },
 
+    rowDate: {
+        fontSize: 10,
+        lineHeight: 13,
+        fontWeight: '550',
+    },
+
+    metaDot: {
+        width: 3,
+        height: 3,
+        borderRadius: 2,
+        marginHorizontal: 2,
+        backgroundColor:
+            COLORS.tertiary,
+    },
+
+    originText: {
+        fontSize: 10,
+        lineHeight: 13,
+        fontWeight: '600',
+    },
+
+    arrowContainer: {
+        width: 30,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    emptyBox: {
+        marginTop: 10,
+        paddingVertical: 15,
+        paddingHorizontal: 10,
+        alignItems: 'center',
+        gap: 5,
+    },
+
+    emptyIcon: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        marginBottom: 2,
+        backgroundColor:
+            'rgba(22,163,74,0.10)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
     emptyText: {
         fontSize: 13,
-        fontWeight: '600',
+        lineHeight: 17,
+        fontWeight: '700',
         textAlign: 'center',
     },
 
     emptySub: {
-        fontSize: 11,
+        maxWidth: 280,
+        fontSize: 10.5,
+        lineHeight: 15,
         textAlign: 'center',
     },
 
+    extraButton: {
+        minHeight: 31,
+        marginTop: 7,
+        paddingHorizontal: 4,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: 4,
+    },
+
     extraHint: {
-        marginTop: 6,
-        fontSize: 11,
-        color: '#6B7280',
-        textAlign: 'right',
+        color: COLORS.orangeStrong,
+        fontSize: 10.5,
+        fontWeight: '750',
     },
 });

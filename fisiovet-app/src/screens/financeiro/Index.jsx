@@ -1,658 +1,1670 @@
 // src/screens/financeiro/Index.jsx
-import React, { useCallback, useMemo, useState, useEffect } from 'react';
+// @ts-nocheck
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import {
+	listEventos,
+} from "@/src/services/agenda";
+
+import {
+	migrateEventosFinanceiros,
+} from "@/src/features/financeiro/financeiro.migration";
+
+import React, {
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 
 import {
 	ActivityIndicator,
 	FlatList,
+	Pressable,
+	RefreshControl,
 	StyleSheet,
 	Text,
+	TextInput,
 	TouchableOpacity,
 	View,
-	Alert,
-	Modal,
-	TextInput,
-	RefreshControl,
-	KeyboardAvoidingView,
-	Platform,
-	Pressable,
-} from 'react-native';
+} from "react-native";
 
+import {
+	SafeAreaView,
+} from "react-native-safe-area-context";
 
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+	router,
+} from "expo-router";
 
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import * as Haptics from 'expo-haptics';
+import {
+	useFocusEffect,
+	useNavigation,
+} from "@react-navigation/native";
 
-import { listEventos } from '@/src/services/agenda';
-import { listPets } from '@/src/services/pets';
+import {
+	Ionicons,
+} from "@expo/vector-icons";
 
-import { useDispatch } from 'react-redux';
-import { updateEvento as updateEventoAction } from '@/src/store/slices/agendaSlice';
+import * as Haptics from "expo-haptics";
 
-import { useThemeColor } from "@/hooks/useThemeColor";
+import {
+	useDispatch,
+	useSelector,
+} from "react-redux";
 
-/* =======================
+import {
+	loadLancamentos,
+	selectAllLancamentos,
+	selectFinanceiroStatus,
+} from "@/src/store/slices/financeiroSlice";
+
+import {
+	selectTutores,
+} from "@/src/store/slices/tutoresSlice";
+
+import {
+	selectPetsState,
+} from "@/src/store/slices/petsSlice";
+
+import {
+	FINANCEIRO_STATUS,
+} from "@/src/features/financeiro/financeiro.constants";
+
+import {
+	useThemeColor,
+} from "@/hooks/useThemeColor";
+
+import {
+	loadAgenda,
+	selectAgendaState,
+} from "@/src/store/slices/agendaSlice";
+
+/* =========================================================
+   Constantes
+========================================================= */
+
+const COLORS = {
+	bg: "#F5F5F7",
+	card: "#FFFFFF",
+
+	primary: "#FF6FA5",
+	primarySoft: "rgba(255,111,165,0.11)",
+
+	text: "#111827",
+	subtext: "#6B7280",
+	tertiary: "#9CA3AF",
+
+	border: "rgba(15,23,42,0.08)",
+
+	paid: "#16A34A",
+	paidSoft: "rgba(22,163,74,0.10)",
+
+	pending: "#F59E0B",
+	pendingSoft: "rgba(245,158,11,0.10)",
+
+	overdue: "#EF4444",
+	overdueSoft: "rgba(239,68,68,0.10)",
+
+	partial: "#0A84FF",
+	partialSoft: "rgba(10,132,255,0.10)",
+
+	draft: "#8E8E93",
+	cancelled: "#6B7280",
+};
+
+/*
+ * Migração temporária dos eventos financeiros legados.
+ *
+ * Remover este fluxo aproximadamente em outubro de 2026,
+ * quando todos os usuários ativos já tiverem aberto esta versão.
+ */
+const LEGACY_FINANCEIRO_MIGRATION_KEY =
+	"fisiovet:financeiro_migration:eventos_v2";
+
+const MES_LABELS = [
+	"Janeiro",
+	"Fevereiro",
+	"Março",
+	"Abril",
+	"Maio",
+	"Junho",
+	"Julho",
+	"Agosto",
+	"Setembro",
+	"Outubro",
+	"Novembro",
+	"Dezembro",
+];
+
+const STATUS_META = {
+	[FINANCEIRO_STATUS.RASCUNHO]: {
+		label: "Rascunho",
+		color: COLORS.draft,
+		background: "rgba(142,142,147,0.12)",
+	},
+
+	[FINANCEIRO_STATUS.PENDENTE]: {
+		label: "Pendente",
+		color: COLORS.pending,
+		background: COLORS.pendingSoft,
+	},
+
+	[FINANCEIRO_STATUS.PARCIAL]: {
+		label: "Parcial",
+		color: COLORS.partial,
+		background: COLORS.partialSoft,
+	},
+
+	[FINANCEIRO_STATUS.PAGO]: {
+		label: "Pago",
+		color: COLORS.paid,
+		background: COLORS.paidSoft,
+	},
+
+	[FINANCEIRO_STATUS.VENCIDO]: {
+		label: "Vencido",
+		color: COLORS.overdue,
+		background: COLORS.overdueSoft,
+	},
+
+	[FINANCEIRO_STATUS.CANCELADO]: {
+		label: "Cancelado",
+		color: COLORS.cancelled,
+		background: "rgba(107,114,128,0.11)",
+	},
+};
+
+/* =========================================================
    Helpers
-======================= */
-// formatter criado uma vez só (melhor performance)
-const currencyFormatterBR = new Intl.NumberFormat('pt-BR', {
-	style: 'currency',
-	currency: 'BRL',
-	minimumFractionDigits: 2,
-});
+========================================================= */
+
+const currencyFormatterBR =
+	new Intl.NumberFormat("pt-BR", {
+		style: "currency",
+		currency: "BRL",
+		minimumFractionDigits: 2,
+	});
 
 function formatCurrency(value) {
-	const num = Number(value || 0);
-	if (!Number.isFinite(num)) return currencyFormatterBR.format(0);
-	return currencyFormatterBR.format(num);
+	const number =
+		Number(value || 0);
+
+	return currencyFormatterBR.format(
+		Number.isFinite(number)
+			? number
+			: 0
+	);
 }
 
 function hiddenCurrency() {
-	return 'R$ •••••';
+	return "R$ •••••";
 }
 
-function normalizeMoneyInput(value) {
-	let v = String(value || '').replace(/[^\d.,]/g, '');
-
-	const parts = v.split(/[.,]/);
-
-	if (parts.length > 2) {
-		v = parts[0] + ',' + parts.slice(1).join('');
+function safeDate(value) {
+	if (!value) {
+		return null;
 	}
 
-	return v;
+	const date =
+		new Date(value);
+
+	return Number.isNaN(
+		date.getTime()
+	)
+		? null
+		: date;
 }
 
-function parseMoneyBR(value) {
-	const raw = String(value || '').trim();
+function formatDateBR(value) {
+	const date =
+		safeDate(value);
 
-	if (!raw) return null;
+	if (!date) {
+		return "—";
+	}
 
-	const normalized = raw.replace(/\./g, '').replace(',', '.');
-	const num = Number(normalized);
-
-	if (!Number.isFinite(num) || num < 0) return null;
-
-	return num;
+	return date.toLocaleDateString(
+		"pt-BR"
+	);
 }
 
+function isSameMonthYear(
+	value,
+	monthIndex,
+	year
+) {
+	const date =
+		safeDate(value);
 
+	if (!date) {
+		return false;
+	}
 
-// function formatCurrency(v) {
-//   const num = Number(v || 0);
-//   if (Number.isNaN(num)) return 'R$ 0,00';
-//   return `R$ ${num.toFixed(2).replace('.', ',')}`;
-// }
-
-function isSameMonthYear(date, monthIndex, year) {
-	if (!date) return false;
-	return date.getFullYear() === year && date.getMonth() === monthIndex;
+	return (
+		date.getMonth() ===
+			monthIndex &&
+		date.getFullYear() ===
+			year
+	);
 }
 
-function getPreviousMonthYear(monthIndex, year) {
+function getPreviousMonthYear(
+	monthIndex,
+	year
+) {
 	if (monthIndex === 0) {
-		return { monthIndex: 11, year: year - 1 };
+		return {
+			monthIndex: 11,
+			year: year - 1,
+		};
 	}
-	return { monthIndex: monthIndex - 1, year };
-}
-
-function formatDateBR(date) {
-	if (!date) return '-';
-	const dd = String(date.getDate()).padStart(2, '0');
-	const mm = String(date.getMonth() + 1).padStart(2, '0');
-	const yyyy = date.getFullYear();
-	return `${dd}/${mm}/${yyyy}`;
-}
-
-const MES_LABELS = [
-	'Janeiro',
-	'Fevereiro',
-	'Março',
-	'Abril',
-	'Maio',
-	'Junho',
-	'Julho',
-	'Agosto',
-	'Setembro',
-	'Outubro',
-	'Novembro',
-	'Dezembro',
-];
-
-// transforma eventos da agenda em "lancamentos financeiros"
-function mapEventosToLancamentos(eventos = [], petsById = {}) {
-	return (eventos || [])
-		.filter((evt) => !!evt.financeiro) // só os que têm financeiro
-		.map((evt) => {
-			const { financeiro = {} } = evt;
-			const startDate = evt.start ? new Date(evt.start) : null;
-
-			let petNome = evt.petNome || null;
-			if (!petNome && Array.isArray(evt.petIds) && evt.petIds.length) {
-				const petObj = petsById[evt.petIds[0]];
-				if (petObj?.nome) petNome = petObj.nome;
-			}
-
-			const subtitle =
-				(evt.local && String(evt.local).trim()) ||
-				(evt.observacoes && String(evt.observacoes).trim()) ||
-				'';
-
-			const statusAgenda = evt.status || 'pendente';
-
-			return {
-				id: evt.id,
-				title: evt.title || 'Sessão',
-				subtitle,
-				descricao: evt.descricao || evt.description || '',
-				cliente: evt.cliente || evt.tutorNome || '',
-				tutorNome: evt.tutorNome || '',
-				petNome: petNome,
-				petIds: Array.isArray(evt.petIds) ? evt.petIds : [],
-				statusAgenda,
-				startDate,
-				preco: Number(financeiro.preco || evt.preco || 0),
-				pago: !!financeiro.pago,
-				comprovanteUrl: financeiro.comprovanteUrl || null,
-			};
-		})
-		.sort((a, b) => {
-			if (!a.startDate || !b.startDate) return 0;
-			return a.startDate - b.startDate;
-		});
-}
-
-// resumo:
-// - totalPeriodo: tudo que gerou financeiro (pago + pendente) no período
-// - aReceberPeriodo: pendentes no período
-// - recebidoPeriodo: pagos no período
-// - recebidoGeral: pagos em todo o histórico
-function calcularResumo(lancamentosConfirmados = [], filtroMesIndex, filtroAno, modoGeral) {
-	let totalPeriodo = 0;
-	let aReceberPeriodo = 0;
-	let recebidoPeriodo = 0;
-	let recebidoGeral = 0;
-
-	(lancamentosConfirmados || []).forEach((l) => {
-		const d = l.startDate;
-		if (!d) return;
-
-		const inPeriodo = modoGeral ? true : isSameMonthYear(d, filtroMesIndex, filtroAno);
-
-		if (l.pago) {
-			recebidoGeral += l.preco;
-			if (inPeriodo) {
-				recebidoPeriodo += l.preco;
-			}
-		} else {
-			if (inPeriodo) {
-				aReceberPeriodo += l.preco;
-			}
-		}
-
-		if (inPeriodo) {
-			totalPeriodo += l.preco;
-		}
-	});
 
 	return {
-		totalPeriodo,
-		aReceberPeriodo,
-		recebidoPeriodo,
-		recebidoGeral,
+		monthIndex:
+			monthIndex - 1,
+
+		year,
 	};
 }
 
-/* =======================
-   Cores base
-======================= */
+function normalizeSearchText(
+	value
+) {
+	return String(value || "")
+		.normalize("NFD")
+		.replace(
+			/[\u0300-\u036f]/g,
+			""
+		)
+		.trim()
+		.toLowerCase();
+}
 
-const COLORS = {
-	bg: '#F5F5F5',
-	card: '#FFFFFF',
-	primary: '#FF6FA5', // depois você troca pro Colors.primary500
-	text: '#333333',
-	subtext: '#777777',
-	paid: '#2ECC71',
-	pending: '#F39C12',
-};
+function calculateSummary(
+	list = []
+) {
+	return list.reduce(
+		(accumulator, item) => {
+			if (
+				item.status ===
+				FINANCEIRO_STATUS.CANCELADO
+			) {
+				return accumulator;
+			}
 
-/* =======================
-   Screen
-======================= */
+			accumulator.faturado +=
+				Number(
+					item?.valores
+						?.final || 0
+				);
+
+			accumulator.recebido +=
+				Number(
+					item?.valores
+						?.recebido || 0
+				);
+
+			accumulator.aReceber +=
+				Number(
+					item?.valores
+						?.saldo || 0
+				);
+
+			if (
+				item.status ===
+				FINANCEIRO_STATUS.VENCIDO
+			) {
+				accumulator.vencido +=
+					Number(
+						item?.valores
+							?.saldo || 0
+					);
+			}
+
+			return accumulator;
+		},
+		{
+			faturado: 0,
+			recebido: 0,
+			aReceber: 0,
+			vencido: 0,
+		}
+	);
+}
+
+function normalizeAgendaStatus(
+	value
+) {
+	return String(value || "")
+		.trim()
+		.toLowerCase();
+}
+
+function isEventoConfirmado(
+	evento
+) {
+	const status =
+		normalizeAgendaStatus(
+			evento?.status
+		);
+
+	return [
+		"confirmado",
+		"confirmada",
+		"concluido",
+		"concluida",
+		"concluído",
+		"concluída",
+	].includes(status);
+}
+
+function isEventoPendente(
+	evento
+) {
+	const status =
+		normalizeAgendaStatus(
+			evento?.status
+		);
+
+	return (
+		!status ||
+		status === "pendente"
+	);
+}
+
+function isEventoCancelado(
+	evento
+) {
+	const status =
+		normalizeAgendaStatus(
+			evento?.status
+		);
+
+	return [
+		"cancelado",
+		"cancelada",
+	].includes(status);
+}
+
+/* =========================================================
+   Tela
+========================================================= */
 
 export default function FinanceiroScreen() {
-	const dispatch = useDispatch();
-	const navigation = useNavigation();
+	const dispatch =
+		useDispatch();
 
-	const hoje = new Date();
+	const navigation =
+		useNavigation();
 
+	const today =
+		new Date();
 
-	const [eventos, setEventos] = useState([]);
-	const [pets, setPets] = useState([]);
-	const [filtroStatus, setFiltroStatus] = useState('todos'); // 'todos' | 'pendente' | 'pago';
+	const tint =
+		useThemeColor(
+			{},
+			"tint"
+		);
 
-	const [filtroAno, setFiltroAno] = useState(hoje.getFullYear());
-	const [filtroMesIndex, setFiltroMesIndex] = useState(hoje.getMonth()); // 0-11
+	const lancamentos =
+		useSelector(
+			selectAllLancamentos
+		) || [];
 
-	const [modoGeral, setModoGeral] = useState(false); // lista+cards
+	const loadStatus =
+		useSelector(
+			selectFinanceiroStatus
+		);
 
-	// valores sempre começam ocultos
-	const [valoresVisiveis, setValoresVisiveis] = useState(false);
+	const agendaState =
+		useSelector(
+			selectAgendaState
+		);
 
-	// modal edição de valor
-	const [editModalVisible, setEditModalVisible] = useState(false);
-	const [editLancamento, setEditLancamento] = useState(null);
-	const [editValorStr, setEditValorStr] = useState('');
+	const eventosById =
+		agendaState?.byId || {};
 
-	// loading por card / lista
-	const [updatingStatusId, setUpdatingStatusId] = useState(null);
-	const [updatingValorId, setUpdatingValorId] = useState(null);
-	const [refreshing, setRefreshing] = useState(false);
+	const tutores =
+		useSelector(
+			selectTutores
+		) || [];
 
-	const tint = useThemeColor({}, "tint");
-	const bg = useThemeColor({}, "background");
-	const text = useThemeColor({}, "text");
+	const petsState =
+		useSelector(
+			selectPetsState
+		);
 
+	const petsById =
+		petsState?.byId || {};
 
-	const triggerHaptic = () => {
-		Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-	};
+	const [
+		filtroStatus,
+		setFiltroStatus,
+	] = useState("todos");
 
-	// carregar dados (usado no foco e no pull-to-refresh)
-	const loadData = useCallback(async () => {
-		setRefreshing(true);
-		try {
-			const [rows, petsList] = await Promise.all([listEventos(), listPets()]);
-			setEventos(rows || []);
-			setPets(petsList || []);
-		} catch (err) {
-			console.log('Erro ao carregar dados para financeiro:', err);
-		} finally {
-			setRefreshing(false);
-		}
-	}, []);
+	const [
+		filtroAno,
+		setFiltroAno,
+	] = useState(
+		today.getFullYear()
+	);
 
-	// sempre que a tela ganha foco:
-	// - mês atual
-	// - modo normal (não geral)
-	// - filtro "todos"
-	// - valores ocultos
-	// - dispara loadData()
+	const [
+		filtroMesIndex,
+		setFiltroMesIndex,
+	] = useState(
+		today.getMonth()
+	);
 
-	// 🔹 callback do botão voltar do header
+	const [
+		modoGeral,
+		setModoGeral,
+	] = useState(false);
+
+	const [
+		valoresVisiveis,
+		setValoresVisiveis,
+	] = useState(false);
+
+	const [
+		refreshing,
+		setRefreshing,
+	] = useState(false);
+
+	const [
+		migratingLegacy,
+		setMigratingLegacy,
+	] = useState(false);
+
+	const [
+		incluirEventosPendentes,
+		setIncluirEventosPendentes,
+	] = useState(false);
+
+	const [
+		busca,
+		setBusca,
+	] = useState("");
+
+	const buscaNormalizada =
+		useMemo(
+			() =>
+				normalizeSearchText(
+					busca
+				),
+			[busca]
+		);
+
+	const tutorsById =
+		useMemo(() => {
+			const result = {};
+
+			tutores.forEach(
+				(tutor) => {
+					if (
+						tutor?.id != null
+					) {
+						result[
+							String(
+								tutor.id
+							)
+						] = tutor;
+					}
+				}
+			);
+
+			return result;
+		}, [tutores]);
+
+	const lancamentosComAgenda =
+		useMemo(() => {
+			return lancamentos.map(
+				(lancamento) => {
+					const eventoId =
+						lancamento
+							?.origem
+							?.eventoId;
+
+					const evento =
+						eventoId
+							? eventosById[
+									String(
+										eventoId
+									)
+								] ||
+								null
+							: null;
+
+					const isEvento =
+						lancamento
+							?.origem
+							?.tipo ===
+						"evento";
+
+					return {
+						...lancamento,
+
+						agenda: {
+							isEvento,
+
+							eventoId:
+								eventoId
+									? String(
+											eventoId
+										)
+									: null,
+
+							status:
+								evento
+									?.status ||
+								null,
+
+							confirmado:
+								isEvento
+									? isEventoConfirmado(
+											evento
+										)
+									: true,
+
+							pendente:
+								isEvento
+									? isEventoPendente(
+											evento
+										)
+									: false,
+
+							cancelado:
+								isEvento
+									? isEventoCancelado(
+											evento
+										)
+									: false,
+						},
+					};
+				}
+			);
+		}, [
+			lancamentos,
+			eventosById,
+		]);
+
+	const migrateLegacyEventosIfNeeded =
+		useCallback(async () => {
+			try {
+				const alreadyMigrated =
+					await AsyncStorage.getItem(
+						LEGACY_FINANCEIRO_MIGRATION_KEY
+					);
+
+				console.log(
+					"[Financeiro migration] status local:",
+					alreadyMigrated
+				);
+
+				if (
+					alreadyMigrated ===
+					"done"
+				) {
+					return {
+						skipped: true,
+						reason:
+							"already_done",
+					};
+				}
+
+				setMigratingLegacy(
+					true
+				);
+
+				const eventos =
+					await listEventos();
+
+				console.log(
+					"[Financeiro migration] eventos encontrados:",
+					eventos?.length || 0
+				);
+
+				const eventosMigraveis =
+					(eventos || []).filter(
+						(evento) => {
+							const preco =
+								Number(
+									evento
+										?.financeiro
+										?.preco ??
+									evento?.preco ??
+									0
+								);
+
+							const temFinanceiroLegado =
+								evento
+									?.financeiro &&
+								typeof evento
+									.financeiro ===
+									"object";
+
+							const temLancamento =
+								Boolean(
+									evento
+										?.financeiro
+										?.lancamentoId
+								);
+
+							return (
+								evento?.id &&
+								!temLancamento &&
+								(
+									temFinanceiroLegado ||
+									preco > 0
+								)
+							);
+						}
+					);
+
+				console.log(
+					"[Financeiro migration] candidatos:",
+					eventosMigraveis.length
+				);
+
+				if (
+					eventosMigraveis
+						.length === 0
+				) {
+					await AsyncStorage.setItem(
+						LEGACY_FINANCEIRO_MIGRATION_KEY,
+						"done"
+					);
+
+					return {
+						skipped: false,
+						total: 0,
+						created: 0,
+					};
+				}
+
+				const result =
+					await migrateEventosFinanceiros(
+						eventosMigraveis
+					);
+
+				console.log(
+					"[Financeiro migration] resultado:",
+					result
+				);
+
+				const migrationErrors =
+					Array.isArray(
+						result?.errors
+					)
+						? result.errors
+						: Array.isArray(
+								result?.erros
+							)
+							? result.erros
+							: [];
+
+				if (
+					result &&
+					migrationErrors
+						.length === 0
+				) {
+					await AsyncStorage.setItem(
+						LEGACY_FINANCEIRO_MIGRATION_KEY,
+						"done"
+					);
+				} else {
+					console.warn(
+						"[Financeiro migration] não marcada como concluída:",
+						migrationErrors
+					);
+				}
+
+				return result;
+			} catch (error) {
+				console.warn(
+					"[Financeiro migration] erro:",
+					error
+				);
+
+				return {
+					skipped: false,
+					error,
+				};
+			} finally {
+				setMigratingLegacy(
+					false
+				);
+			}
+		}, []);
+
+	const triggerHaptic =
+		useCallback(() => {
+			Haptics.impactAsync(
+				Haptics
+					.ImpactFeedbackStyle
+					.Light
+			).catch(() => {});
+		}, []);
+
+	const loadData =
+		useCallback(async () => {
+			try {
+				setRefreshing(true);
+
+				await migrateLegacyEventosIfNeeded();
+
+				await Promise.all([
+					dispatch(
+						loadAgenda()
+					).unwrap(),
+
+					dispatch(
+						loadLancamentos()
+					).unwrap(),
+				]);
+			} catch (error) {
+				console.warn(
+					"Erro ao carregar lançamentos:",
+					error
+				);
+			} finally {
+				setRefreshing(false);
+			}
+		}, [
+			dispatch,
+			migrateLegacyEventosIfNeeded,
+		]);
+
 	useEffect(() => {
-		const blurSub = navigation.addListener('blur', () => {
-			setValoresVisiveis(false);
-		});
+		const blurSubscription =
+			navigation.addListener(
+				"blur",
+				() => {
+					setValoresVisiveis(
+						false
+					);
+				}
+			);
 
-		const removeSub = navigation.addListener('beforeRemove', () => {
-			setValoresVisiveis(false);
-		});
-
-		return () => {
-			blurSub();
-			removeSub();
-		};
+		return blurSubscription;
 	}, [navigation]);
 
 	useFocusEffect(
 		useCallback(() => {
-			const now = new Date();
-			setFiltroAno(now.getFullYear());
-			setFiltroMesIndex(now.getMonth());
-			setModoGeral(false);
-			setFiltroStatus('todos');
-			setValoresVisiveis(false);
-
 			loadData();
 		}, [loadData])
 	);
 
-	const petsById = useMemo(() => {
-		const map = {};
-		(pets || []).forEach((p) => {
-			if (p?.id) map[p.id] = p;
-		});
-		return map;
-	}, [pets]);
+	const lancamentosConsiderados =
+		useMemo(() => {
+			return lancamentosComAgenda.filter(
+				(lancamento) => {
+					if (
+						lancamento.status ===
+						FINANCEIRO_STATUS.CANCELADO
+					) {
+						return false;
+					}
 
-	const lancamentos = useMemo(
-		() => mapEventosToLancamentos(eventos || [], petsById),
-		[eventos, petsById]
-	);
+					if (
+						!lancamento.agenda
+							?.isEvento
+					) {
+						return true;
+					}
 
-	// separa confirmados x previstos (já pensando em futuros)
-	const { lancamentosConfirmados } = useMemo(() => {
-		const confirmados = [];
-		const previstos = [];
+					if (
+						lancamento.agenda
+							.cancelado
+					) {
+						return false;
+					}
 
-		(lancamentos || []).forEach((l) => {
-			const status = String(l.statusAgenda || '').toLowerCase();
-			const isConfirmado =
-				status === 'confirmado' ||
-				status === 'confirmada' ||
-				status === 'concluido' ||
-				status === 'concluida';
+					if (
+						lancamento.agenda
+							.confirmado
+					) {
+						return true;
+					}
 
-			if (isConfirmado) {
-				confirmados.push(l);
-			} else {
-				previstos.push(l);
-			}
-		});
+					if (
+						lancamento.agenda
+							.pendente
+					) {
+						return incluirEventosPendentes;
+					}
 
-		return { lancamentosConfirmados: confirmados, lancamentosPrevistos: previstos };
-	}, [lancamentos]);
-
-	// resumo baseado em confirmados e modo (mês ou geral)
-	const resumo = useMemo(
-		() => calcularResumo(lancamentosConfirmados || [], filtroMesIndex, filtroAno, modoGeral),
-		[lancamentosConfirmados, filtroMesIndex, filtroAno, modoGeral]
-	);
-
-	// Lista filtrada
-	const lancamentosFiltrados = useMemo(() => {
-		let base;
-		if (modoGeral) {
-			base = [...(lancamentosConfirmados || [])]; // todos confirmados
-		} else {
-			base = (lancamentosConfirmados || []).filter((l) =>
-				isSameMonthYear(l.startDate, filtroMesIndex, filtroAno)
+					return incluirEventosPendentes;
+				}
 			);
-		}
+		}, [
+			lancamentosComAgenda,
+			incluirEventosPendentes,
+		]);
 
-		if (filtroStatus === 'pendente') {
-			return base.filter((l) => !l.pago);
-		}
-		if (filtroStatus === 'pago') {
-			return base.filter((l) => l.pago);
-		}
+	const lancamentosPeriodo =
+		useMemo(() => {
+			if (modoGeral) {
+				return lancamentosConsiderados;
+			}
 
-		return base;
-	}, [lancamentosConfirmados, filtroMesIndex, filtroAno, filtroStatus, modoGeral]);
+			return lancamentosConsiderados.filter(
+				(item) =>
+					isSameMonthYear(
+						item.competencia ||
+							item.vencimento,
+						filtroMesIndex,
+						filtroAno
+					)
+			);
+		}, [
+			lancamentosConsiderados,
+			modoGeral,
+			filtroMesIndex,
+			filtroAno,
+		]);
 
-	function handlePrevMonth() {
+	/*
+	 * O filtro financeiro é aplicado antes da busca.
+	 * Dessa forma, os cards também passam a refletir
+	 * o status selecionado.
+	 */
+	const lancamentosPorStatus =
+		useMemo(() => {
+			if (
+				filtroStatus ===
+				"pendente"
+			) {
+				return lancamentosPeriodo.filter(
+					(item) =>
+						[
+							FINANCEIRO_STATUS.PENDENTE,
+							FINANCEIRO_STATUS.PARCIAL,
+							FINANCEIRO_STATUS.VENCIDO,
+						].includes(
+							item.status
+						)
+				);
+			}
+
+			if (
+				filtroStatus ===
+				"pago"
+			) {
+				return lancamentosPeriodo.filter(
+					(item) =>
+						item.status ===
+						FINANCEIRO_STATUS.PAGO
+				);
+			}
+
+			return lancamentosPeriodo;
+		}, [
+			lancamentosPeriodo,
+			filtroStatus,
+		]);
+
+	/*
+	 * Busca por:
+	 * - tutor;
+	 * - pets;
+	 * - descrição;
+	 * - categoria;
+	 * - origem;
+	 * - status.
+	 *
+	 * A busca também alimenta os cards de resumo.
+	 */
+	const lancamentosFiltrados =
+		useMemo(() => {
+			const result =
+				lancamentosPorStatus.filter(
+					(item) => {
+						if (
+							!buscaNormalizada
+						) {
+							return true;
+						}
+
+						const tutor =
+							item.tutorId
+								? tutorsById[
+										String(
+											item.tutorId
+										)
+									]
+								: null;
+
+						const tutorName =
+							tutor?.nome ||
+							tutor?.name ||
+							"";
+
+						const petNames =
+							(
+								item.petIds ||
+								[]
+							)
+								.map(
+									(petId) => {
+										const pet =
+											petsById[
+												String(
+													petId
+												)
+											];
+
+										return (
+											pet
+												?.nome ||
+											pet
+												?.name ||
+											""
+										);
+									}
+								)
+								.filter(
+									Boolean
+								)
+								.join(" ");
+
+						const statusLabel =
+							STATUS_META[
+								item.status
+							]?.label || "";
+
+						const origemLabel =
+							item?.origem
+								?.tipo ===
+							"evento"
+								? "evento"
+								: "avulso";
+
+						const searchableText =
+							normalizeSearchText(
+								[
+									item.descricao,
+									item.categoria,
+									tutorName,
+									petNames,
+									statusLabel,
+									origemLabel,
+								].join(" ")
+							);
+
+						return searchableText.includes(
+							buscaNormalizada
+						);
+					}
+				);
+
+			return result.sort(
+				(a, b) => {
+					const dateA =
+						safeDate(
+							a.competencia ||
+								a.vencimento
+						)?.getTime() ||
+						0;
+
+					const dateB =
+						safeDate(
+							b.competencia ||
+								b.vencimento
+						)?.getTime() ||
+						0;
+
+					return (
+						dateB -
+						dateA
+					);
+				}
+			);
+		}, [
+			lancamentosPorStatus,
+			buscaNormalizada,
+			tutorsById,
+			petsById,
+		]);
+
+	/*
+	 * Todos os filtros alteram os cards:
+	 * período, previstos, status e busca.
+	 */
+	const resumo =
+		useMemo(
+			() =>
+				calculateSummary(
+					lancamentosFiltrados
+				),
+			[lancamentosFiltrados]
+		);
+
+	const resumoContexto =
+		useMemo(() => {
+			if (busca.trim()) {
+				return `${lancamentosFiltrados.length} resultado${
+					lancamentosFiltrados.length ===
+					1
+						? ""
+						: "s"
+				} na busca`;
+			}
+
+			if (modoGeral) {
+				return `${lancamentosFiltrados.length} lançamento${
+					lancamentosFiltrados.length ===
+					1
+						? ""
+						: "s"
+				}`;
+			}
+
+			return `${MES_LABELS[filtroMesIndex]} ${filtroAno}`;
+		}, [
+			busca,
+			lancamentosFiltrados.length,
+			modoGeral,
+			filtroMesIndex,
+			filtroAno,
+		]);
+
+	function handlePreviousMonth() {
 		triggerHaptic();
-		const prev = getPreviousMonthYear(filtroMesIndex, filtroAno);
-		setFiltroMesIndex(prev.monthIndex);
-		setFiltroAno(prev.year);
+
+		const previous =
+			getPreviousMonthYear(
+				filtroMesIndex,
+				filtroAno
+			);
+
+		setFiltroMesIndex(
+			previous.monthIndex
+		);
+
+		setFiltroAno(
+			previous.year
+		);
+
 		setModoGeral(false);
 	}
 
 	function handleNextMonth() {
 		triggerHaptic();
-		if (filtroMesIndex === 11) {
+
+		if (
+			filtroMesIndex === 11
+		) {
 			setFiltroMesIndex(0);
-			setFiltroAno((y) => y + 1);
+
+			setFiltroAno(
+				(previous) =>
+					previous + 1
+			);
 		} else {
-			setFiltroMesIndex((m) => m + 1);
+			setFiltroMesIndex(
+				(previous) =>
+					previous + 1
+			);
 		}
+
 		setModoGeral(false);
 	}
 
 	function handleTodayMonth() {
 		triggerHaptic();
-		const now = new Date();
-		setFiltroMesIndex(now.getMonth());
-		setFiltroAno(now.getFullYear());
-		setFiltroStatus('todos');
+
+		const now =
+			new Date();
+
+		setFiltroMesIndex(
+			now.getMonth()
+		);
+
+		setFiltroAno(
+			now.getFullYear()
+		);
+
+		setFiltroStatus(
+			"todos"
+		);
+
 		setModoGeral(false);
 	}
 
-	function handleToggleGeral() {
+	function handleClearSearch() {
 		triggerHaptic();
-		setModoGeral((prev) => !prev);
+		setBusca("");
 	}
 
-	function handleSetFiltroStatus(status) {
-		triggerHaptic();
-		setFiltroStatus(status);
-	}
-
-	async function togglePago(lancamento) {
-		triggerHaptic();
-		const novoPago = !lancamento.pago;
-		setUpdatingStatusId(lancamento.id);
-		try {
-			// Atualiza na store/Firestore via slice
-			await dispatch(
-				updateEventoAction({
-					id: lancamento.id,
-					patch: {
-						financeiro: {
-							preco: lancamento.preco,
-							pago: novoPago,
-							comprovanteUrl: lancamento.comprovanteUrl || null,
-						},
-					},
-				})
-			).unwrap();
-
-			// Recarrega do backend pra manter lista local coerente
-			await loadData();
-		} catch (e) {
-			console.log('Erro ao atualizar pagamento:', e);
-			Alert.alert('Erro', 'Não foi possível atualizar o status de pagamento.');
-		} finally {
-			setUpdatingStatusId(null);
-		}
-	}
-
-	function openEditValorModal(lancamento) {
-		triggerHaptic();
-		setEditLancamento(lancamento);
-		setEditValorStr(String(lancamento.preco ?? 0).replace('.', ','));
-		setEditModalVisible(true);
-	}
-
-	function closeEditValorModal() {
-		triggerHaptic();
-		setEditModalVisible(false);
-		setEditLancamento(null);
-		setEditValorStr('');
-	}
-
-	async function salvarNovoValor() {
-		if (!editLancamento) return;
-
+	function handleOpenNovo() {
 		triggerHaptic();
 
-		const novoValor = parseMoneyBR(editValorStr);
-
-		if (novoValor === null) {
-			Alert.alert('Valor inválido', 'Digite um valor numérico válido.');
-			return;
-		}
-
-		setUpdatingValorId(editLancamento.id);
-
-		try {
-			await dispatch(
-				updateEventoAction({
-					id: editLancamento.id,
-					patch: {
-						preco: novoValor,
-						financeiro: {
-							preco: novoValor,
-							pago: editLancamento.pago,
-							comprovanteUrl: editLancamento.comprovanteUrl || null,
-						},
-					},
-				})
-			).unwrap();
-
-			await loadData();
-
-			setEditModalVisible(false);
-			setEditLancamento(null);
-			setEditValorStr('');
-		} catch (e) {
-			console.log('Erro ao atualizar valor:', e);
-			Alert.alert('Erro', 'Não foi possível atualizar o valor.');
-		} finally {
-			setUpdatingValorId(null);
-		}
-	}
-
-	function handlePressLancamento(lancamento) {
-		triggerHaptic();
-
-		Alert.alert(
-			'Lançamento',
-			`${lancamento.title}\n${formatDateBR(lancamento.startDate)}\nValor: ${valoresVisiveis ? formatCurrency(lancamento.preco) : hiddenCurrency()
-			}`,
-			[
-				{
-					text: lancamento.pago ? 'Marcar como pendente' : 'Marcar como pago',
-					onPress: () => togglePago(lancamento),
-				},
-				{
-					text: 'Editar valor',
-					onPress: () => openEditValorModal(lancamento),
-				},
-				{
-					text: 'Cancelar',
-					style: 'cancel',
-				},
-			]
+		router.push(
+			"/(modals)/financeiro/novo"
 		);
 	}
 
-	const labelCard1 = modoGeral ? 'Faturado geral' : 'Faturado no mês';
-	const helperCard1 = modoGeral
-		? 'Todos os lançamentos confirmados'
-		: `${MES_LABELS[filtroMesIndex]} ${filtroAno}`;
+	function handleOpenLancamento(
+		lancamento
+	) {
+		triggerHaptic();
 
-	const helperCard2 = modoGeral
-		? 'Pendentes em todos os períodos'
-		: `Pendentes em ${MES_LABELS[filtroMesIndex]} ${filtroAno}`;
+		router.push({
+			pathname:
+				"/(modals)/financeiro/[id]",
 
-	const helperCard3 = modoGeral
-		? 'Pago em todos os períodos'
-		: `Pago em ${MES_LABELS[filtroMesIndex]} ${filtroAno}`;
+			params: {
+				id: String(
+					lancamento.id
+				),
+			},
+		});
+	}
+
+	const isInitialLoading =
+		loadStatus === "loading" &&
+		lancamentos.length === 0;
 
 	return (
-		<SafeAreaView style={styles.safeArea} edges={['top']}>
-			{/* Header com botão olho */}
+		<SafeAreaView
+			style={styles.safeArea}
+			edges={["top"]}
+		>
 			<View style={styles.header}>
-				<View style={styles.headerLeft}>
-					<Text style={[styles.headerTitle, { color: tint }]}>Financeiro</Text>
-					<Text style={styles.headerSubtitle}>Visão geral dos atendimentos</Text>
+				<View
+					style={
+						styles.headerLeft
+					}
+				>
+					<Text
+						style={[
+							styles.headerTitle,
+							{
+								color: tint,
+							},
+						]}
+					>
+						Financeiro
+					</Text>
+
+					<Text
+						style={
+							styles.headerSubtitle
+						}
+					>
+						Lançamentos e recebimentos
+					</Text>
+
+					{migratingLegacy && (
+						<View
+							style={
+								styles.migrationRow
+							}
+						>
+							<ActivityIndicator
+								size="small"
+								color={
+									COLORS.primary
+								}
+							/>
+
+							<Text
+								style={
+									styles.migrationText
+								}
+							>
+								Importando lançamentos antigos…
+							</Text>
+						</View>
+					)}
 				</View>
+
 				<TouchableOpacity
-					style={styles.eyeButton}
+					style={
+						styles.eyeButton
+					}
 					onPress={() => {
 						triggerHaptic();
-						setValoresVisiveis((prev) => !prev);
+
+						setValoresVisiveis(
+							(previous) =>
+								!previous
+						);
 					}}
 				>
-					<Text style={styles.eyeButtonText}>
-						{valoresVisiveis ? '🙈' : '👁'}
+					<Text
+						style={
+							styles.eyeButtonText
+						}
+					>
+						{valoresVisiveis
+							? "🙈"
+							: "👁"}
 					</Text>
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={[
+						styles.newButton,
+						{
+							backgroundColor:
+								tint,
+						},
+					]}
+					onPress={
+						handleOpenNovo
+					}
+				>
+					<Ionicons
+						name="add"
+						size={20}
+						color="#FFFFFF"
+					/>
 				</TouchableOpacity>
 			</View>
 
-			{/* Cards de resumo em 2 linhas (grid) */}
-			<View style={styles.resumoGrid}>
+			<View
+				style={
+					styles.resumoGrid
+				}
+			>
 				<ResumoCard
-					label={labelCard1}
-					helper={helperCard1}
-					value={formatCurrency(resumo.totalPeriodo)}
-					hide={!valoresVisiveis}
+					label="Faturado"
+					icon="wallet-outline"
+					color={
+						COLORS.primary
+					}
+					background={
+						COLORS.primarySoft
+					}
+					helper={
+						resumoContexto
+					}
+					value={formatCurrency(
+						resumo.faturado
+					)}
+					hide={
+						!valoresVisiveis
+					}
 				/>
+
 				<ResumoCard
 					label="A receber"
-					helper={helperCard2}
-					value={formatCurrency(resumo.aReceberPeriodo)}
-					hide={!valoresVisiveis}
+					icon="time-outline"
+					color={
+						COLORS.pending
+					}
+					background={
+						COLORS.pendingSoft
+					}
+					helper={
+						incluirEventosPendentes
+							? "Confirmado + previsto"
+							: resumoContexto
+					}
+					value={formatCurrency(
+						resumo.aReceber
+					)}
+					hide={
+						!valoresVisiveis
+					}
 				/>
+
 				<ResumoCard
-					label="Pago no período"
-					helper={helperCard3}
-					value={formatCurrency(resumo.recebidoPeriodo)}
-					hide={!valoresVisiveis}
+					label="Recebido"
+					icon="checkmark-circle-outline"
+					color={
+						COLORS.paid
+					}
+					background={
+						COLORS.paidSoft
+					}
+					helper={
+						resumoContexto
+					}
+					value={formatCurrency(
+						resumo.recebido
+					)}
+					hide={
+						!valoresVisiveis
+					}
 				/>
+
 				<ResumoCard
-					label="Faturado geral"
-					helper="Histórico pago"
-					value={formatCurrency(resumo.recebidoGeral)}
-					hide={!valoresVisiveis}
+					label="Vencido"
+					icon="alert-circle-outline"
+					color={
+						COLORS.overdue
+					}
+					background={
+						COLORS.overdueSoft
+					}
+					helper={
+						resumo.vencido > 0
+							? "Saldo em atraso"
+							: resumoContexto
+					}
+					value={formatCurrency(
+						resumo.vencido
+					)}
+					hide={
+						!valoresVisiveis
+					}
 				/>
 			</View>
 
-			{/* Filtro de mês / ano (para lista) */}
-			<View style={styles.monthFilterRow}>
+			<View
+				style={
+					styles.monthFilterRow
+				}
+			>
 				<TouchableOpacity
-					onPress={handlePrevMonth}
-					style={styles.monthNavButton}
-					disabled={modoGeral}
+					onPress={
+						handlePreviousMonth
+					}
+					style={
+						styles.monthNavButton
+					}
+					disabled={
+						modoGeral
+					}
 				>
-					<Text
-						style={[
-							styles.monthNavText,
-							modoGeral && { opacity: 0.3 },
-						]}
-					>
-						{'‹'}
-					</Text>
+					<Ionicons
+						name="chevron-back"
+						size={19}
+						color={
+							modoGeral
+								? "#D1D5DB"
+								: COLORS.primary
+						}
+					/>
 				</TouchableOpacity>
 
-				<View style={styles.monthLabelBox}>
-					<Text style={styles.monthLabelText}>
-						{modoGeral ? `Todos os meses (${lancamentosFiltrados?.length})` : `${MES_LABELS[filtroMesIndex]} ${filtroAno} (${lancamentosFiltrados?.length})`}
+				<View
+					style={
+						styles.monthLabelBox
+					}
+				>
+					<Text
+						style={
+							styles.monthLabelText
+						}
+					>
+						{modoGeral
+							? `Todos os períodos (${lancamentosFiltrados.length})`
+							: `${MES_LABELS[filtroMesIndex]} ${filtroAno} (${lancamentosFiltrados.length})`}
 					</Text>
+
+					{busca.trim() ? (
+						<Text
+							style={
+								styles.monthSearchHint
+							}
+							numberOfLines={1}
+						>
+							Resultado filtrado por “{busca.trim()}”
+						</Text>
+					) : null}
 				</View>
 
 				<TouchableOpacity
-					onPress={handleNextMonth}
-					style={styles.monthNavButton}
-					disabled={modoGeral}
+					onPress={
+						handleNextMonth
+					}
+					style={
+						styles.monthNavButton
+					}
+					disabled={
+						modoGeral
+					}
 				>
-					<Text
-						style={[
-							styles.monthNavText,
-							modoGeral && { opacity: 0.3 },
-						]}
-					>
-						{'›'}
-					</Text>
+					<Ionicons
+						name="chevron-forward"
+						size={19}
+						color={
+							modoGeral
+								? "#D1D5DB"
+								: COLORS.primary
+						}
+					/>
 				</TouchableOpacity>
 			</View>
 
-			{/* Filtros + Hoje + Geral */}
-			<View style={styles.filtersRow}>
-				<View style={styles.filtersChipsRow}>
+			<View
+				style={
+					styles.searchSection
+				}
+			>
+				<View
+					style={
+						styles.searchBox
+					}
+				>
+					<Ionicons
+						name="search"
+						size={17}
+						color={
+							COLORS.tertiary
+						}
+					/>
+
+					<TextInput
+						value={busca}
+						onChangeText={
+							setBusca
+						}
+						placeholder="Buscar por tutor, pet ou lançamento"
+						placeholderTextColor={
+							COLORS.tertiary
+						}
+						autoCapitalize="none"
+						autoCorrect={false}
+						clearButtonMode="never"
+						returnKeyType="search"
+						style={
+							styles.searchInput
+						}
+					/>
+
+					{!!busca && (
+						<Pressable
+							onPress={
+								handleClearSearch
+							}
+							hitSlop={8}
+							style={({
+								pressed,
+							}) => [
+								styles.searchClearButton,
+								pressed && {
+									opacity: 0.6,
+								},
+							]}
+						>
+							<Ionicons
+								name="close-circle"
+								size={18}
+								color={
+									COLORS.tertiary
+								}
+							/>
+						</Pressable>
+					)}
+				</View>
+
+				{/*
+				 * Espaço preparado para um futuro DatePicker.
+				 *
+				 * Exemplo:
+				 *
+				 * <Pressable style={styles.dateFilterButton}>
+				 *     <Ionicons
+				 *         name="calendar-outline"
+				 *         size={18}
+				 *         color={COLORS.primary}
+				 *     />
+				 * </Pressable>
+				 */}
+			</View>
+
+			<View
+				style={
+					styles.filtersContainer
+				}
+			>
+				<View
+					style={
+						styles.statusFilterGroup
+					}
+				>
 					<FiltroChip
 						label="Todos"
-						active={filtroStatus === 'todos'}
-						onPress={() => handleSetFiltroStatus('todos')}
+						icon="list-outline"
+						active={
+							filtroStatus ===
+							"todos"
+						}
+						onPress={() => {
+							triggerHaptic();
+
+							setFiltroStatus(
+								"todos"
+							);
+						}}
 					/>
+
 					<FiltroChip
 						label="Pendentes"
-						active={filtroStatus === 'pendente'}
-						onPress={() => handleSetFiltroStatus('pendente')}
+						icon="time-outline"
+						active={
+							filtroStatus ===
+							"pendente"
+						}
+						onPress={() => {
+							triggerHaptic();
+
+							setFiltroStatus(
+								"pendente"
+							);
+						}}
 					/>
+
 					<FiltroChip
 						label="Pagos"
-						active={filtroStatus === 'pago'}
-						onPress={() => handleSetFiltroStatus('pago')}
+						icon="checkmark-circle-outline"
+						active={
+							filtroStatus ===
+							"pago"
+						}
+						onPress={() => {
+							triggerHaptic();
+
+							setFiltroStatus(
+								"pago"
+							);
+						}}
 					/>
 				</View>
 
-				<View style={styles.filtersRightButtons}>
-					<TouchableOpacity style={styles.smallButton} onPress={handleTodayMonth}>
-						<Text style={styles.smallButtonText}>Hoje</Text>
+				<View
+					style={
+						styles.scopeFilterRow
+					}
+				>
+					<TouchableOpacity
+						style={[
+							styles.scopeButton,
+							incluirEventosPendentes &&
+								styles.forecastButtonActive,
+						]}
+						onPress={() => {
+							triggerHaptic();
+
+							setIncluirEventosPendentes(
+								(previous) =>
+									!previous
+							);
+						}}
+					>
+						<Ionicons
+							name="calendar-outline"
+							size={13}
+							color={
+								incluirEventosPendentes
+									? COLORS.pending
+									: COLORS.subtext
+							}
+						/>
+
+						<Text
+							style={[
+								styles.scopeButtonText,
+								incluirEventosPendentes &&
+									styles.forecastButtonTextActive,
+							]}
+						>
+							Previstos
+						</Text>
 					</TouchableOpacity>
 
 					<TouchableOpacity
-						style={[styles.smallButton, modoGeral && styles.smallButtonActive]}
-						onPress={handleToggleGeral}
+						style={
+							styles.scopeButton
+						}
+						onPress={
+							handleTodayMonth
+						}
 					>
+						<Ionicons
+							name="today-outline"
+							size={13}
+							color={
+								COLORS.subtext
+							}
+						/>
+
+						<Text
+							style={
+								styles.scopeButtonText
+							}
+						>
+							Mês atual
+						</Text>
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={[
+							styles.scopeButton,
+							modoGeral &&
+								styles.scopeButtonActive,
+						]}
+						onPress={() => {
+							triggerHaptic();
+
+							setModoGeral(
+								(previous) =>
+									!previous
+							);
+						}}
+					>
+						<Ionicons
+							name="albums-outline"
+							size={13}
+							color={
+								modoGeral
+									? "#FFFFFF"
+									: COLORS.subtext
+							}
+						/>
+
 						<Text
 							style={[
-								styles.smallButtonText,
-								modoGeral && styles.smallButtonTextActive,
+								styles.scopeButtonText,
+								modoGeral &&
+									styles.scopeButtonTextActive,
 							]}
 						>
 							Geral
@@ -661,159 +1673,311 @@ export default function FinanceiroScreen() {
 				</View>
 			</View>
 
-			{/* Lista de lançamentos (somente confirmados) */}
-			<FlatList
-				data={lancamentosFiltrados}
-				keyExtractor={(item) => String(item.id)}
-				showsVerticalScrollIndicator
-				contentContainerStyle={styles.listContent}
-				refreshControl={
-					<RefreshControl
-						refreshing={refreshing}
-						onRefresh={loadData}
-						tintColor={COLORS.primary}          // iOS
-						colors={[COLORS.primary]}           // Android
-						progressBackgroundColor="#FFF"
+			{isInitialLoading ? (
+				<View
+					style={
+						styles.loadingBox
+					}
+				>
+					<ActivityIndicator
+						size="small"
+						color={
+							COLORS.primary
+						}
 					/>
-				}
-				renderItem={({ item }) => (
-					<LancamentoCard
-						lancamento={item}
-						onPress={() => handlePressLancamento(item)}
-						updatingStatus={updatingStatusId === item.id}
-						updatingValor={updatingValorId === item.id}
-						hideValues={!valoresVisiveis}
-					/>
-				)}
-				ListEmptyComponent={
-					<View style={styles.emptyBox}>
-						<View style={styles.emptyIconCircle}>
-							<Text style={styles.emptyIcon}>💳</Text>
-						</View>
 
-						<Text style={styles.emptyTitle}>
-							Nenhum lançamento encontrado
-						</Text>
-
-						<Text style={styles.emptyText}>
-							Não há lançamentos financeiros para o filtro selecionado.
-						</Text>
-
-						<Text style={styles.emptyHint}>
-							Tente alterar o mês, usar “Geral” ou mudar entre Todos, Pendentes e Pagos.
-						</Text>
-					</View>
-				}
-			/>
-
-			{/* Modal de edição de valor */}
-			<Modal
-				visible={editModalVisible}
-				transparent
-				animationType="fade"
-				onRequestClose={closeEditValorModal}
-			>
-				<View style={styles.modalOverlay}>
-					<KeyboardAvoidingView
-						behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-						style={styles.modalKeyboard}
+					<Text
+						style={
+							styles.loadingText
+						}
 					>
-						<View style={styles.modalBox}>
-							<View style={styles.modalTopRow}>
-								<View style={{ flex: 1, minWidth: 0 }}>
-									<Text style={styles.modalTitle}>Editar valor</Text>
-
-									{editLancamento && (
-										<Text style={styles.modalSubtitle} numberOfLines={2}>
-											{editLancamento.title} — {formatDateBR(editLancamento.startDate)}
-										</Text>
-									)}
-								</View>
-
-								<Pressable
-									onPress={closeEditValorModal}
-									hitSlop={10}
-									style={({ pressed }) => [
-										styles.modalCloseButton,
-										pressed && { opacity: 0.65 },
-									]}
-								>
-									<Text style={styles.modalCloseText}>×</Text>
-								</Pressable>
-							</View>
-
-							<View style={styles.modalInputWrap}>
-								<Text style={styles.modalInputPrefix}>R$</Text>
-
-								<TextInput
-									style={styles.modalInput}
-									value={editValorStr}
-									onChangeText={(v) => setEditValorStr(normalizeMoneyInput(v))}
-									keyboardType="decimal-pad"
-									placeholder="0,00"
-									placeholderTextColor="#A1A1AA"
-									autoFocus
+						Carregando lançamentos…
+					</Text>
+				</View>
+			) : (
+				<FlatList
+					data={
+						lancamentosFiltrados
+					}
+					keyExtractor={(
+						item
+					) =>
+						String(
+							item.id
+						)
+					}
+					showsVerticalScrollIndicator
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="on-drag"
+					contentContainerStyle={
+						styles.listContent
+					}
+					refreshControl={
+						<RefreshControl
+							refreshing={
+								refreshing
+							}
+							onRefresh={
+								loadData
+							}
+							tintColor={
+								COLORS.primary
+							}
+							colors={[
+								COLORS.primary,
+							]}
+						/>
+					}
+					renderItem={({
+						item,
+					}) => (
+						<LancamentoCard
+							lancamento={
+								item
+							}
+							tutor={
+								item.tutorId
+									? tutorsById[
+											String(
+												item.tutorId
+											)
+										]
+									: null
+							}
+							pets={(
+								item.petIds ||
+								[]
+							)
+								.map(
+									(
+										petId
+									) =>
+										petsById[
+											String(
+												petId
+											)
+										]
+								)
+								.filter(
+									Boolean
+								)}
+							hideValues={
+								!valoresVisiveis
+							}
+							onPress={() =>
+								handleOpenLancamento(
+									item
+								)
+							}
+						/>
+					)}
+					ListEmptyComponent={
+						<View
+							style={
+								styles.emptyBox
+							}
+						>
+							<View
+								style={
+									styles.emptyIconCircle
+								}
+							>
+								<Ionicons
+									name={
+										busca.trim()
+											? "search-outline"
+											: "wallet-outline"
+									}
+									size={28}
+									color={
+										COLORS.primary
+									}
 								/>
 							</View>
 
-							<Text style={styles.modalHelper}>
-								Use vírgula para centavos. Ex.: 120,50
+							<Text
+								style={
+									styles.emptyTitle
+								}
+							>
+								{busca.trim()
+									? "Nenhum resultado"
+									: "Nenhum lançamento"}
 							</Text>
 
-							<View style={styles.modalButtonsRow}>
-								<TouchableOpacity
-									style={[styles.modalButton, styles.modalButtonCancel]}
-									onPress={closeEditValorModal}
-									activeOpacity={0.75}
-								>
-									<Text style={styles.modalButtonCancelText}>Cancelar</Text>
-								</TouchableOpacity>
+							<Text
+								style={
+									styles.emptyText
+								}
+							>
+								{busca.trim()
+									? `Não encontramos tutor, pet ou lançamento correspondente a “${busca.trim()}”.`
+									: "Crie um lançamento avulso ou registre um atendimento com valor."}
+							</Text>
 
-								<TouchableOpacity
-									style={[styles.modalButton, styles.modalButtonSave]}
-									onPress={salvarNovoValor}
-									activeOpacity={0.75}
-									disabled={!!updatingValorId}
+							{busca.trim() ? (
+								<Pressable
+									onPress={
+										handleClearSearch
+									}
+									style={
+										styles.clearSearchEmptyButton
+									}
 								>
-									{updatingValorId ? (
-										<ActivityIndicator size="small" color="#FFF" />
-									) : (
-										<Text style={styles.modalButtonSaveText}>Salvar</Text>
-									)}
-								</TouchableOpacity>
-							</View>
+									<Text
+										style={
+											styles.clearSearchEmptyText
+										}
+									>
+										Limpar busca
+									</Text>
+								</Pressable>
+							) : (
+								<Pressable
+									onPress={
+										handleOpenNovo
+									}
+									style={
+										styles.emptyButton
+									}
+								>
+									<Ionicons
+										name="add"
+										size={18}
+										color="#FFFFFF"
+									/>
+
+									<Text
+										style={
+											styles.emptyButtonText
+										}
+									>
+										Novo lançamento
+									</Text>
+								</Pressable>
+							)}
 						</View>
-					</KeyboardAvoidingView>
-				</View>
-			</Modal>
-
+					}
+				/>
+			)}
 		</SafeAreaView>
 	);
 }
 
-/* ====================== */
-/*   Componentes internos */
-/* ====================== */
+/* =========================================================
+   Componentes internos
+========================================================= */
 
-function ResumoCard({ label, helper, value, hide }) {
-	const displayValue = hide ? hiddenCurrency() : value;
-
+function ResumoCard({
+	label,
+	helper,
+	value,
+	hide,
+	icon,
+	color,
+	background,
+}) {
 	return (
-		<View style={styles.resumoCard}>
-			<Text style={styles.resumoLabel}>{label}</Text>
-			{helper ? <Text style={styles.resumoHelper}>{helper}</Text> : null}
-			<Text style={styles.resumoValue}>{displayValue}</Text>
+		<View
+			style={
+				styles.resumoCard
+			}
+		>
+			<View
+				style={
+					styles.resumoHeader
+				}
+			>
+				<View
+					style={[
+						styles.resumoIconBox,
+						{
+							backgroundColor:
+								background,
+						},
+					]}
+				>
+					<Ionicons
+						name={icon}
+						size={15}
+						color={color}
+					/>
+				</View>
+
+				<Text
+					style={
+						styles.resumoLabel
+					}
+					numberOfLines={1}
+				>
+					{label}
+				</Text>
+			</View>
+
+			<Text
+				style={[
+					styles.resumoValue,
+					{
+						color,
+					},
+				]}
+				numberOfLines={1}
+				adjustsFontSizeToFit
+				minimumFontScale={0.82}
+			>
+				{hide
+					? hiddenCurrency()
+					: value}
+			</Text>
+
+			<Text
+				style={
+					styles.resumoHelper
+				}
+				numberOfLines={1}
+			>
+				{helper}
+			</Text>
 		</View>
 	);
 }
 
-function FiltroChip({ label, active, onPress }) {
+function FiltroChip({
+	label,
+	icon,
+	active,
+	onPress,
+}) {
 	return (
 		<TouchableOpacity
-			style={[styles.chip, active && styles.chipActive]}
+			style={[
+				styles.statusFilterButton,
+				active &&
+					styles.statusFilterButtonActive,
+			]}
 			onPress={onPress}
+			activeOpacity={0.78}
 		>
-			<Text style={[styles.chipText, active && styles.chipTextActive]}>
+			{!!icon && (
+				<Ionicons
+					name={icon}
+					size={13}
+					color={
+						active
+							? "#FFFFFF"
+							: COLORS.subtext
+					}
+				/>
+			)}
+
+			<Text
+				style={[
+					styles.statusFilterText,
+					active &&
+						styles.statusFilterTextActive,
+				]}
+				numberOfLines={1}
+			>
 				{label}
 			</Text>
 		</TouchableOpacity>
@@ -822,495 +1986,742 @@ function FiltroChip({ label, active, onPress }) {
 
 function LancamentoCard({
 	lancamento,
+	tutor,
+	pets,
 	onPress,
-	updatingStatus,
-	updatingValor,
 	hideValues,
 }) {
-	const dataStr = formatDateBR(lancamento.startDate);
+	const status =
+		STATUS_META[
+			lancamento.status
+		] ||
+		STATUS_META[
+			FINANCEIRO_STATUS.PENDENTE
+		];
 
-	const statusLabel = lancamento.pago ? 'Pago' : 'Pendente';
-	const statusStyle = lancamento.pago ? styles.badgePaid : styles.badgePending;
+	const tutorName =
+		tutor?.nome ||
+		tutor?.name ||
+		"Sem tutor";
+
+	const petNames =
+		pets
+			.map(
+				(pet) =>
+					pet?.nome ||
+					pet?.name
+			)
+			.filter(Boolean)
+			.join(", ");
+
+	const isPrevisto =
+		Boolean(
+			lancamento?.agenda
+				?.isEvento &&
+				lancamento?.agenda
+					?.pendente
+		);
 
 	return (
-		<TouchableOpacity style={styles.lancamentoCard} onPress={onPress} activeOpacity={0.8}>
-			<View style={styles.lancamentoHeader}>
-				<View style={{ flex: 1, marginRight: 8 }}>
-					<Text style={styles.lancamentoTitle} numberOfLines={1}>
-						{lancamento.title}
+		<TouchableOpacity
+			style={
+				styles.lancamentoCard
+			}
+			onPress={onPress}
+			activeOpacity={0.8}
+		>
+			<View
+				style={
+					styles.lancamentoHeader
+				}
+			>
+				<View
+					style={
+						styles.lancamentoTitleBox
+					}
+				>
+					<Text
+						style={
+							styles.lancamentoTitle
+						}
+						numberOfLines={1}
+					>
+						{lancamento.descricao ||
+							"Lançamento"}
 					</Text>
 
-					{!!lancamento.descricao && (
-						<Text style={styles.lancamentoDescricao} numberOfLines={1}>
-							{lancamento.descricao}
+					<Text
+						style={
+							styles.lancamentoSubtitle
+						}
+						numberOfLines={1}
+					>
+						{tutorName}
+						{petNames
+							? ` · ${petNames}`
+							: ""}
+					</Text>
+				</View>
+
+				<View
+					style={[
+						styles.badge,
+						{
+							backgroundColor:
+								status.background,
+						},
+					]}
+				>
+					<Text
+						style={[
+							styles.badgeText,
+							{
+								color:
+									status.color,
+							},
+						]}
+					>
+						{status.label}
+					</Text>
+				</View>
+			</View>
+
+			<View
+				style={
+					styles.lancamentoFooter
+				}
+			>
+				<View
+					style={
+						styles.lancamentoMeta
+					}
+				>
+					<Text
+						style={
+							styles.lancamentoData
+						}
+					>
+						{formatDateBR(
+							lancamento.competencia ||
+								lancamento.vencimento
+						)}
+					</Text>
+
+					{lancamento
+						?.origem
+						?.tipo ===
+						"evento" && (
+						<Text
+							style={
+								styles.originText
+							}
+						>
+							Gerado por evento
 						</Text>
 					)}
 
-					{!!lancamento.subtitle && (
-						<Text style={styles.lancamentoSubtitle} numberOfLines={1}>
-							{lancamento.subtitle}
+					{isPrevisto && (
+						<Text
+							style={
+								styles.forecastText
+							}
+						>
+							Evento ainda pendente
 						</Text>
 					)}
 				</View>
 
-				<View style={[styles.badge, statusStyle]}>
-					{updatingStatus ? (
-						<ActivityIndicator size="small" color="#FFF" />
-					) : (
-						<Text style={styles.badgeText}>{statusLabel}</Text>
+				<View
+					style={
+						styles.valueBlock
+					}
+				>
+					<Text
+						style={
+							styles.lancamentoValor
+						}
+					>
+						{hideValues
+							? hiddenCurrency()
+							: formatCurrency(
+									lancamento
+										?.valores
+										?.final
+								)}
+					</Text>
+
+					{!hideValues &&
+						Number(
+							lancamento
+								?.valores
+								?.saldo ||
+								0
+						) > 0 && (
+						<Text
+							style={
+								styles.balanceText
+							}
+						>
+							Saldo{" "}
+							{formatCurrency(
+								lancamento
+									?.valores
+									?.saldo
+							)}
+						</Text>
 					)}
 				</View>
-			</View>
-
-			{/* Tutor + Pet */}
-			<View style={styles.lineBetween}>
-				{lancamento.cliente ? (
-					<Text style={styles.lancamentoCliente}>
-						Tutor:{' '}
-						<Text style={{ fontWeight: 'bold' }}>{lancamento.cliente}</Text>
-					</Text>
-				) : (
-					<Text style={styles.lancamentoCliente}>Tutor: -</Text>
-				)}
-				<Text style={[styles.lancamentoCliente, { fontWeight: 'bold' }]}>
-					{lancamento.petNome ||
-						(lancamento.petIds?.length
-							? `(${lancamento.petIds.length} pets)`
-							: '-')}
-				</Text>
-			</View>
-
-			<View style={styles.lancamentoFooter}>
-				<Text style={styles.lancamentoData}>Data: {dataStr}</Text>
-				{updatingValor ? (
-					<ActivityIndicator size="small" color={COLORS.primary} />
-				) : (
-					<Text style={styles.lancamentoValor}>
-						{hideValues ? hiddenCurrency() : formatCurrency(lancamento.preco)}
-					</Text>
-				)}
 			</View>
 		</TouchableOpacity>
 	);
 }
 
-/* ====================== */
-/*        Styles          */
-/* ====================== */
+/* =========================================================
+   Styles
+========================================================= */
 
-const styles = StyleSheet.create({
-	safeArea: {
-		flex: 1,
-		backgroundColor: COLORS.bg,
-		// paddingTop: 35
-	},
-	header: {
-		paddingHorizontal: 16,
-		paddingTop: 16,
-		paddingBottom: 4,
-		flexDirection: 'row',
-		alignItems: 'center',
-	},
-	headerLeft: {
-		flex: 1,
-	},
-	headerTitle: {
-		fontSize: 24,
-		fontWeight: 'bold',
-		color: COLORS.text,
-	},
-	headerSubtitle: {
-		fontSize: 13,
-		color: COLORS.subtext,
-		marginTop: 2,
-	},
-	eyeButton: {
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-	},
-	eyeButtonText: {
-		fontSize: 20,
-	},
-	// grid 2x2 de cards
-	resumoGrid: {
-		paddingHorizontal: 16,
-		paddingTop: 4,
-		paddingBottom: 4,
-		flexDirection: 'row',
-		flexWrap: 'wrap',
-		justifyContent: 'space-between',
-		rowGap: 8,
-	},
-	resumoCard: {
-		backgroundColor: COLORS.card,
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: 12,
-		width: '48%',
-		minHeight: 64,
-		elevation: 3,
-		shadowColor: '#000',
-		shadowOpacity: 0.12,
-		shadowRadius: 4,
-		shadowOffset: { width: 0, height: 2 },
-	},
-	resumoLabel: {
-		fontSize: 11,
-		color: COLORS.subtext,
-		fontWeight: '500',
-	},
-	resumoHelper: {
-		fontSize: 10,
-		color: COLORS.subtext,
-		marginTop: 1,
-	},
-	resumoValue: {
-		marginTop: 4,
-		fontSize: 15,
-		fontWeight: '700',
-		color: COLORS.primary,
-	},
-	monthFilterRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: 16,
-		paddingBottom: 4,
-		marginTop: 2,
-	},
-	monthNavButton: {
-		paddingHorizontal: 8,
-		paddingVertical: 4,
-	},
-	monthNavText: {
-		fontSize: 18,
-		color: COLORS.primary,
-		fontWeight: '700',
-	},
-	monthLabelBox: {
-		flex: 1,
-		alignItems: 'center',
-	},
-	monthLabelText: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: COLORS.text,
-	},
-	filtersRow: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		paddingHorizontal: 16,
-		paddingBottom: 4,
-		marginTop: 2,
-	},
-	filtersChipsRow: {
-		flexDirection: 'row',
-		gap: 8,
-		flexShrink: 1,
-	},
-	filtersRightButtons: {
-		flexDirection: 'row',
-		marginLeft: 'auto',
-		gap: 6,
-	},
-	smallButton: {
-		paddingHorizontal: 10,
-		paddingVertical: 5,
-		borderRadius: 999,
-		borderWidth: 1,
-		borderColor: COLORS.primary,
-	},
-	smallButtonActive: {
-		backgroundColor: COLORS.primary,
-	},
-	smallButtonText: {
-		fontSize: 11,
-		color: COLORS.primary,
-		fontWeight: '600',
-	},
-	smallButtonTextActive: {
-		color: '#FFF',
-	},
-	chip: {
-		paddingHorizontal: 10,
-		paddingVertical: 6,
-		borderRadius: 999,
-		borderWidth: 1,
-		borderColor: '#DDD',
-	},
-	chipActive: {
-		backgroundColor: COLORS.primary,
-		borderColor: COLORS.primary,
-	},
-	chipText: {
-		fontSize: 12,
-		color: COLORS.subtext,
-	},
-	chipTextActive: {
-		color: '#FFF',
-		fontWeight: '600',
-	},
-	listContent: {
-		paddingHorizontal: 16,
-		paddingTop: 8,
-		paddingBottom: 90,
-	},
-	lancamentoCard: {
-		backgroundColor: COLORS.card,
-		borderRadius: 16,
-		padding: 12,
-		marginBottom: 12,
-		elevation: 5,
-		shadowColor: '#000',
-		shadowOpacity: 0.18,
-		shadowRadius: 7,
-		shadowOffset: { width: 0, height: 4 },
-	},
-	lancamentoHeader: {
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	lancamentoTitle: {
-		fontSize: 14,
-		fontWeight: '600',
-		color: COLORS.text,
-	},
-	lancamentoDescricao: {
-		fontSize: 11,
-		color: COLORS.text,
-		marginTop: 1,
-	},
-	lancamentoSubtitle: {
-		fontSize: 11,
-		color: COLORS.subtext,
-		marginTop: 1,
-	},
-	lineBetween: {
-		marginTop: 8,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-	},
-	lancamentoCliente: {
-		fontSize: 12,
-		color: COLORS.subtext,
-	},
-	lancamentoFooter: {
-		marginTop: 8,
-		flexDirection: 'row',
-		justifyContent: 'space-between',
-		alignItems: 'center',
-	},
-	lancamentoData: {
-		fontSize: 12,
-		color: COLORS.subtext,
-	},
-	lancamentoValor: {
-		fontSize: 16,
-		fontWeight: '700',
-		color: COLORS.primary,
-	},
-	badge: {
-		paddingHorizontal: 8,
-		paddingVertical: 3,
-		borderRadius: 999,
-		minWidth: 60,
-		alignItems: 'center',
-	},
-	badgePaid: {
-		backgroundColor: COLORS.paid,
-	},
-	badgePending: {
-		backgroundColor: COLORS.pending,
-	},
-	badgeText: {
-		fontSize: 10,
-		color: '#FFF',
-		fontWeight: '600',
-	},
-	emptyBox: {
-		marginTop: 28,
-		marginHorizontal: 16,
-		paddingHorizontal: 18,
-		paddingVertical: 22,
-		borderRadius: 18,
-		backgroundColor: '#FFFFFF',
-		borderWidth: 1,
-		borderColor: 'rgba(0,0,0,0.06)',
-		alignItems: 'center',
-		shadowColor: '#000',
-		shadowOpacity: 0.08,
-		shadowRadius: 8,
-		shadowOffset: { width: 0, height: 4 },
-		elevation: 3,
-	},
+const styles =
+	StyleSheet.create({
+		safeArea: {
+			flex: 1,
+			backgroundColor:
+				COLORS.bg,
+		},
 
-	emptyIconCircle: {
-		width: 58,
-		height: 58,
-		borderRadius: 29,
-		backgroundColor: 'rgba(255,111,165,0.10)',
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginBottom: 12,
-	},
+		header: {
+			paddingHorizontal: 16,
+			paddingTop: 16,
+			paddingBottom: 6,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+		},
 
-	emptyIcon: {
-		fontSize: 28,
-	},
+		headerLeft: {
+			flex: 1,
+		},
 
-	emptyTitle: {
-		fontSize: 16,
-		fontWeight: '800',
-		color: COLORS.text,
-		textAlign: 'center',
-		marginBottom: 6,
-	},
+		headerTitle: {
+			fontSize: 24,
+			fontWeight: "850",
+		},
 
-	emptyText: {
-		fontSize: 13,
-		color: COLORS.subtext,
-		textAlign: 'center',
-		lineHeight: 18,
-	},
+		headerSubtitle: {
+			marginTop: 2,
+			color: COLORS.subtext,
+			fontSize: 13,
+		},
 
-	emptyHint: {
-		marginTop: 8,
-		fontSize: 12,
-		color: COLORS.subtext,
-		textAlign: 'center',
-		lineHeight: 17,
-		opacity: 0.8,
-	},
-	// modal
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: 'rgba(0,0,0,0.35)',
-		justifyContent: 'center',
-		alignItems: 'center',
-		paddingHorizontal: 18,
-	},
+		migrationRow: {
+			marginTop: 4,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+		},
 
-	modalKeyboard: {
-		width: '100%',
-		alignItems: 'center',
-	},
+		migrationText: {
+			color: COLORS.subtext,
+			fontSize: 11,
+			fontWeight: "650",
+		},
 
-	modalBox: {
-		width: '100%',
-		maxWidth: 420,
-		backgroundColor: '#FFF',
-		borderRadius: 18,
-		padding: 16,
-		shadowColor: '#000',
-		shadowOpacity: 0.18,
-		shadowRadius: 18,
-		shadowOffset: { width: 0, height: 8 },
-		elevation: 8,
-	},
+		eyeButton: {
+			width: 38,
+			height: 38,
+			borderRadius: 19,
+			backgroundColor:
+				COLORS.card,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+		},
 
-	modalTopRow: {
-		flexDirection: 'row',
-		alignItems: 'flex-start',
-		gap: 10,
-	},
+		eyeButtonText: {
+			fontSize: 19,
+			lineHeight: 23,
+		},
 
-	modalCloseButton: {
-		width: 32,
-		height: 32,
-		borderRadius: 16,
-		alignItems: 'center',
-		justifyContent: 'center',
-		backgroundColor: '#F3F4F6',
-	},
+		newButton: {
+			width: 38,
+			height: 38,
+			borderRadius: 19,
+			alignItems: "center",
+			justifyContent: "center",
+		},
 
-	modalCloseText: {
-		fontSize: 24,
-		lineHeight: 26,
-		color: COLORS.subtext,
-		fontWeight: '600',
-	},
+		resumoGrid: {
+			paddingHorizontal: 16,
+			paddingTop: 6,
+			paddingBottom: 7,
+			flexDirection: "row",
+			flexWrap: "wrap",
+			justifyContent:
+				"space-between",
+			rowGap: 8,
+		},
 
-	modalTitle: {
-		fontSize: 17,
-		fontWeight: '800',
-		color: COLORS.text,
-	},
+		resumoCard: {
+			width: "48.5%",
+			minHeight: 89,
+			paddingHorizontal: 11,
+			paddingVertical: 10,
+			borderRadius: 15,
+			backgroundColor:
+				COLORS.card,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
 
-	modalSubtitle: {
-		fontSize: 12,
-		color: COLORS.subtext,
-		marginTop: 4,
-		lineHeight: 17,
-	},
+			shadowColor: "#000",
+			shadowOpacity: 0.055,
+			shadowRadius: 5,
+			shadowOffset: {
+				width: 0,
+				height: 2,
+			},
 
-	modalInputWrap: {
-		marginTop: 14,
-		height: 48,
-		borderWidth: 1,
-		borderColor: '#DDD',
-		borderRadius: 12,
-		paddingHorizontal: 12,
-		flexDirection: 'row',
-		alignItems: 'center',
-		backgroundColor: '#FAFAFA',
-	},
+			elevation: 2,
+		},
 
-	modalInputPrefix: {
-		fontSize: 15,
-		fontWeight: '800',
-		color: COLORS.primary,
-		marginRight: 8,
-	},
+		resumoHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+		},
 
-	modalInput: {
-		flex: 1,
-		height: 48,
-		fontSize: 18,
-		fontWeight: '700',
-		color: COLORS.text,
-		paddingVertical: 0,
-	},
+		resumoIconBox: {
+			width: 25,
+			height: 25,
+			borderRadius: 8,
+			alignItems: "center",
+			justifyContent: "center",
+		},
 
-	modalHelper: {
-		marginTop: 7,
-		fontSize: 11,
-		color: COLORS.subtext,
-	},
+		resumoLabel: {
+			flex: 1,
+			color: COLORS.subtext,
+			fontSize: 10.5,
+			fontWeight: "750",
+		},
 
-	modalButtonsRow: {
-		marginTop: 16,
-		flexDirection: 'row',
-		justifyContent: 'flex-end',
-		gap: 8,
-	},
+		resumoValue: {
+			marginTop: 7,
+			fontSize: 16,
+			lineHeight: 20,
+			fontWeight: "850",
+			fontVariant: [
+				"tabular-nums",
+			],
+		},
 
-	modalButton: {
-		minWidth: 96,
-		height: 40,
-		paddingHorizontal: 14,
-		borderRadius: 999,
-		alignItems: 'center',
-		justifyContent: 'center',
-	},
+		resumoHelper: {
+			marginTop: 3,
+			color: COLORS.subtext,
+			fontSize: 9.5,
+			fontWeight: "500",
+		},
 
-	modalButtonCancel: {
-		backgroundColor: '#EEE',
-	},
+		monthFilterRow: {
+			minHeight: 39,
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 3,
+		},
 
-	modalButtonSave: {
-		backgroundColor: COLORS.primary,
-	},
+		monthNavButton: {
+			width: 34,
+			height: 34,
+			alignItems: "center",
+			justifyContent: "center",
+		},
 
-	modalButtonCancelText: {
-		fontSize: 13,
-		color: COLORS.text,
-		fontWeight: '600',
-	},
+		monthLabelBox: {
+			flex: 1,
+			alignItems: "center",
+			paddingHorizontal: 5,
+		},
 
-	modalButtonSaveText: {
-		fontSize: 13,
-		color: '#FFF',
-		fontWeight: '800',
-	},
+		monthLabelText: {
+			color: COLORS.text,
+			fontSize: 13,
+			fontWeight: "750",
+			textAlign: "center",
+		},
 
-});
+		monthSearchHint: {
+			maxWidth: "100%",
+			marginTop: 2,
+			color: COLORS.primary,
+			fontSize: 9.5,
+			fontWeight: "650",
+			textAlign: "center",
+		},
+
+		searchSection: {
+			paddingHorizontal: 16,
+			paddingTop: 3,
+			paddingBottom: 7,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 7,
+		},
+
+		searchBox: {
+			flex: 1,
+			height: 40,
+			paddingLeft: 12,
+			paddingRight: 7,
+			borderRadius: 12,
+			backgroundColor:
+				COLORS.card,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+		},
+
+		searchInput: {
+			flex: 1,
+			height: "100%",
+			paddingVertical: 0,
+			color: COLORS.text,
+			fontSize: 12.5,
+			fontWeight: "500",
+		},
+
+		searchClearButton: {
+			width: 30,
+			height: 30,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		dateFilterButton: {
+			width: 40,
+			height: 40,
+			borderRadius: 12,
+			backgroundColor:
+				COLORS.card,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		filtersContainer: {
+			paddingHorizontal: 16,
+			paddingTop: 0,
+			paddingBottom: 8,
+			gap: 7,
+		},
+
+		statusFilterGroup: {
+			height: 36,
+			padding: 3,
+			borderRadius: 12,
+			backgroundColor:
+				"rgba(118,118,128,0.10)",
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 3,
+		},
+
+		statusFilterButton: {
+			flex: 1,
+			height: 30,
+			borderRadius: 9,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 4,
+		},
+
+		statusFilterButtonActive: {
+			backgroundColor:
+				COLORS.primary,
+
+			shadowColor: "#000",
+			shadowOpacity: 0.1,
+			shadowRadius: 3,
+			shadowOffset: {
+				width: 0,
+				height: 1,
+			},
+
+			elevation: 2,
+		},
+
+		statusFilterText: {
+			color: COLORS.subtext,
+			fontSize: 10.5,
+			fontWeight: "700",
+		},
+
+		statusFilterTextActive: {
+			color: "#FFFFFF",
+			fontWeight: "850",
+		},
+
+		scopeFilterRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+		},
+
+		scopeButton: {
+			flex: 1,
+			minHeight: 31,
+			paddingHorizontal: 6,
+			borderRadius: 10,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+			backgroundColor:
+				COLORS.card,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 4,
+		},
+
+		scopeButtonActive: {
+			backgroundColor:
+				COLORS.primary,
+			borderColor:
+				COLORS.primary,
+		},
+
+		scopeButtonText: {
+			color: COLORS.subtext,
+			fontSize: 10,
+			fontWeight: "750",
+		},
+
+		scopeButtonTextActive: {
+			color: "#FFFFFF",
+			fontWeight: "850",
+		},
+
+		forecastButtonActive: {
+			backgroundColor:
+				COLORS.pendingSoft,
+			borderColor:
+				"rgba(245,158,11,0.35)",
+		},
+
+		forecastButtonTextActive: {
+			color: COLORS.pending,
+			fontWeight: "850",
+		},
+
+		listContent: {
+			paddingHorizontal: 16,
+			paddingTop: 7,
+			paddingBottom: 100,
+			flexGrow: 1,
+		},
+
+		lancamentoCard: {
+			marginBottom: 11,
+			padding: 13,
+			borderRadius: 17,
+			backgroundColor:
+				COLORS.card,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+
+			shadowColor: "#000",
+			shadowOpacity: 0.07,
+			shadowRadius: 7,
+			shadowOffset: {
+				width: 0,
+				height: 3,
+			},
+
+			elevation: 3,
+		},
+
+		lancamentoHeader: {
+			flexDirection: "row",
+			alignItems: "flex-start",
+		},
+
+		lancamentoTitleBox: {
+			flex: 1,
+			minWidth: 0,
+			marginRight: 10,
+		},
+
+		lancamentoTitle: {
+			color: COLORS.text,
+			fontSize: 14,
+			fontWeight: "800",
+		},
+
+		lancamentoSubtitle: {
+			marginTop: 3,
+			color: COLORS.subtext,
+			fontSize: 12,
+		},
+
+		badge: {
+			paddingHorizontal: 9,
+			paddingVertical: 5,
+			borderRadius: 999,
+		},
+
+		badgeText: {
+			fontSize: 10,
+			fontWeight: "850",
+		},
+
+		lancamentoFooter: {
+			marginTop: 11,
+			paddingTop: 10,
+			borderTopWidth: 1,
+			borderTopColor:
+				"rgba(15,23,42,0.06)",
+			flexDirection: "row",
+			justifyContent:
+				"space-between",
+			alignItems: "flex-end",
+		},
+
+		lancamentoMeta: {
+			flex: 1,
+			minWidth: 0,
+			marginRight: 10,
+		},
+
+		lancamentoData: {
+			color: COLORS.subtext,
+			fontSize: 12,
+			fontWeight: "650",
+		},
+
+		originText: {
+			marginTop: 3,
+			color: COLORS.partial,
+			fontSize: 10,
+			fontWeight: "650",
+		},
+
+		forecastText: {
+			marginTop: 3,
+			color: COLORS.pending,
+			fontSize: 10,
+			fontWeight: "750",
+		},
+
+		valueBlock: {
+			alignItems: "flex-end",
+		},
+
+		lancamentoValor: {
+			color: COLORS.primary,
+			fontSize: 16,
+			fontWeight: "850",
+			fontVariant: [
+				"tabular-nums",
+			],
+		},
+
+		balanceText: {
+			marginTop: 2,
+			color: COLORS.pending,
+			fontSize: 10,
+			fontWeight: "700",
+		},
+
+		loadingBox: {
+			flex: 1,
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 10,
+		},
+
+		loadingText: {
+			color: COLORS.subtext,
+			fontSize: 13,
+		},
+
+		emptyBox: {
+			marginTop: 24,
+			paddingHorizontal: 20,
+			paddingVertical: 24,
+			borderRadius: 18,
+			backgroundColor:
+				COLORS.card,
+			borderWidth: 1,
+			borderColor:
+				COLORS.border,
+			alignItems: "center",
+		},
+
+		emptyIconCircle: {
+			width: 58,
+			height: 58,
+			marginBottom: 12,
+			borderRadius: 29,
+			backgroundColor:
+				COLORS.primarySoft,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		emptyTitle: {
+			color: COLORS.text,
+			fontSize: 16,
+			fontWeight: "850",
+		},
+
+		emptyText: {
+			marginTop: 6,
+			color: COLORS.subtext,
+			fontSize: 13,
+			lineHeight: 18,
+			textAlign: "center",
+		},
+
+		emptyButton: {
+			minHeight: 42,
+			marginTop: 15,
+			paddingHorizontal: 15,
+			borderRadius: 21,
+			backgroundColor:
+				COLORS.primary,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 5,
+		},
+
+		emptyButtonText: {
+			color: "#FFFFFF",
+			fontSize: 13,
+			fontWeight: "850",
+		},
+
+		clearSearchEmptyButton: {
+			minHeight: 38,
+			marginTop: 14,
+			paddingHorizontal: 15,
+			borderRadius: 19,
+			backgroundColor:
+				COLORS.primarySoft,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		clearSearchEmptyText: {
+			color: COLORS.primary,
+			fontSize: 12,
+			fontWeight: "800",
+		},
+	});

@@ -63,6 +63,14 @@ export default function ModalLayout() {
                 }}
             />
             <Stack.Screen
+                name="financeiro"
+                options={{
+                    presentation: 'fullScreenModal',
+                    animation: "slide_from_bottom",
+                    headerShown: false,
+                }}
+            />
+            <Stack.Screen
                 name="tutores/[id]/detail"
                 options={{
                     headerShown: false,

@@ -368,8 +368,8 @@ export default function PetNewModal() {
 				Number.isFinite(pet?.idade) && pet.idade >= 0
 					? String(pet.idade)
 					: pet?.idade
-					? String(pet.idade)
-					: ""
+						? String(pet.idade)
+						: ""
 			);
 
 			setPesoKg(
@@ -494,7 +494,7 @@ export default function PetNewModal() {
 			Alert.alert(
 				"Erro",
 				error?.message ||
-					(isEdit ? "Não foi possível atualizar o pet." : "Não foi possível criar o pet.")
+				(isEdit ? "Não foi possível atualizar o pet." : "Não foi possível criar o pet.")
 			);
 		} finally {
 			setSubmitting(false);
@@ -523,25 +523,81 @@ export default function PetNewModal() {
 		<SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={[]}>
 			<Stack.Screen
 				options={{
-					presentation: "fullScreenModal",
-					title: isEdit ? "Editar pet" : "Novo pet",
-					headerBackTitleVisible: false,
-					headerStyle: { backgroundColor: "#FFFFFF" },
-					headerTintColor: tint,
+					presentation:
+						"fullScreenModal",
+
+					title:
+						isEdit
+							? "Editar pet"
+							: "Novo pet",
+
+					headerBackTitleVisible:
+						false,
+
+					headerTitleAlign:
+						"center",
+
+					headerStyle: {
+						backgroundColor:
+							"#FFFFFF",
+					},
+
+					headerTintColor:
+						tint,
+
 					headerTitleStyle: {
 						color: tint,
 						fontWeight: "800",
 					},
+
+					headerLeftContainerStyle: {
+						minWidth: 64,
+						paddingLeft: 12,
+					},
+
+					headerRightContainerStyle: {
+						minWidth: 64,
+						paddingRight: 12,
+						alignItems: "flex-end",
+					},
+
 					headerLeft: () => (
 						<Pressable
-							onPress={() => router.back()}
-							hitSlop={10}
-							style={styles.headerCancel}
+							onPress={() => {
+								if (
+									router.canGoBack()
+								) {
+									router.back();
+									return;
+								}
+
+								router.replace(
+									"/(phone)/pets"
+								);
+							}}
+							hitSlop={8}
+							accessibilityRole="button"
+							accessibilityLabel="Fechar"
+							style={({ pressed }) => [
+								styles.headerActionButton,
+								pressed &&
+								styles.headerActionButtonPressed,
+							]}
 						>
-							<Text style={[styles.headerCancelText, { color: tint }]}>
-								Cancelar
-							</Text>
+							<Ionicons
+								name="close"
+								size={21}
+								color={tint}
+							/>
 						</Pressable>
+					),
+
+					headerRight: () => (
+						<View
+							style={
+								styles.headerActionPlaceholder
+							}
+						/>
 					),
 				}}
 			/>
@@ -1087,5 +1143,28 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 		fontSize: 11,
 		color: "#6B7280",
+	},
+	headerActionButton: {
+		width: 36,
+		height: 36,
+		borderRadius: 18,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor:
+			"rgba(118,118,128,0.10)",
+	},
+
+	headerActionButtonPressed: {
+		opacity: 0.62,
+		transform: [
+			{
+				scale: 0.96,
+			},
+		],
+	},
+
+	headerActionPlaceholder: {
+		width: 36,
+		height: 36,
 	},
 });

@@ -206,25 +206,86 @@ export default function TutorForm() {
 		navigation.setOptions({
 			headerLargeTitle: false,
 			headerBackTitleVisible: false,
-			headerTitle: id ? tutor?.nome || "Editar Tutor" : "Novo Tutor",
+			headerTitleAlign: "center",
+
+			headerTitle:
+				id
+					? "Editar tutor"
+					: "Novo tutor",
+
+			headerLeftContainerStyle: {
+				minWidth: 64,
+				paddingLeft: 12,
+			},
+
+			headerRightContainerStyle: {
+				minWidth: 64,
+				paddingRight: 12,
+				alignItems: "flex-end",
+			},
+
 			headerLeft: () => (
 				<Pressable
-					onPress={() => navigation.goBack()}
-					hitSlop={10}
-					accessibilityLabel="Cancelar"
-					style={{ marginRight: 10 }}
+					onPress={() => {
+						if (router.canGoBack()) {
+							router.back();
+							return;
+						}
+
+						router.replace("/(phone)/tutores");
+					}}
+					hitSlop={8}
+					accessibilityRole="button"
+					accessibilityLabel="Fechar"
+					style={({ pressed }) => [
+						styles.headerActionButton,
+						pressed &&
+						styles.headerActionButtonPressed,
+					]}
 				>
-					<IconSymbol name="chevron.left" size={24} />
+					<Ionicons
+						name="close"
+						size={21}
+						color={tint}
+					/>
 				</Pressable>
 			),
+
 			headerRight: () =>
 				id ? (
-					<Pressable onPress={confirmDelete} hitSlop={10} accessibilityLabel="Excluir tutor">
-						<IconSymbol name="trash" size={24} />
+					<Pressable
+						onPress={confirmDelete}
+						disabled={submitting}
+						hitSlop={8}
+						accessibilityRole="button"
+						accessibilityLabel="Excluir tutor"
+						style={({ pressed }) => [
+							styles.headerActionButton,
+							styles.headerDeleteButton,
+							pressed &&
+							styles.headerActionButtonPressed,
+							submitting && {
+								opacity: 0.4,
+							},
+						]}
+					>
+						<Ionicons
+							name="trash-outline"
+							size={19}
+							color="#DC2626"
+						/>
 					</Pressable>
-				) : null,
+				) : (
+					<View style={styles.headerActionPlaceholder} />
+				),
 		});
-	}, [navigation, id, tutor?.nome, confirmDelete]);
+	}, [
+		navigation,
+		id,
+		confirmDelete,
+		submitting,
+		tint,
+	]);
 
 	const onChangeCep = useCallback(async (value) => {
 		const digits = onlyDigits(value);
@@ -333,15 +394,15 @@ export default function TutorForm() {
 						types: geo?.raw?.types || [],
 						viewport: vp
 							? {
-									northeast: {
-										lat: vp?.northeast?.lat ?? null,
-										lng: vp?.northeast?.lng ?? null,
-									},
-									southwest: {
-										lat: vp?.southwest?.lat ?? null,
-										lng: vp?.southwest?.lng ?? null,
-									},
-							  }
+								northeast: {
+									lat: vp?.northeast?.lat ?? null,
+									lng: vp?.northeast?.lng ?? null,
+								},
+								southwest: {
+									lat: vp?.southwest?.lat ?? null,
+									lng: vp?.southwest?.lng ?? null,
+								},
+							}
 							: null,
 						navigationPoints: navigationPoints || null,
 						provider: "google",
@@ -495,8 +556,8 @@ export default function TutorForm() {
 								cepTouched && cepDigits.length > 0 && cepDigits.length < 8
 									? "Continue digitando para buscar o endereço."
 									: cepFound
-									? "Endereço encontrado. Confira o número e complemento."
-									: "Opcional."
+										? "Endereço encontrado. Confira o número e complemento."
+										: "Opcional."
 							}
 						>
 							<View style={styles.inputWithIcon}>
@@ -854,5 +915,31 @@ const styles = StyleSheet.create({
 		textAlign: "center",
 		fontSize: 11,
 		color: "#6B7280",
+	},
+	headerActionButton: {
+		width: 36,
+		height: 36,
+		borderRadius: 18,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "rgba(118,118,128,0.10)",
+	},
+
+	headerDeleteButton: {
+		backgroundColor: "rgba(220,38,38,0.08)",
+	},
+
+	headerActionButtonPressed: {
+		opacity: 0.62,
+		transform: [
+			{
+				scale: 0.96,
+			},
+		],
+	},
+
+	headerActionPlaceholder: {
+		width: 36,
+		height: 36,
 	},
 });

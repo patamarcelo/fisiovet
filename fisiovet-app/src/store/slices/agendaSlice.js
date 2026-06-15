@@ -128,7 +128,30 @@ async function enqueueGoogleTaskSafe(dispatch, task) {
 // --------------------------
 function sanitizeEvento(prev, patchOrNew) {
     const nowIso = new Date().toISOString();
-    const next = { ...(prev || {}), ...(patchOrNew || {}) };
+
+    const previous = prev || {};
+    const incoming = patchOrNew || {};
+
+    const next = {
+        ...previous,
+        ...incoming,
+
+        financeiro: {
+            ...(previous.financeiro || {}),
+            ...(incoming.financeiro || {}),
+        },
+
+        googleAgenda: {
+            ...(previous.googleAgenda || {}),
+            ...(incoming.googleAgenda || {}),
+        },
+
+        petIds: Array.isArray(incoming.petIds)
+            ? [...incoming.petIds]
+            : Array.isArray(previous.petIds)
+                ? [...previous.petIds]
+                : [],
+    };
 
     // normalizações
     next.id =
@@ -144,7 +167,11 @@ function sanitizeEvento(prev, patchOrNew) {
     if (!next.status) next.status = 'pendente';
 
     // garante objeto financeiro
-    if (!next.financeiro || typeof next.financeiro !== 'object') {
+    if (
+        !next.financeiro ||
+        typeof next.financeiro !== 'object' ||
+        Array.isArray(next.financeiro)
+    ) {
         next.financeiro = {};
     }
 
@@ -169,7 +196,11 @@ function sanitizeEvento(prev, patchOrNew) {
     }
 
     // garante objeto googleAgenda sem afetar eventos antigos
-    if (!next.googleAgenda || typeof next.googleAgenda !== 'object') {
+    if (
+        !next.googleAgenda ||
+        typeof next.googleAgenda !== 'object' ||
+        Array.isArray(next.googleAgenda)
+    ) {
         next.googleAgenda = {};
     }
 

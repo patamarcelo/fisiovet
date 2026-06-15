@@ -20,6 +20,10 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, router, useFocusEffect } from 'expo-router';
+import {
+    useScrollToTop,
+} from '@react-navigation/native';
+
 import { useDispatch, useSelector, useStore } from 'react-redux';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
@@ -254,6 +258,7 @@ function UpcomingEventsList({
     canCreateEvent,
     tutoresById,
     navPreference,
+    showFinanceValues
 }) {
     const sections = useMemo(
         () => toSections(upcoming),
@@ -361,6 +366,9 @@ function UpcomingEventsList({
                                         navPreference={
                                             navPreference
                                         }
+                                        showFinanceValues={
+                                            showFinanceValues
+                                        }
                                         isLast={isLast}
                                     />
                                 );
@@ -380,6 +388,9 @@ export default function Home() {
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
     const scrollRef = useRef(null);
+
+    useScrollToTop(scrollRef);
+
     const store = useStore();
 
     const tint = useThemeColor({}, 'tint');
@@ -463,17 +474,83 @@ export default function Home() {
             alive = false;
         };
     }, [dispatch, store]);
+    
 
-    useFocusEffect(
-        useCallback(() => {
-            requestAnimationFrame(() => {
-                scrollRef.current?.scrollTo?.({
-                    y: 0,
-                    animated: false,
-                });
-            });
-        }, [])
-    );
+    useEffect(() => {
+        let currentNavigation =
+            navigation;
+
+        const subscriptions = [];
+
+        /*
+         * A Home pode estar dentro de um Stack que, por sua vez,
+         * está dentro do navegador de tabs.
+         *
+         * Registramos o tabPress em todos os pais; somente o
+         * navegador de tabs emitirá esse evento.
+         */
+        while (currentNavigation) {
+            const unsubscribe =
+                currentNavigation.addListener?.(
+                    'tabPress',
+                    () => {
+                        /*
+                         * Só sobe quando a Home já está selecionada.
+                         * Ao entrar nela vindo de outra tab, mantém
+                         * o comportamento normal.
+                         */
+                        if (
+                            !navigation.isFocused()
+                        ) {
+                            return;
+                        }
+
+                        Haptics.selectionAsync().catch(
+                            () => { }
+                        );
+
+                        requestAnimationFrame(
+                            () => {
+                                scrollRef.current?.scrollTo?.({
+                                    y: 0,
+                                    animated: true,
+                                });
+                            }
+                        );
+                    }
+                );
+
+            if (
+                typeof unsubscribe ===
+                'function'
+            ) {
+                subscriptions.push(
+                    unsubscribe
+                );
+            }
+
+            currentNavigation =
+                currentNavigation.getParent?.();
+        }
+
+        return () => {
+            subscriptions.forEach(
+                (unsubscribe) =>
+                    unsubscribe()
+            );
+        };
+    }, [navigation]);
+
+    // useFocusEffect(
+    //     useCallback(() => {
+    //         requestAnimationFrame(() => {
+    //             scrollRef.current?.scrollTo?.({
+    //                 y: 0,
+    //                 animated: false,
+    //             });
+    //         });
+    //     }, [])
+    // );
 
     useEffect(() => {
         let alive = true;
@@ -756,6 +833,9 @@ export default function Home() {
                             canCreateEvent={canCreateEvent}
                             tutoresById={tutoresById}
                             navPreference={navPreference}
+                            showFinanceValues={
+                                showFinanceValues
+                            }
                         />
                     </View>
 
@@ -860,7 +940,7 @@ const styles = StyleSheet.create({
     },
 
     headerLogoBox: {
-        width: 92,
+        width: 102,
         height: 68,
         alignItems: 'center',
         justifyContent: 'center',
@@ -870,7 +950,7 @@ const styles = StyleSheet.create({
 
     headerLogo: {
         width: 90,
-        height: 66,
+        height: 110,
     },
 
     avatarWrapper: {

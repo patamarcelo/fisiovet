@@ -48,11 +48,14 @@ import {
 } from "@/src/store/slices/petsSlice";
 
 import {
-    addEvento,
-    updateEvento,
     selectEventoById,
-    addEventosBatch,
 } from "@/src/store/slices/agendaSlice";
+
+import {
+    createEventoComFinanceiro,
+    createEventosRecorrentesComFinanceiro,
+    updateEventoComFinanceiro,
+} from "@/src/features/financeiro/financeiro.workflows";
 
 import {
     selectDefaultDuracao,
@@ -674,8 +677,17 @@ export default function AgendaNewScreen() {
             setDuracao(eventoExistente.duracao);
         }
 
-        const preco = eventoExistente?.financeiro?.preco;
-        setPrecoText(preco != null ? String(preco).replace(".", ",") : "");
+        const preco =
+            eventoExistente?.financeiro?.preco ??
+            0;
+
+        setPrecoText(
+            preco > 0
+                ? Number(preco)
+                    .toFixed(2)
+                    .replace(".", ",")
+                : ""
+        );
 
         const eventTutor =
             tutorFromEvent ||
@@ -820,7 +832,7 @@ export default function AgendaNewScreen() {
         });
     }, [navigation, eventIdParam, isEditing, evento, status]);
 
-    
+
     const openMaps = useCallback(() => {
         if (!tutor?.geo?.lat || !tutor?.geo?.lng) {
             return;
@@ -873,28 +885,64 @@ export default function AgendaNewScreen() {
 
         try {
             setSaving(true);
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
+            await Haptics.impactAsync(
+                Haptics.ImpactFeedbackStyle.Medium
+            );
+
+            const valorOriginal =
+                parseBRLToNumber(precoText);
+
+            /*
+             * Edição de evento existente
+             */
             if (eventIdParam) {
                 await dispatch(
-                    updateEvento({
+                    updateEventoComFinanceiro({
                         id: eventIdParam,
+
                         patch: {
                             title: title.trim(),
                             date,
                             duracao,
-                            tutorId: tutor.id || null,
-                            tutorNome: tutor.nome || tutor.name || "",
-                            petIds: selectedPetIds,
-                            local: (local || "").trim(),
-                            observacoes: (observacoes || "").trim(),
-                            cliente: tutor?.nome || tutor?.name || "",
+
+                            tutorId:
+                                tutor?.id || null,
+
+                            tutorNome:
+                                tutor?.nome ||
+                                tutor?.name ||
+                                "",
+
+                            petIds:
+                                selectedPetIds,
+
+                            local:
+                                (local || "").trim(),
+
+                            observacoes:
+                                (observacoes || "").trim(),
+
+                            cliente:
+                                tutor?.nome ||
+                                tutor?.name ||
+                                "",
+
                             status,
-                            descricao: (descricao || "").trim(),
-                            financeiro: {
-                                ...(eventoExistente?.financeiro || {}),
-                                preco: parseBRLToNumber(precoText),
-                            },
+
+                            descricao:
+                                (descricao || "").trim(),
+                        },
+
+                        financeiroPatch: {
+                            valorOriginal,
+
+                            descricao:
+                                (descricao || "").trim() ||
+                                title.trim(),
+
+                            vencimento:
+                                date,
                         },
                     })
                 ).unwrap();
@@ -904,49 +952,140 @@ export default function AgendaNewScreen() {
                 return;
             }
 
+            /*
+             * Payload base dos novos eventos
+             *
+             * Mantemos financeiro no evento para compatibilidade.
+             * O workflow cria o lançamento como fonte de verdade
+             * e depois atualiza o resumo do evento.
+             */
             const base = {
                 title: title.trim(),
                 date,
                 duracao,
-                tutorId: tutor.id || null,
-                tutorNome: tutor.nome || tutor.name || "",
-                petIds: selectedPetIds,
-                local: (local || "").trim(),
-                observacoes: (observacoes || "").trim(),
-                cliente: tutor?.nome || tutor?.name || "",
+
+                tutorId:
+                    tutor?.id || null,
+
+                tutorNome:
+                    tutor?.nome ||
+                    tutor?.name ||
+                    "",
+
+                petIds:
+                    selectedPetIds,
+
+                local:
+                    (local || "").trim(),
+
+                observacoes:
+                    (observacoes || "").trim(),
+
+                cliente:
+                    tutor?.nome ||
+                    tutor?.name ||
+                    "",
+
                 status,
-                descricao: (descricao || "").trim(),
+
+                descricao:
+                    (descricao || "").trim(),
+
                 financeiro: {
-                    preco: parseBRLToNumber(precoText),
+                    preco: valorOriginal,
                     pago: false,
+                    status:
+                        valorOriginal > 0
+                            ? "pendente"
+                            : "rascunho",
+                    valorRecebido: 0,
+                    saldo: valorOriginal,
+                    lancamentoId: null,
                     comprovanteUrl: null,
                 },
             };
 
+            /*
+             * Evento simples
+             */
             if (!recorrente) {
-                await dispatch(addEvento(base)).unwrap();
+                await dispatch(
+                    createEventoComFinanceiro(base)
+                ).unwrap();
+
                 router.back();
                 return;
             }
 
-            const seriesId = `SR-${Date.now()}-${Math.random()
-                .toString(36)
-                .slice(2, 8)}`;
-            const n = Math.max(1, parseInt(recorrencias || "1", 10));
-            const baseTime = Date.now();
+            /*
+             * Eventos recorrentes
+             */
+            const seriesId =
+                `SR-${Date.now()}-${Math.random()
+                    .toString(36)
+                    .slice(2, 8)}`;
 
-            const payloads = Array.from({ length: n }, (_, i) => ({
-                ...base,
-                seriesId,
-                id: `${baseTime}-${i}-${Math.random().toString(36).slice(2, 6)}`,
-                date: addDays(base.date, i * 7),
-            }));
+            const totalRecorrencias =
+                Math.max(
+                    1,
+                    parseInt(
+                        recorrencias || "1",
+                        10
+                    )
+                );
 
-            await dispatch(addEventosBatch(payloads)).unwrap();
+            const payloads =
+                Array.from(
+                    {
+                        length:
+                            totalRecorrencias,
+                    },
+                    (_, index) => ({
+                        ...base,
+
+                        seriesId,
+
+                        /*
+                         * Não precisamos definir id aqui.
+                         * O services/agenda cria o ID real no Firestore.
+                         */
+                        date: addDays(
+                            base.date,
+                            index * 7
+                        ),
+                    })
+                );
+
+            const result = await dispatch(
+                createEventosRecorrentesComFinanceiro(
+                    payloads
+                )
+            ).unwrap();
+
+            /*
+             * Os eventos foram criados, mas algum lançamento
+             * pode ter falhado. Não bloqueamos a saída porque
+             * a migração progressiva consegue reparar depois.
+             */
+            if (result?.totalErros > 0) {
+                console.warn(
+                    "Alguns lançamentos financeiros não foram criados:",
+                    result.errors
+                );
+            }
+
             router.back();
-        } catch (e) {
-            console.warn("Erro ao salvar evento:", e);
-            Alert.alert("Erro", e?.message || "Não foi possível salvar o evento.");
+        } catch (error) {
+            console.warn(
+                "Erro ao salvar evento:",
+                error
+            );
+
+            Alert.alert(
+                "Erro",
+                error?.message ||
+                "Não foi possível salvar o evento."
+            );
         } finally {
             setSaving(false);
         }
@@ -965,7 +1104,6 @@ export default function AgendaNewScreen() {
         status,
         recorrente,
         recorrencias,
-        eventoExistente,
         descricao,
         dispatch,
     ]);

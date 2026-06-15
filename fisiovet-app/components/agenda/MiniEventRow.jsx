@@ -146,6 +146,24 @@ async function openUrl(url, fallbackUrl) {
     }
 }
 
+
+const currencyFormatterBR =
+    new Intl.NumberFormat('pt-BR', {
+        style: 'currency',
+        currency: 'BRL',
+        minimumFractionDigits: 2,
+    });
+
+function formatCurrency(value) {
+    const number = Number(value || 0);
+
+    return currencyFormatterBR.format(
+        Number.isFinite(number)
+            ? number
+            : 0
+    );
+}
+
 function getNavigationUrls({
     lat,
     lng,
@@ -192,9 +210,12 @@ function getNavigationUrls({
 
 function SecondaryAction({
     icon,
+    textIcon,
     label,
     onPress,
     disabled = false,
+    compact = false,
+    value = false
 }) {
     return (
         <Pressable
@@ -218,31 +239,53 @@ function SecondaryAction({
             hitSlop={4}
             style={({ pressed }) => [
                 styles.secondaryAction,
+                compact &&
+                styles.secondaryActionCompact,
+                value &&
+                styles.secondaryActionValue,
                 pressed &&
                 !disabled &&
                 styles.secondaryActionPressed,
             ]}
         >
-            <Ionicons
-                name={icon}
-                size={18}
-                color={
-                    disabled
-                        ? COLORS.disabledText
-                        : COLORS.secondaryText
-                }
-            />
+            {textIcon ? (
+                <Text
+                    style={[
+                        styles.secondaryActionEmoji,
+                        disabled &&
+                        styles.secondaryActionEmojiDisabled,
+                    ]}
+                >
+                    {textIcon}
+                </Text>
+            ) : (
+                <Ionicons
+                    name={icon}
+                    size={18}
+                    color={
+                        disabled
+                            ? COLORS.disabledText
+                            : value
+                                ? COLORS.primaryStrong
+                                : COLORS.secondaryText
+                    }
+                />
+            )}
 
-            <Text
-                numberOfLines={1}
-                style={[
-                    styles.secondaryActionText,
-                    disabled &&
-                    styles.secondaryActionTextDisabled,
-                ]}
-            >
-                {label}
-            </Text>
+            {!!label && (
+                <Text
+                    numberOfLines={1}
+                    style={[
+                        styles.secondaryActionText,
+                        value &&
+                        styles.secondaryActionValueText,
+                        disabled &&
+                        styles.secondaryActionTextDisabled,
+                    ]}
+                >
+                    {label}
+                </Text>
+            )}
         </Pressable>
     );
 }
@@ -314,6 +357,7 @@ export default function MiniEventRow({
     item,
     tutor,
     navPreference = 'ask',
+    showFinanceValues = false,
     isLast = false,
 }) {
     const {
@@ -343,6 +387,34 @@ export default function MiniEventRow({
     const eventTitle =
         title?.trim() || 'Evento';
 
+    const financeiro =
+        item?.financeiro &&
+            typeof item.financeiro === 'object'
+            ? item.financeiro
+            : {};
+
+    const lancamentoId =
+        financeiro?.lancamentoId
+            ? String(
+                financeiro.lancamentoId
+            )
+            : null;
+
+    const financeiroValue =
+        Number(
+            financeiro?.preco ?? 0
+        );
+
+    const hasFinanceiro =
+        Boolean(lancamentoId);
+
+    const financeiroLabel =
+        showFinanceValues
+            ? formatCurrency(
+                financeiroValue
+            )
+            : '';
+
     const navigationLabel = useMemo(() => {
         return (
             tutor?.nome ||
@@ -370,6 +442,27 @@ export default function MiniEventRow({
         item?.cliente,
     ]);
 
+    const financeiroStatus =
+        financeiro?.status ||
+        (
+            financeiro?.pago
+                ? 'pago'
+                : 'pendente'
+        );
+
+    const isFinanceiroPago =
+        financeiroStatus === 'pago';
+
+    const financeiroStatusLabel = {
+        rascunho: 'Financeiro em rascunho',
+        pendente: 'Pagamento pendente',
+        parcial: 'Pagamento parcial',
+        pago: 'Pagamento concluído',
+        vencido: 'Pagamento vencido',
+        cancelado: 'Lançamento cancelado',
+    }[financeiroStatus] ||
+        'Pagamento pendente';
+
     /* ---------------------------- Open event ---------------------------- */
 
     const openEvent = () => {
@@ -386,6 +479,26 @@ export default function MiniEventRow({
             pathname: '/(modals)/agenda-new',
             params: {
                 id: String(item.id),
+            },
+        });
+    };
+
+    const openFinanceiro = () => {
+        if (!lancamentoId) {
+            Alert.alert(
+                'Financeiro',
+                'Este evento ainda não possui um lançamento financeiro vinculado.'
+            );
+
+            return;
+        }
+
+        router.push({
+            pathname:
+                '/(modals)/financeiro/[id]',
+
+            params: {
+                id: lancamentoId,
             },
         });
     };
@@ -713,6 +826,38 @@ export default function MiniEventRow({
                         </Text>
                     </View>
                 )}
+                {hasFinanceiro && (
+                    <View style={styles.financeSummaryRow}>
+                        <View
+                            style={[
+                                styles.financeStatusDot,
+                                {
+                                    backgroundColor:
+                                        isFinanceiroPago
+                                            ? COLORS.confirmed
+                                            : financeiroStatus === 'vencido'
+                                                ? COLORS.cancelled
+                                                : COLORS.pending
+                                },
+                            ]}
+                        />
+
+                        <Text style={styles.financeSummaryText}>
+                            {financeiroStatusLabel}
+                        </Text>
+
+                        {/* {showFinanceValues && (
+                            <Text
+                                style={styles.financeSummaryValue}
+                                numberOfLines={1}
+                            >
+                                {formatCurrency(
+                                    financeiroValue
+                                )}
+                            </Text>
+                        )} */}
+                    </View>
+                )}
             </Pressable>
 
             <View style={styles.separator} />
@@ -720,7 +865,7 @@ export default function MiniEventRow({
             <View style={styles.actionsBar}>
                 <View style={styles.secondaryActions}>
                     <SecondaryAction
-                        icon="eye-outline"
+                        textIcon="🐵"
                         label="Ver"
                         onPress={openEvent}
                     />
@@ -729,8 +874,16 @@ export default function MiniEventRow({
 
                     <SecondaryAction
                         icon="wallet-outline"
-                        label="Financeiro"
-                        disabled
+                        label={financeiroLabel}
+                        onPress={openFinanceiro}
+                        disabled={!hasFinanceiro}
+                        compact={
+                            !showFinanceValues
+                        }
+                        value={
+                            showFinanceValues &&
+                            hasFinanceiro
+                        }
                     />
                 </View>
 
@@ -770,7 +923,7 @@ const styles = StyleSheet.create({
     },
 
     contentButton: {
-        minHeight: 84,
+        minHeight: 88,
         paddingTop: 12,
         paddingBottom: 11,
         paddingLeft: 15,
@@ -916,6 +1069,7 @@ const styles = StyleSheet.create({
 
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 3,
     },
 
     secondaryAction: {
@@ -950,7 +1104,8 @@ const styles = StyleSheet.create({
 
     actionSeparator: {
         width: StyleSheet.hairlineWidth,
-        height: 22,
+        height: 20,
+        marginHorizontal: 2,
 
         backgroundColor:
             COLORS.separator,
@@ -1019,5 +1174,63 @@ const styles = StyleSheet.create({
     rowSeparator: {
         height: 1,
         backgroundColor: 'rgba(60, 60, 67, 0.22)',
+    },
+    secondaryActionCompact: {
+        minWidth: 44,
+        width: 44,
+        paddingHorizontal: 6,
+    },
+
+    secondaryActionValue: {
+        minWidth: 104,
+        paddingHorizontal: 9,
+        backgroundColor:
+            'rgba(111, 174, 134, 0.10)',
+    },
+
+    secondaryActionValueText: {
+        color: COLORS.primaryStrong,
+        fontSize: 11,
+        fontWeight: '800',
+    },
+
+    secondaryActionEmoji: {
+        fontSize: 17,
+        lineHeight: 21,
+    },
+
+    secondaryActionEmojiDisabled: {
+        opacity: 0.35,
+    },
+    financeSummaryRow: {
+        marginTop: 9,
+        minHeight: 24,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        backgroundColor:
+            'rgba(118,118,128,0.055)',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+
+    financeStatusDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
+    },
+
+    financeSummaryText: {
+        flex: 1,
+        minWidth: 0,
+        color: COLORS.secondaryText,
+        fontSize: 10.5,
+        fontWeight: '600',
+    },
+
+    financeSummaryValue: {
+        color: COLORS.primaryStrong,
+        fontSize: 11,
+        fontWeight: '800',
     },
 });
