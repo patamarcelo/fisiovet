@@ -1,6 +1,7 @@
 // src/store/slices/agendaSlice.js
 // Redux + thunks usando o services/agenda (cloud-first + cache local)
 // Sem mocks e sem gerar dados iniciais
+// @ts-nocheck
 
 import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import {
@@ -331,14 +332,14 @@ export const addEvento = createAsyncThunk(
 
 export const updateEvento = createAsyncThunk(
     'agenda/update',
-    async ({ id, patch, changeStatus }, { getState, dispatch }) => {
+    async ({ id, patch, changeStatus = false, skipGoogleSync = false, }, { getState, dispatch }) => {
         const state = getState();
         const prev = selectEventoById(id)(state); // evento atual no estado
 
         // Mantém comportamento atual: swipe/status não cria task Google.
-        if (changeStatus) {
+        if (changeStatus || skipGoogleSync) {
             const saved = await svcUpdateEvento(String(id), patch);
-            return saved;
+            return sanitizeEvento(prev, saved);
         }
 
         const shouldSyncGoogle = isGoogleCalendarEnabled(state);
