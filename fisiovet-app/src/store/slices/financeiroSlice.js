@@ -33,6 +33,13 @@ import {
   mapEventoToLancamento,
 } from "@/src/features/financeiro/financeiro.mappers";
 
+
+
+import {
+  ensureLancamentoForEventoMigration,
+} from "@/src/features/financeiro/financeiro.migration";
+
+
 /* =========================================================
    Estado inicial
 ========================================================= */
@@ -67,16 +74,16 @@ function sortIds(state) {
 
     const dateA = new Date(
       itemA?.competencia ||
-        itemA?.vencimento ||
-        itemA?.createdAt ||
-        0
+      itemA?.vencimento ||
+      itemA?.createdAt ||
+      0
     ).getTime();
 
     const dateB = new Date(
       itemB?.competencia ||
-        itemB?.vencimento ||
-        itemB?.createdAt ||
-        0
+      itemB?.vencimento ||
+      itemB?.createdAt ||
+      0
     ).getTime();
 
     const safeA = Number.isFinite(dateA)
@@ -145,8 +152,8 @@ export const loadLancamentos =
 
       return Array.isArray(rows)
         ? rows.map((item) =>
-            sanitizeLancamento(item)
-          )
+          sanitizeLancamento(item)
+        )
         : [];
     }
   );
@@ -259,71 +266,29 @@ export const ensureLancamentoForEvento =
       evento,
       overrides = {},
     }) => {
-      if (!evento?.id) {
-        throw new Error(
-          "Evento inválido."
-        );
-      }
-
-      const lancamentoId =
-        evento?.financeiro
-          ?.lancamentoId;
-
-      if (lancamentoId) {
-        try {
-          const existingById =
-            await svcGetLancamentoById(
-              lancamentoId
-            );
-
-          return {
-            lancamento:
-              sanitizeLancamento(
-                existingById
-              ),
-
-            created: false,
-            linked: true,
-          };
-        } catch {
-          // Continua e procura pelo eventoId.
-        }
-      }
-
-      const existingByEvento =
-        await svcFindLancamentoByEventoId(
-          evento.id
-        );
-
-      if (existingByEvento) {
-        return {
-          lancamento:
-            sanitizeLancamento(
-              existingByEvento
-            ),
-
-          created: false,
-          linked: false,
-        };
-      }
-
-      const payload =
-        mapEventoToLancamento(
+      const result =
+        await ensureLancamentoForEventoMigration(
           evento,
           overrides
         );
 
-      const created =
-        await svcCreateLancamento(
-          payload
-        );
-
       return {
         lancamento:
-          sanitizeLancamento(created),
+          sanitizeLancamento(
+            result.lancamento
+          ),
 
-        created: true,
-        linked: false,
+        evento:
+          result.evento,
+
+        created:
+          result.created,
+
+        linked:
+          result.linked,
+
+        foundBy:
+          result.foundBy,
       };
     }
   );
@@ -522,8 +487,8 @@ const financeiroSlice = createSlice({
           state.selectedId =
             action.payload?.id
               ? String(
-                  action.payload.id
-                )
+                action.payload.id
+              )
               : null;
         }
       )
@@ -791,7 +756,7 @@ export const selectLancamentoById =
       selectFinanceiroState,
       (financeiro) =>
         financeiro.byId[
-          String(id)
+        String(id)
         ] || null
     );
 
@@ -807,9 +772,9 @@ export const selectSelectedLancamento =
 
       return (
         financeiro.byId[
-          String(
-            financeiro.selectedId
-          )
+        String(
+          financeiro.selectedId
+        )
         ] || null
       );
     }
@@ -949,7 +914,7 @@ export const selectFinanceiroResumo =
           const final =
             Number(
               item?.valores?.final ||
-                0
+              0
             );
 
           const recebido =
@@ -961,7 +926,7 @@ export const selectFinanceiroResumo =
           const saldo =
             Number(
               item?.valores?.saldo ||
-                0
+              0
             );
 
           if (

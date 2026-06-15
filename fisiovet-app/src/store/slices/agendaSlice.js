@@ -37,6 +37,30 @@ const toDateLocal = (v) => {
 
 const isValidDate = (d) => d instanceof Date && !isNaN(d.getTime());
 
+function hasUsableDateValue(value) {
+    if (value == null || value === '') {
+        return false;
+    }
+
+    if (value instanceof Date) {
+        return isValidDate(value);
+    }
+
+    if (typeof value === 'string' || typeof value === 'number') {
+        return isValidDate(toDateLocal(value));
+    }
+
+    if (typeof value?.toDate === 'function') {
+        try {
+            return isValidDate(value.toDate());
+        } catch {
+            return false;
+        }
+    }
+
+    return false;
+}
+
 function buildStartEndFrom(dateLike, durHHMM) {
     const startD = toDateLocal(dateLike);
 
@@ -169,18 +193,27 @@ function sanitizeEvento(prev, patchOrNew) {
     // --- (re)calcular start/end SOMENTE se a base for válida ---
     let se = null;
 
-    if (patchOrNew?.date) {
+    if (hasUsableDateValue(patchOrNew?.date)) {
         se = buildStartEndFrom(
             patchOrNew.date,
             patchOrNew.duracao || next.duracao
         );
-    } else if (patchOrNew?.start && (patchOrNew?.duracao || next.duracao)) {
+    } else if (
+        hasUsableDateValue(patchOrNew?.start) &&
+        (patchOrNew?.duracao || next.duracao)
+    ) {
         se = buildStartEndFrom(
             patchOrNew.start,
             patchOrNew?.duracao || next.duracao
         );
-    } else if (patchOrNew?.duracao && next.start) {
-        se = buildStartEndFrom(next.start, patchOrNew.duracao);
+    } else if (
+        patchOrNew?.duracao &&
+        hasUsableDateValue(next.start)
+    ) {
+        se = buildStartEndFrom(
+            next.start,
+            patchOrNew.duracao
+        );
     }
 
     if (se && se.start && se.end) {
@@ -188,8 +221,13 @@ function sanitizeEvento(prev, patchOrNew) {
         next.end = se.end;
     } else {
         // mantém os valores anteriores válidos
-        if (!isValidDate(new Date(next.start))) delete next.start;
-        if (!isValidDate(new Date(next.end))) delete next.end;
+        if (!hasUsableDateValue(next.start)) {
+            delete next.start;
+        }
+
+        if (!hasUsableDateValue(next.end)) {
+            delete next.end;
+        }
     }
 
     // timestamps (norma do slice; Firestore também mantém createdAt/updatedAt)
