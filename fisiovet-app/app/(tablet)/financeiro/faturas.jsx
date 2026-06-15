@@ -1,1 +1,1 @@
-export { default } from '@/src/screens/financeiro/Invoices';
+export { default } from "@/src/screens/financeiro/Charges";

@@ -1,7 +1,7 @@
 import React from "react";
 import { Text, View } from "react-native";
 
-export default function Receipts() {
+export default function Charges() {
   return (
     <View
       style={{
@@ -16,11 +16,11 @@ export default function Receipts() {
           fontWeight: "800",
         }}
       >
-        Recebimentos
+        Cobranças
       </Text>
 
       <Text style={{ marginTop: 8 }}>
-        Histórico de pagamentos registrados.
+        Integrações com meios de pagamento serão adicionadas futuramente.
       </Text>
     </View>
   );

@@ -1,7 +1,10 @@
 import React from "react";
 import { Text, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 
-export default function Receipts() {
+export default function LancamentoDetail() {
+  const { id } = useLocalSearchParams();
+
   return (
     <View
       style={{
@@ -16,11 +19,11 @@ export default function Receipts() {
           fontWeight: "800",
         }}
       >
-        Recebimentos
+        Detalhe financeiro
       </Text>
 
       <Text style={{ marginTop: 8 }}>
-        Histórico de pagamentos registrados.
+        Lançamento: {String(id || "")}
       </Text>
     </View>
   );
