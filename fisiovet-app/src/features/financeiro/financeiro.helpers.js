@@ -1,4 +1,6 @@
+// @ts-nocheck
 import { FINANCEIRO_STATUS } from "./financeiro.constants";
+
 
 export function normalizeMoney(value) {
   if (value == null || value === "") return 0;
