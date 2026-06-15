@@ -12,6 +12,7 @@ import avaliacaoReducer from './slices/avaliacaoSlice';
 import bootstrapReducer from './bootstrapSlice';
 import subscriptionReducer from "./slices/subscriptionSlice";
 import syncQueueReducer from "./slices/syncQueueSlice";
+import financeiroReducer from './slices/financeiroSlice';
 
 import { clearSession } from "./sessionActions";
 
@@ -20,6 +21,7 @@ const appReducer = combineReducers({
 	tutores: tutoresReduce,
 	pets: petsReducer,
 	agenda: agendaReducer,
+	financeiro:financeiroReducer,
 	system: systemReducer,
 	avaliacao: avaliacaoReducer,
 	bootstrap: bootstrapReducer, // ⬅️ novo
@@ -31,8 +33,8 @@ const appReducer = combineReducers({
 const persistConfig = {
 	key: "root",
 	storage: AsyncStorage,
-	version: 2,
-	whitelist: ["user", "tutores", "pets", "agenda", "system", "avaliacao", "subscription"],
+	version: 3,
+	whitelist: ["user", "tutores", "pets", "agenda", "financeiro", "system", "avaliacao", "subscription"],
 };
 
 // ⬇️ rootReducer que zera tudo quando receber session/clear
