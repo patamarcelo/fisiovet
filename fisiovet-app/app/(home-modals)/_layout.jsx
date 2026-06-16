@@ -176,7 +176,7 @@ export default function HomeModalsLayout() {
                 }}
             />
             <Stack.Screen
-                name="Assinatura"
+                name="assinatura"
                 options={{
                     headerShown: true,
                     title: "Assinatura",

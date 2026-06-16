@@ -266,7 +266,7 @@ function InputShell({ children, disabled, multiline }) {
     );
 }
 
-function AppTextInput({
+const AppTextInput = React.forwardRef(function AppTextInput({
     value,
     onChangeText,
     placeholder,
@@ -275,7 +275,10 @@ function AppTextInput({
     keyboardType,
     icon,
     onFocus,
-}) {
+    returnKeyType,
+    blurOnSubmit,
+    onSubmitEditing,
+}, ref) {
     return (
         <InputShell disabled={disabled} multiline={multiline}>
             {!!icon && (
@@ -288,14 +291,18 @@ function AppTextInput({
             )}
 
             <TextInput
+                ref={ref}
                 value={value}
+                onFocus={onFocus}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
                 placeholderTextColor="#9CA3AF"
                 editable={!disabled}
                 multiline={multiline}
                 keyboardType={keyboardType}
-                onFocus={onFocus}
+                returnKeyType={returnKeyType}
+                blurOnSubmit={blurOnSubmit}
+                onSubmitEditing={onSubmitEditing}
                 textAlignVertical={multiline ? "top" : "center"}
                 style={[
                     styles.input,
@@ -305,7 +312,7 @@ function AppTextInput({
             />
         </InputShell>
     );
-}
+});
 
 function StatusBadge({ status }) {
     const s = STATUS_STYLES[status] || STATUS_STYLES.default;
@@ -692,7 +699,6 @@ export default function AgendaNewScreen() {
     const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
     const onSubmitRef = useRef(null);
     const preselectedPetIdRef = useRef(preselectPetIdParam);
-    const scrollRef = useRef(null);
 
     const [isEditing, setIsEditing] = useState(() => !eventIdParam);
     const [title, setTitle] = useState(() =>
@@ -723,12 +729,34 @@ export default function AgendaNewScreen() {
     const [duracao, setDuracao] = useState(defaultDur || "01:00");
     const [local, setLocal] = useState("");
     const [observacoes, setObservacoes] = useState("");
+
+    const scrollRef = useRef(null);
+    const titleRef = useRef(null);
+    const descricaoRef = useRef(null);
+    const localRef = useRef(null);
+    const observacoesRef = useRef(null);
+
+    const revealObservacoes = useCallback(() => {
+        setTimeout(() => {
+            const input = observacoesRef.current;
+            const responder = scrollRef.current?.getScrollResponder?.();
+
+            if (!input || !responder?.scrollResponderScrollNativeHandleToKeyboard) {
+                return;
+            }
+
+            responder.scrollResponderScrollNativeHandleToKeyboard(
+                input,
+                92,
+                true
+            );
+        }, 220);
+    }, []);
     const [precoText, setPrecoText] = useState("");
     const [status, setStatus] = useState("pendente");
     const [recorrente, setRecorrente] = useState(false);
     const [recorrencias, setRecorrencias] = useState("4");
     const [saving, setSaving] = useState(false);
-    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     const disabled = !isEditing;
 
@@ -758,35 +786,6 @@ export default function AgendaNewScreen() {
     }, []);
 
     /* ---------- Effects ---------- */
-
-    useEffect(() => {
-        const showEvent =
-            Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-        const hideEvent =
-            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-        const showSubscription = Keyboard.addListener(showEvent, () => {
-            setKeyboardVisible(true);
-        });
-
-        const hideSubscription = Keyboard.addListener(hideEvent, () => {
-            setKeyboardVisible(false);
-        });
-
-        return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
-        };
-    }, []);
-
-    const revealObservacoes = useCallback(() => {
-        requestAnimationFrame(() => {
-            setTimeout(() => {
-                scrollRef.current?.scrollToEnd({ animated: true });
-            }, Platform.OS === "ios" ? 180 : 80);
-        });
-    }, []);
-
 
     useEffect(() => {
         if (!eventoExistente) return;
@@ -1345,7 +1344,7 @@ export default function AgendaNewScreen() {
             <KeyboardAvoidingView
                 style={styles.flex}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={0}
+                keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
             >
                 <ScrollView
                     ref={scrollRef}
@@ -1354,17 +1353,11 @@ export default function AgendaNewScreen() {
                         styles.content,
                         {
                             paddingBottom:
-                                (keyboardVisible
-                                    ? 28
-                                    : isEditing
-                                        ? 108
-                                        : 28) + Math.max(insets.bottom, 0),
+                                (isEditing ? 108 : 28) + Math.max(insets.bottom, 0),
                         },
                     ]}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
-                    automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
-                    onScrollBeginDrag={Keyboard.dismiss}
+                    keyboardShouldPersistTaps="always"
+                    keyboardDismissMode="none"
                     showsVerticalScrollIndicator={false}
                 >
                     <SectionCard
@@ -1383,10 +1376,14 @@ export default function AgendaNewScreen() {
                         </FieldLabel>
 
                         <AppTextInput
+                            ref={titleRef}
                             value={title}
                             onChangeText={setTitle}
                             placeholder="Ex.: Consulta - Thor"
                             disabled={disabled}
+                            returnKeyType="next"
+                            blurOnSubmit={false}
+                            onSubmitEditing={() => descricaoRef.current?.focus()}
                         />
 
                         <View style={styles.fieldGap} />
@@ -1394,11 +1391,15 @@ export default function AgendaNewScreen() {
                         <FieldLabel>Descrição</FieldLabel>
 
                         <AppTextInput
+                            ref={descricaoRef}
                             value={descricao}
                             onChangeText={setDescricao}
                             placeholder="Ex.: primeira sessão, retorno, pós-cirúrgico..."
                             disabled={disabled}
                             multiline
+                            returnKeyType="done"
+                            blurOnSubmit
+                            onSubmitEditing={Keyboard.dismiss}
                         />
                     </SectionCard>
 
@@ -1594,11 +1595,15 @@ export default function AgendaNewScreen() {
                         <FieldLabel>Local</FieldLabel>
 
                         <AppTextInput
+                            ref={localRef}
                             value={local}
                             onChangeText={setLocal}
                             placeholder="Endereço ou local do atendimento"
                             disabled={disabled}
                             icon="location-outline"
+                            returnKeyType="next"
+                            blurOnSubmit={false}
+                            onSubmitEditing={() => observacoesRef.current?.focus()}
                         />
 
                         <View style={styles.fieldGap} />
@@ -1606,12 +1611,16 @@ export default function AgendaNewScreen() {
                         <FieldLabel>Observações</FieldLabel>
 
                         <AppTextInput
+                            ref={observacoesRef}
                             value={observacoes}
+                            onFocus={revealObservacoes}
                             onChangeText={setObservacoes}
                             placeholder="Alguma observação sobre a consulta"
                             disabled={disabled}
                             multiline
-                            onFocus={revealObservacoes}
+                            returnKeyType="done"
+                            blurOnSubmit
+                            onSubmitEditing={Keyboard.dismiss}
                         />
                     </SectionCard>
 
@@ -1622,7 +1631,7 @@ export default function AgendaNewScreen() {
                     )}
                 </ScrollView>
 
-                {isEditing && !keyboardVisible && (
+                {isEditing && (
                     <View
                         style={[
                             styles.footer,

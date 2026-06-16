@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
   Linking,
   Keyboard,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
@@ -330,6 +331,31 @@ export default function PetNewModal() {
   const [pesoKg, setPesoKg] = useState("");
   const [observacoes, setObservacoes] = useState("");
 
+  const scrollRef = useRef(null);
+  const nomeRef = useRef(null);
+  const racaRef = useRef(null);
+  const corRef = useRef(null);
+  const idadeRef = useRef(null);
+  const pesoRef = useRef(null);
+  const observacoesRef = useRef(null);
+
+  const revealObservacoes = useCallback(() => {
+    setTimeout(() => {
+      const input = observacoesRef.current;
+      const responder = scrollRef.current?.getScrollResponder?.();
+
+      if (!input || !responder?.scrollResponderScrollNativeHandleToKeyboard) {
+        return;
+      }
+
+      responder.scrollResponderScrollNativeHandleToKeyboard(
+        input,
+        76,
+        true
+      );
+    }, 220);
+  }, []);
+
   const [tutorQuery, setTutorQuery] = useState("");
   const [tutor, setTutor] = useState(() => {
     if (_tutorId) {
@@ -344,10 +370,6 @@ export default function PetNewModal() {
 
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
-
-  const scrollRef = useRef(null);
-  const observacoesRef = useRef(null);
 
   const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
 
@@ -355,34 +377,6 @@ export default function PetNewModal() {
     tutoresByQuerySelectorRef.current(state, tutorQuery)
   );
 
-
-  useEffect(() => {
-    const showEvent =
-      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-    const hideEvent =
-      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
-
-    const showSubscription = Keyboard.addListener(showEvent, () => {
-      setKeyboardVisible(true);
-    });
-
-    const hideSubscription = Keyboard.addListener(hideEvent, () => {
-      setKeyboardVisible(false);
-    });
-
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  const revealObservacoes = useCallback(() => {
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        scrollRef.current?.scrollToEnd({ animated: true });
-      }, Platform.OS === "ios" ? 180 : 80);
-    });
-  }, []);
 
   useEffect(() => {
     if (isEdit && !pet && _id) dispatch(fetchPet(_id));
@@ -847,22 +841,24 @@ export default function PetNewModal() {
       <KeyboardAvoidingView
         style={styles.keyboard}
         behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
         <View style={styles.shell}>
+          <TouchableWithoutFeedback
+            onPress={Keyboard.dismiss}
+            accessible={false}
+          >
           <ScrollView
             ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={[
               styles.content,
               {
-                paddingBottom:
-                  (keyboardVisible ? 28 : 132) + insets.bottom,
+                paddingBottom: 148 + insets.bottom,
               },
             ]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
-            automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
+            keyboardShouldPersistTaps="always"
+            keyboardDismissMode="none"
             contentInsetAdjustmentBehavior="automatic"
             showsVerticalScrollIndicator={false}
           >
@@ -911,12 +907,15 @@ export default function PetNewModal() {
                 error={!validation.hasNome ? "Obrigatório." : null}
               >
                 <TextInput
+                  ref={nomeRef}
                   value={nome}
                   onChangeText={setNome}
                   placeholder="Ex.: Thor"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
                   returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => racaRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -947,12 +946,15 @@ export default function PetNewModal() {
 
               <Field label="Raça" helper="Opcional.">
                 <TextInput
+                  ref={racaRef}
                   value={raca}
                   onChangeText={setRaca}
                   placeholder="Ex.: Golden Retriever"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
                   returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => corRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -961,12 +963,15 @@ export default function PetNewModal() {
 
               <Field label="Cor" helper="Opcional.">
                 <TextInput
+                  ref={corRef}
                   value={cor}
                   onChangeText={setCor}
                   placeholder="Ex.: Dourado"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
                   returnKeyType="next"
+                  blurOnSubmit={false}
+                  onSubmitEditing={() => idadeRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -1013,6 +1018,7 @@ export default function PetNewModal() {
                 <View style={{ flex: 1 }}>
                   <Field label="Idade" helper="Anos. Opcional.">
                     <TextInput
+                      ref={idadeRef}
                       value={idade}
                       onChangeText={onChangeIdade}
                       placeholder="Ex.: 4"
@@ -1032,6 +1038,7 @@ export default function PetNewModal() {
                     error={!validation.pesoOk ? "Peso inválido." : null}
                   >
                     <TextInput
+                      ref={pesoRef}
                       value={pesoKg}
                       onChangeText={onChangePeso}
                       keyboardType="decimal-pad"
@@ -1052,12 +1059,15 @@ export default function PetNewModal() {
               <TextInput
                 ref={observacoesRef}
                 value={observacoes}
-                onChangeText={setObservacoes}
                 onFocus={revealObservacoes}
+                onChangeText={setObservacoes}
                 placeholder="Anotações gerais sobre o paciente..."
                 placeholderTextColor="#9CA3AF"
                 style={[styles.input, styles.textArea, { color: text }]}
                 multiline
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={Keyboard.dismiss}
                 textAlignVertical="top"
               />
             </FormSection>
@@ -1066,8 +1076,8 @@ export default function PetNewModal() {
               <Text style={styles.bottomError}>{firstError}</Text>
             )}
           </ScrollView>
+          </TouchableWithoutFeedback>
 
-          {!keyboardVisible && (
           <View
             style={[
               styles.fixedFooter,
@@ -1106,7 +1116,6 @@ export default function PetNewModal() {
               {firstError || "Você pode completar o cadastro do pet depois."}
             </Text>
           </View>
-          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
