@@ -22,6 +22,11 @@ const REVENUECAT_IOS_API_KEY =
 	process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
 
 let configuredUserId = null;
+
+/*
+ * Serve apenas para impedir duas configurações simultâneas.
+ * Não deve armazenar indefinidamente um CustomerInfo antigo.
+ */
 let configurePromise = null;
 
 function assertIOS() {
@@ -47,7 +52,9 @@ function assertApiKey() {
 }
 
 function normalizeUserId(userId) {
-	const value = String(userId || "").trim();
+	const value = String(
+		userId || ""
+	).trim();
 
 	if (!value) {
 		throw new Error(
@@ -58,25 +65,45 @@ function normalizeUserId(userId) {
 	return value;
 }
 
+async function invalidateCustomerInfoCache() {
+	await Purchases.invalidateCustomerInfoCache();
+}
+
 export function isAppleSubscriptionAvailable() {
 	return (
 		Platform.OS === "ios" &&
-		Boolean(REVENUECAT_IOS_API_KEY)
+		Boolean(
+			REVENUECAT_IOS_API_KEY
+		)
 	);
 }
 
-export async function configureAppleSubscriptions(userId) {
+/**
+ * Configura o RevenueCat para o UID Firebase.
+ *
+ * forceRefresh=true:
+ * - invalida o CustomerInfo local;
+ * - força uma nova consulta ao RevenueCat;
+ * - reconhece grants realizados pelo servidor/dashboard.
+ */
+export async function configureAppleSubscriptions(
+	userId,
+	{
+		forceRefresh = false,
+	} = {}
+) {
 	assertIOS();
 	assertApiKey();
 
 	const normalizedUserId =
 		normalizeUserId(userId);
 
-	if (
-		configurePromise &&
-		configuredUserId === normalizedUserId
-	) {
-		return configurePromise;
+	/*
+	 * Se já existe uma configuração em andamento,
+	 * aguardamos sua conclusão antes de prosseguir.
+	 */
+	if (configurePromise) {
+		await configurePromise;
 	}
 
 	configurePromise = (async () => {
@@ -101,7 +128,7 @@ export async function configureAppleSubscriptions(userId) {
 			configuredUserId =
 				normalizedUserId;
 
-			return Purchases.getCustomerInfo();
+			return;
 		}
 
 		const currentAppUserId =
@@ -111,36 +138,71 @@ export async function configureAppleSubscriptions(userId) {
 			currentAppUserId !==
 			normalizedUserId
 		) {
-			const result =
-				await Purchases.logIn(
-					normalizedUserId
-				);
-
-			configuredUserId =
-				normalizedUserId;
-
-			return result.customerInfo;
+			await Purchases.logIn(
+				normalizedUserId
+			);
 		}
 
 		configuredUserId =
 			normalizedUserId;
-
-		return Purchases.getCustomerInfo();
 	})();
 
 	try {
-		return await configurePromise;
+		await configurePromise;
 	} catch (error) {
-		configurePromise = null;
 		configuredUserId = null;
 		throw error;
+	} finally {
+		/*
+		 * Essencial:
+		 * não guardar a Promise resolvida e nem o
+		 * CustomerInfo retornado na primeira inicialização.
+		 */
+		configurePromise = null;
 	}
-}
 
-export async function getAppleCustomerInfo() {
-	assertIOS();
+	if (forceRefresh) {
+		await invalidateCustomerInfoCache();
+	}
 
 	return Purchases.getCustomerInfo();
+}
+
+/**
+ * Retorna o CustomerInfo atual.
+ *
+ * Use forceRefresh=true quando a alteração pode ter
+ * acontecido fora do dispositivo, como:
+ * - grant pelo dashboard;
+ * - revogação administrativa;
+ * - reembolso;
+ * - alteração externa da assinatura.
+ */
+export async function getAppleCustomerInfo({
+	forceRefresh = false,
+} = {}) {
+	assertIOS();
+
+	const isConfigured =
+		await Purchases.isConfigured();
+
+	if (!isConfigured) {
+		throw new Error(
+			"O RevenueCat ainda não foi configurado."
+		);
+	}
+
+	if (forceRefresh) {
+		await invalidateCustomerInfoCache();
+	}
+
+	return Purchases.getCustomerInfo();
+}
+
+export async function refreshAppleCustomerInfo() {
+	return getAppleCustomerInfo({
+		forceRefresh: true,
+	});
 }
 
 export async function getAppleOfferings() {
@@ -159,7 +221,8 @@ export async function getAppleOfferings() {
 	}
 
 	const availablePackages =
-		current.availablePackages || [];
+		current.availablePackages ||
+		[];
 
 	const monthlyPackage =
 		current.monthly ||
@@ -210,8 +273,10 @@ export async function purchaseApplePackage(
 
 		return {
 			cancelled: false,
+
 			customerInfo:
 				result.customerInfo,
+
 			productIdentifier:
 				result.productIdentifier,
 		};
@@ -267,6 +332,13 @@ export function hasActivePremiumEntitlement(
 	);
 }
 
+/**
+ * Mantemos grants promocionais como "monthly" internamente
+ * para não exigir alteração no subscriptionSlice atual.
+ *
+ * O ponto relevante para os limites é:
+ * entitlements.active.premium existe.
+ */
 export function getPlanFromCustomerInfo(
 	customerInfo
 ) {
@@ -284,6 +356,7 @@ export function getPlanFromCustomerInfo(
 			productId: null,
 			currentPeriodEnd: null,
 			willRenew: false,
+			isPromotional: false,
 		};
 	}
 
@@ -291,9 +364,28 @@ export function getPlanFromCustomerInfo(
 		premium.productIdentifier ||
 		null;
 
-	const plan =
+	const isAnnual =
 		productId ===
-		APPLE_PRODUCT_IDS.ANNUAL
+		APPLE_PRODUCT_IDS.ANNUAL;
+
+	const isMonthly =
+		productId ===
+		APPLE_PRODUCT_IDS.MONTHLY;
+
+	/*
+	 * Grants do RevenueCat normalmente não possuem os
+	 * Product IDs reais da App Store.
+	 *
+	 * Como o slice atual conhece apenas monthly e annual,
+	 * uma concessão promocional usa monthly para obter
+	 * os mesmos limites ilimitados.
+	 */
+	const isPromotional =
+		!isAnnual &&
+		!isMonthly;
+
+	const plan =
+		isAnnual
 			? "annual"
 			: "monthly";
 
@@ -301,15 +393,25 @@ export function getPlanFromCustomerInfo(
 		isPremium: true,
 		plan,
 		status: "active",
+
+		/*
+		 * Mantido como app_store para compatibilidade
+		 * com o enum atual do subscriptionSlice.
+		 */
 		source: "app_store",
+
 		productId,
+
 		currentPeriodEnd:
 			premium.expirationDate ||
 			null,
+
 		willRenew:
 			Boolean(
 				premium.willRenew
 			),
+
+		isPromotional,
 	};
 }
 
@@ -318,7 +420,10 @@ export function subscribeToAppleCustomerInfo(
 ) {
 	assertIOS();
 
-	if (typeof listener !== "function") {
+	if (
+		typeof listener !==
+		"function"
+	) {
 		throw new Error(
 			"O listener de assinatura precisa ser uma função."
 		);
@@ -341,6 +446,19 @@ export function subscribeToAppleCustomerInfo(
 	};
 }
 
+export async function getAppleRevenueCatUserId() {
+	assertIOS();
+
+	const isConfigured =
+		await Purchases.isConfigured();
+
+	if (!isConfigured) {
+		return null;
+	}
+
+	return Purchases.getAppUserID();
+}
+
 export async function logOutAppleSubscriptions() {
 	if (Platform.OS !== "ios") {
 		return null;
@@ -352,6 +470,7 @@ export async function logOutAppleSubscriptions() {
 	if (!isConfigured) {
 		configuredUserId = null;
 		configurePromise = null;
+
 		return null;
 	}
 
@@ -369,7 +488,8 @@ export function normalizeApplePurchaseError(
 ) {
 	const message =
 		error?.message ||
-		error?.userInfo?.readableErrorCode ||
+		error?.userInfo
+			?.readableErrorCode ||
 		"Não foi possível concluir a operação com a App Store.";
 
 	const normalizedError =

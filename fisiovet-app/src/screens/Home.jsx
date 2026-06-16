@@ -726,7 +726,7 @@ export default function Home() {
                                     <MaterialIcons
                                         name="settings"
                                         size={27}
-                                        color={ACTION_COLOR}
+                                        color={"grey"}
                                     />
                                 }
                             />

@@ -598,7 +598,10 @@ export default function AssinaturaScreen() {
 				try {
 					const initialCustomerInfo =
 						await configureAppleSubscriptions(
-							uid
+							uid,
+							{
+								forceRefresh: true,
+							}
 						);
 
 					applyCustomerInfo(
@@ -662,7 +665,9 @@ export default function AssinaturaScreen() {
 				setRefreshing(true);
 
 				const info =
-					await getAppleCustomerInfo();
+					await getAppleCustomerInfo({
+						forceRefresh: true,
+					});
 
 				applyCustomerInfo(info);
 

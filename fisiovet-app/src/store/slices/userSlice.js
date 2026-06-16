@@ -1,4 +1,5 @@
 // src/store/slices/userSlice.js
+//@no-tschceck
 import { createAsyncThunk, createSelector, createSlice } from "@reduxjs/toolkit";
 import {
 	ensureUserProfile,
@@ -12,6 +13,87 @@ const FREE_SUBSCRIPTION = {
 	manual: false,
 	currentPeriodEnd: null,
 };
+
+function normalizeFirestoreValue(value) {
+	if (value == null) {
+		return value;
+	}
+
+	if (value instanceof Date) {
+		return value.toISOString();
+	}
+
+	/*
+	 * Timestamp real do SDK Firestore.
+	 */
+	if (
+		typeof value?.toDate === "function"
+	) {
+		return value.toDate().toISOString();
+	}
+
+	/*
+	 * Timestamp serializado, como:
+	 * {
+	 *   seconds: 1830297599,
+	 *   nanoseconds: 0,
+	 *   type: "firestore/timestamp/1.0"
+	 * }
+	 */
+	if (
+		typeof value === "object" &&
+		Number.isFinite(value.seconds) &&
+		Number.isFinite(
+			value.nanoseconds ?? 0
+		) &&
+		(
+			value.type ===
+			"firestore/timestamp/1.0" ||
+			Object.keys(value).every(
+				(key) =>
+					[
+						"seconds",
+						"nanoseconds",
+						"type",
+					].includes(key)
+			)
+		)
+	) {
+		const milliseconds =
+			value.seconds * 1000 +
+			Math.floor(
+				(value.nanoseconds || 0) /
+				1_000_000
+			);
+
+		return new Date(
+			milliseconds
+		).toISOString();
+	}
+
+	if (Array.isArray(value)) {
+		return value.map(
+			normalizeFirestoreValue
+		);
+	}
+
+	if (
+		typeof value === "object"
+	) {
+		return Object.fromEntries(
+			Object.entries(value).map(
+				([key, nestedValue]) => [
+					key,
+					normalizeFirestoreValue(
+						nestedValue
+					),
+				]
+			)
+		);
+	}
+
+	return value;
+}
 
 const initialState = {
 	user: null, // Firebase Auth DTO
@@ -29,7 +111,14 @@ export const syncUserProfile = createAsyncThunk(
 	async (authUserDTO, { rejectWithValue }) => {
 		try {
 			if (!authUserDTO?.uid) return null;
-			return await ensureUserProfile(authUserDTO);
+			const profile =
+				await ensureUserProfile(
+					authUserDTO
+				);
+
+			return normalizeFirestoreValue(
+				profile
+			);
 		} catch (e) {
 			return rejectWithValue(e?.message || "Erro ao sincronizar usuário");
 		}
@@ -45,7 +134,12 @@ export const fetchUserProfile = createAsyncThunk(
 	async (uid, { rejectWithValue }) => {
 		try {
 			if (!uid) return null;
-			return await getUserProfile(uid);
+			const profile =
+				await getUserProfile(uid);
+
+			return normalizeFirestoreValue(
+				profile
+			);
 		} catch (e) {
 			return rejectWithValue(e?.message || "Erro ao buscar perfil do usuário");
 		}
@@ -73,17 +167,30 @@ const userSlice = createSlice({
 		},
 
 		setUserProfile(state, action) {
-			state.profile = action.payload;
+			state.profile =
+				normalizeFirestoreValue(
+					action.payload
+				);
+
 			state.profileError = null;
 		},
 
 		setLocalSubscription(state, action) {
-			const patch = action.payload || {};
+			const patch =
+				normalizeFirestoreValue(
+					action.payload || {}
+				);
 
 			state.profile = {
 				...(state.profile || {}),
+
 				subscription: {
-					...(state.profile?.subscription || FREE_SUBSCRIPTION),
+					...(
+						state.profile
+							?.subscription ||
+						FREE_SUBSCRIPTION
+					),
+
 					...patch,
 				},
 			};
@@ -96,10 +203,17 @@ const userSlice = createSlice({
 				state.loadingProfile = true;
 				state.profileError = null;
 			})
-			.addCase(syncUserProfile.fulfilled, (state, action) => {
-				state.loadingProfile = false;
-				state.profile = action.payload;
-			})
+			.addCase(
+				syncUserProfile.fulfilled,
+				(state, action) => {
+					state.loadingProfile = false;
+
+					state.profile =
+						normalizeFirestoreValue(
+							action.payload
+						);
+				}
+			)
 			.addCase(syncUserProfile.rejected, (state, action) => {
 				state.loadingProfile = false;
 				state.profileError =
@@ -110,10 +224,17 @@ const userSlice = createSlice({
 				state.loadingProfile = true;
 				state.profileError = null;
 			})
-			.addCase(fetchUserProfile.fulfilled, (state, action) => {
-				state.loadingProfile = false;
-				state.profile = action.payload;
-			})
+			.addCase(
+				fetchUserProfile.fulfilled,
+				(state, action) => {
+					state.loadingProfile = false;
+
+					state.profile =
+						normalizeFirestoreValue(
+							action.payload
+						);
+				}
+			)
 			.addCase(fetchUserProfile.rejected, (state, action) => {
 				state.loadingProfile = false;
 				state.profileError =

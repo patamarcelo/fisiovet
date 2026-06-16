@@ -7,54 +7,127 @@ import "react-native-reanimated";
 import {
 	ActivityIndicator,
 	Appearance,
+	AppState,
 	Image,
+	Platform,
 	StyleSheet,
 	View,
-	Platform
 } from "react-native";
-import { ThemeProvider } from "@react-navigation/native";
-import { useFonts } from "expo-font";
-import { Stack, useRouter, useSegments } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import { useEffect, useRef, useState } from "react";
+
+import {
+	ThemeProvider,
+} from "@react-navigation/native";
+
+import {
+	useFonts,
+} from "expo-font";
+
+import {
+	Stack,
+	useRouter,
+	useSegments,
+} from "expo-router";
+
+import {
+	StatusBar,
+} from "expo-status-bar";
+
+import {
+	useEffect,
+	useRef,
+	useState,
+} from "react";
+
 import * as SplashScreen from "expo-splash-screen";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
 
-import { Provider, useDispatch, useSelector } from "react-redux";
-import { PersistGate } from "redux-persist/integration/react";
-import { store, persistor } from "../src/store";
+import {
+	GestureHandlerRootView,
+} from "react-native-gesture-handler";
 
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/src/services/firebaseClient";
-import { setUser, syncUserProfile } from "@/src/store/slices/userSlice";
-import { mapFirebaseUserToDTO } from "@/firebase/authUserDTO";
+import {
+	Provider,
+	useDispatch,
+	useSelector,
+} from "react-redux";
 
-import { Fonts } from "@/assets/assets";
+import {
+	PersistGate,
+} from "redux-persist/integration/react";
 
-import { LayoutProvider } from "@/src/providers/LayoutProvider";
-import { useLayoutVariant } from "@/hooks/useLayoutVariant";
+import {
+	onAuthStateChanged,
+} from "firebase/auth";
 
-import { DarkAppTheme, LightAppTheme } from "@/src/theme/AppTheme";
-import { ColorSchemeProvider, useColorMode } from "@/src/theme/color-scheme";
+import {
+	store,
+	persistor,
+} from "../src/store";
+
+import {
+	auth,
+} from "@/src/services/firebaseClient";
+
+import {
+	setUser,
+	syncUserProfile,
+} from "@/src/store/slices/userSlice";
+
+import {
+	mapFirebaseUserToDTO,
+} from "@/firebase/authUserDTO";
+
+import {
+	Fonts,
+} from "@/assets/assets";
+
+import {
+	LayoutProvider,
+} from "@/src/providers/LayoutProvider";
+
+import {
+	useLayoutVariant,
+} from "@/hooks/useLayoutVariant";
+
+import {
+	DarkAppTheme,
+	LightAppTheme,
+} from "@/src/theme/AppTheme";
+
+import {
+	ColorSchemeProvider,
+	useColorMode,
+} from "@/src/theme/color-scheme";
+
 import SplashLoadingScreen from "@/components/SplashLoadingScreen";
-
 
 import {
 	configureAppleSubscriptions,
+	getAppleCustomerInfo,
 	getPlanFromCustomerInfo,
+	logOutAppleSubscriptions,
 	subscribeToAppleCustomerInfo,
 } from "@/src/services/subscriptions/appleSubscriptions";
 
 import {
+	resetSubscription,
 	setSubscriptionStatus,
 } from "@/src/store/slices/subscriptionSlice";
 
-const SPLASH_BG = "#F7F8FA";
-const SPLASH_IMAGE = require("@/assets/images/splash-fisiovet.png");
+const SPLASH_BG =
+	"#F7F8FA";
 
-SplashScreen.preventAutoHideAsync().catch(() => { });
+const SPLASH_IMAGE =
+	require(
+		"@/assets/images/splash-fisiovet.png"
+	);
 
-function StaticSplash({ showSpinner = false }) {
+SplashScreen
+	.preventAutoHideAsync()
+	.catch(() => {});
+
+function StaticSplash({
+	showSpinner = false,
+}) {
 	return (
 		<View style={styles.staticSplash}>
 			<Image
@@ -68,7 +141,9 @@ function StaticSplash({ showSpinner = false }) {
 				<ActivityIndicator
 					size="small"
 					color="#159E9C"
-					style={styles.staticSplashSpinner}
+					style={
+						styles.staticSplashSpinner
+					}
 				/>
 			) : null}
 		</View>
@@ -76,40 +151,90 @@ function StaticSplash({ showSpinner = false }) {
 }
 
 function BootSplash() {
-	const [showFullSplash, setShowFullSplash] = useState(false);
+	const [
+		showFullSplash,
+		setShowFullSplash,
+	] = useState(false);
 
 	useEffect(() => {
-		const timer = setTimeout(() => {
-			setShowFullSplash(true);
-		}, 280);
+		const timer =
+			setTimeout(() => {
+				setShowFullSplash(true);
+			}, 280);
 
-		return () => clearTimeout(timer);
+		return () =>
+			clearTimeout(timer);
 	}, []);
 
 	if (showFullSplash) {
-		return <SplashLoadingScreen />;
+		return (
+			<SplashLoadingScreen />
+		);
 	}
 
-	return <StaticSplash showSpinner={false} />;
+	return (
+		<StaticSplash
+			showSpinner={false}
+		/>
+	);
 }
 
 function useAuthBinding() {
-	const dispatch = useDispatch();
-	const [authReady, setAuthReady] = useState(false);
+	const dispatch =
+		useDispatch();
+
+	const [
+		authReady,
+		setAuthReady,
+	] = useState(false);
 
 	useEffect(() => {
 		let alive = true;
-		let unsubscribeRevenueCat = null;
+
+		let currentUserId =
+			null;
+
+		let unsubscribeRevenueCat =
+			null;
+
+		let revenueCatSyncPromise =
+			null;
 
 		const syncRevenueCatCustomerInfo = (
 			customerInfo
 		) => {
-			if (!alive) return;
+			if (
+				!alive ||
+				!customerInfo
+			) {
+				return;
+			}
 
 			const subscription =
 				getPlanFromCustomerInfo(
 					customerInfo
 				);
+
+			if (__DEV__) {
+				console.log(
+					"[RevenueCat] Subscription sync:",
+					{
+						originalAppUserId:
+							customerInfo
+								?.originalAppUserId,
+
+						activeEntitlements:
+							Object.keys(
+								customerInfo
+									?.entitlements
+									?.active ||
+									{}
+							),
+
+						subscription,
+					}
+				);
+			}
 
 			dispatch(
 				setSubscriptionStatus({
@@ -126,7 +251,8 @@ function useAuthBinding() {
 						subscription.productId,
 
 					currentPeriodEnd:
-						subscription.currentPeriodEnd,
+						subscription
+							.currentPeriodEnd,
 
 					originalTransactionId:
 						null,
@@ -134,19 +260,132 @@ function useAuthBinding() {
 			);
 		};
 
-		const unsub = onAuthStateChanged(
-			auth,
-			async (u) => {
+		const syncRevenueCat = async ({
+			userId,
+			forceRefresh = false,
+			configure = false,
+		} = {}) => {
+			if (
+				Platform.OS !==
+					"ios" ||
+				!userId ||
+				!alive
+			) {
+				return null;
+			}
+
+			/*
+			 * Evita duas atualizações simultâneas:
+			 * por exemplo, auth callback + AppState.
+			 */
+			if (revenueCatSyncPromise) {
 				try {
-					const dto =
-						mapFirebaseUserToDTO(u);
+					await revenueCatSyncPromise;
+				} catch {
+					// A chamada atual fará nova tentativa.
+				}
+			}
 
-					dispatch(setUser(dto));
+			revenueCatSyncPromise =
+				(async () => {
+					const customerInfo =
+						configure
+							? await configureAppleSubscriptions(
+									userId,
+									{
+										forceRefresh,
+									}
+								)
+							: await getAppleCustomerInfo(
+									{
+										forceRefresh,
+									}
+								);
 
-					if (dto?.uid) {
+					if (
+						alive &&
+						currentUserId ===
+							userId
+					) {
+						syncRevenueCatCustomerInfo(
+							customerInfo
+						);
+					}
+
+					return customerInfo;
+				})();
+
+			try {
+				return await revenueCatSyncPromise;
+			} finally {
+				revenueCatSyncPromise =
+					null;
+			}
+		};
+
+		const unsubscribeAuth =
+			onAuthStateChanged(
+				auth,
+				async (firebaseUser) => {
+					/*
+					 * Remove o listener pertencente ao
+					 * usuário anterior antes de processar
+					 * uma nova mudança de autenticação.
+					 */
+					unsubscribeRevenueCat?.();
+
+					unsubscribeRevenueCat =
+						null;
+
+					try {
+						const dto =
+							mapFirebaseUserToDTO(
+								firebaseUser
+							);
+
+						currentUserId =
+							dto?.uid ||
+							null;
+
+						dispatch(
+							setUser(dto)
+						);
+
+						if (!dto?.uid) {
+							/*
+							 * Evita que o Premium persistido
+							 * do usuário anterior apareça para
+							 * um usuário deslogado ou para a
+							 * próxima conta.
+							 */
+							dispatch(
+								resetSubscription()
+							);
+
+							if (
+								Platform.OS ===
+								"ios"
+							) {
+								try {
+									await logOutAppleSubscriptions();
+								} catch (
+									error
+								) {
+									console.log(
+										"Falha ao desconectar RevenueCat:",
+										error
+									);
+								}
+							}
+
+							return;
+						}
+
 						try {
 							await dispatch(
-								syncUserProfile(dto)
+								syncUserProfile(
+									dto
+								)
 							).unwrap();
 						} catch (error) {
 							console.log(
@@ -160,20 +399,37 @@ function useAuthBinding() {
 							"ios"
 						) {
 							try {
-								const customerInfo =
-									await configureAppleSubscriptions(
-										dto.uid
-									);
+								await syncRevenueCat({
+									userId:
+										dto.uid,
 
-								syncRevenueCatCustomerInfo(
-									customerInfo
-								);
+									forceRefresh:
+										true,
 
-								unsubscribeRevenueCat?.();
+									configure:
+										true,
+								});
 
+								/*
+								 * O listener cuida de compras,
+								 * restaurações e mudanças que o
+								 * SDK publicar enquanto o app
+								 * estiver em execução.
+								 */
 								unsubscribeRevenueCat =
 									subscribeToAppleCustomerInfo(
-										syncRevenueCatCustomerInfo
+										(
+											customerInfo
+										) => {
+											if (
+												currentUserId ===
+												dto.uid
+											) {
+												syncRevenueCatCustomerInfo(
+													customerInfo
+												);
+											}
+										}
 									);
 							} catch (error) {
 								console.log(
@@ -182,73 +438,105 @@ function useAuthBinding() {
 								);
 							}
 						}
-					}
-				} catch (error) {
-					console.log(
-						"Falha no auth binding:",
-						error
-					);
-				} finally {
-					if (alive) {
-						setAuthReady(true);
+					} catch (error) {
+						console.log(
+							"Falha no auth binding:",
+							error
+						);
+					} finally {
+						if (alive) {
+							setAuthReady(
+								true
+							);
+						}
 					}
 				}
-			}
-		);
+			);
 
-		return () => {
-			alive = false;
-			unsub?.();
-			unsubscribeRevenueCat?.();
-		};
-	}, [dispatch]);
+		const appStateSubscription =
+			AppState.addEventListener(
+				"change",
+				async (
+					nextState
+				) => {
+					if (
+						nextState !==
+							"active" ||
+						Platform.OS !==
+							"ios" ||
+						!currentUserId
+					) {
+						return;
+					}
 
-	useEffect(() => {
-		let alive = true;
-
-		const unsub = onAuthStateChanged(auth, async (u) => {
-			try {
-				const dto = mapFirebaseUserToDTO(u);
-
-				dispatch(setUser(dto));
-
-				if (dto?.uid) {
 					try {
-						await dispatch(syncUserProfile(dto)).unwrap();
-					} catch (e) {
-						console.log("Falha ao sincronizar profile:", e);
+						await syncRevenueCat({
+							userId:
+								currentUserId,
+
+							forceRefresh:
+								true,
+
+							configure:
+								false,
+						});
+					} catch (error) {
+						console.log(
+							"Falha ao atualizar RevenueCat no foreground:",
+							error
+						);
 					}
 				}
-			} catch (e) {
-				console.log("Falha no auth binding:", e);
-			} finally {
-				if (alive) {
-					setAuthReady(true);
-				}
-			}
-		});
+			);
 
 		return () => {
 			alive = false;
-			unsub?.();
+			currentUserId = null;
+
+			unsubscribeAuth?.();
+			unsubscribeRevenueCat?.();
+			appStateSubscription?.remove();
 		};
 	}, [dispatch]);
 
 	return authReady;
 }
 
-function AuthGate({ children }) {
-	const user = useSelector((state) => state.user.user);
-	const boot = useSelector((state) => state.bootstrap);
+function AuthGate({
+	children,
+}) {
+	const user =
+		useSelector(
+			(state) =>
+				state.user.user
+		);
 
-	const router = useRouter();
-	const segments = useSegments();
-	const variant = useLayoutVariant();
+	const boot =
+		useSelector(
+			(state) =>
+				state.bootstrap
+		);
+
+	const router =
+		useRouter();
+
+	const segments =
+		useSegments();
+
+	const variant =
+		useLayoutVariant();
 
 	useEffect(() => {
-		const group = segments[0];
-		const atRoot = segments.length === 0;
-		const inAuth = group === "(auth)" || group === "firebaseCheck";
+		const group =
+			segments[0];
+
+		const atRoot =
+			segments.length === 0;
+
+		const inAuth =
+			group === "(auth)" ||
+			group ===
+				"firebaseCheck";
 
 		const ALLOWED_TOP = [
 			"configuracoes",
@@ -259,100 +547,225 @@ function AuthGate({ children }) {
 			"(files)",
 		];
 
-		const inAllowedTop = ALLOWED_TOP.includes(group);
+		const inAllowedTop =
+			ALLOWED_TOP.includes(
+				group
+			);
 
 		if (!user) {
 			if (!inAuth) {
-				router.replace("/(auth)/login");
+				router.replace(
+					"/(auth)/login"
+				);
 			}
 
 			return;
 		}
 
-		if (boot?.loading || boot?.done === false) {
+		if (
+			boot?.loading ||
+			boot?.done === false
+		) {
 			return;
 		}
 
-		const shouldBeTablet = variant === "tabletLandscape";
-		const target = shouldBeTablet ? "/(tablet)" : "/(phone)";
-		const inPhone = group === "(phone)";
-		const inTablet = group === "(tablet)";
+		const shouldBeTablet =
+			variant ===
+			"tabletLandscape";
 
-		if (inAllowedTop) return;
+		const target =
+			shouldBeTablet
+				? "/(tablet)"
+				: "/(phone)";
+
+		const inPhone =
+			group === "(phone)";
+
+		const inTablet =
+			group === "(tablet)";
+
+		if (inAllowedTop) {
+			return;
+		}
 
 		if (
 			inAuth ||
 			atRoot ||
-			(shouldBeTablet && !inTablet) ||
-			(!shouldBeTablet && !inPhone)
+			(
+				shouldBeTablet &&
+				!inTablet
+			) ||
+			(
+				!shouldBeTablet &&
+				!inPhone
+			)
 		) {
-			router.replace(target);
+			router.replace(
+				target
+			);
 		}
-	}, [user, segments, router, variant, boot?.loading, boot?.done]);
+	}, [
+		user,
+		segments,
+		router,
+		variant,
+		boot?.loading,
+		boot?.done,
+	]);
 
 	return children;
 }
 
 function RootNavigator() {
-	const { scheme } = useColorMode();
+	const {
+		scheme,
+	} = useColorMode();
 
 	return (
-		<ThemeProvider value={scheme === "dark" ? DarkAppTheme : LightAppTheme}>
+		<ThemeProvider
+			value={
+				scheme === "dark"
+					? DarkAppTheme
+					: LightAppTheme
+			}
+		>
 			<AuthGate>
-				<Stack screenOptions={{ headerShown: false }}>
-					<Stack.Screen name="(phone)" />
-					<Stack.Screen name="(tablet)" />
-					<Stack.Screen name="(auth)" />
-					<Stack.Screen name="configuracoes" options={{ headerShown: false }} />
-					<Stack.Screen name="(modals)" options={{ headerShown: false }} />
+				<Stack
+					screenOptions={{
+						headerShown:
+							false,
+					}}
+				>
+					<Stack.Screen
+						name="(phone)"
+					/>
+
+					<Stack.Screen
+						name="(tablet)"
+					/>
+
+					<Stack.Screen
+						name="configuracoes"
+						options={{
+							headerShown:
+								false,
+						}}
+					/>
+
+					<Stack.Screen
+						name="(modals)"
+						options={{
+							headerShown:
+								false,
+						}}
+					/>
+
 					<Stack.Screen
 						name="(home-modals)"
 						options={{
-							headerShown: false,
-							presentation: "fullScreenModal",
-							animation: "slide_from_bottom",
-							gestureEnabled: true,
-							gestureDirection: "vertical",
+							headerShown:
+								false,
+
+							presentation:
+								"fullScreenModal",
+
+							animation:
+								"slide_from_bottom",
+
+							gestureEnabled:
+								true,
+
+							gestureDirection:
+								"vertical",
 						}}
 					/>
-					<Stack.Screen name="(maps)" options={{ headerShown: false }} />
-					<Stack.Screen name="(files)" options={{ headerShown: false }} />
 
-					<Stack.Screen name="testeRota" />
-					<Stack.Screen name="+not-found" />
+					<Stack.Screen
+						name="(maps)"
+						options={{
+							headerShown:
+								false,
+						}}
+					/>
+
+					<Stack.Screen
+						name="(files)"
+						options={{
+							headerShown:
+								false,
+						}}
+					/>
+
+					<Stack.Screen
+						name="+not-found"
+					/>
 				</Stack>
 			</AuthGate>
 
-			<StatusBar style={scheme === "dark" ? "light" : "dark"} />
+			<StatusBar
+				style={
+					scheme === "dark"
+						? "light"
+						: "dark"
+				}
+			/>
 		</ThemeProvider>
 	);
 }
 
-function AppBoot({ fontsReady, persistReady }) {
-	const authReady = useAuthBinding();
-	const didHideNativeSplash = useRef(false);
+function AppBoot({
+	fontsReady,
+	persistReady,
+}) {
+	const authReady =
+		useAuthBinding();
 
-	const appReady = fontsReady && persistReady && authReady;
+	const didHideNativeSplash =
+		useRef(false);
+
+	const appReady =
+		fontsReady &&
+		persistReady &&
+		authReady;
 
 	useEffect(() => {
-		if (didHideNativeSplash.current) return;
+		if (
+			didHideNativeSplash
+				.current
+		) {
+			return;
+		}
 
-		const timer = setTimeout(() => {
-			didHideNativeSplash.current = true;
-			SplashScreen.hideAsync().catch(() => { });
-		}, 80);
+		const timer =
+			setTimeout(() => {
+				didHideNativeSplash
+					.current = true;
 
-		return () => clearTimeout(timer);
+				SplashScreen
+					.hideAsync()
+					.catch(() => {});
+			}, 80);
+
+		return () =>
+			clearTimeout(timer);
 	}, []);
 
 	if (!appReady) {
-		return <BootSplash />;
+		return (
+			<BootSplash />
+		);
 	}
 
 	return (
 		<ColorSchemeProvider>
 			<LayoutProvider>
-				<GestureHandlerRootView style={{ flex: 1, backgroundColor: SPLASH_BG }}>
+				<GestureHandlerRootView
+					style={{
+						flex: 1,
+						backgroundColor:
+							SPLASH_BG,
+					}}
+				>
 					<RootNavigator />
 				</GestureHandlerRootView>
 			</LayoutProvider>
@@ -360,59 +773,97 @@ function AppBoot({ fontsReady, persistReady }) {
 	);
 }
 
-function RootLayoutInner({ fontsReady }) {
-	const [persistReady, setPersistReady] = useState(false);
+function RootLayoutInner({
+	fontsReady,
+}) {
+	const [
+		persistReady,
+		setPersistReady,
+	] = useState(false);
 
 	return (
 		<PersistGate
-			persistor={persistor}
-			loading={<StaticSplash showSpinner={false} />}
+			persistor={
+				persistor
+			}
+			loading={
+				<StaticSplash
+					showSpinner={
+						false
+					}
+				/>
+			}
 			onBeforeLift={() => {
-				setPersistReady(true);
+				setPersistReady(
+					true
+				);
 			}}
 		>
-			<AppBoot fontsReady={fontsReady} persistReady={persistReady} />
+			<AppBoot
+				fontsReady={
+					fontsReady
+				}
+				persistReady={
+					persistReady
+				}
+			/>
 		</PersistGate>
 	);
 }
 
 export default function RootLayout() {
-	const [fontsReady] = useFonts({
-		SpaceMono: Fonts.SpaceMono,
+	const [
+		fontsReady,
+	] = useFonts({
+		SpaceMono:
+			Fonts.SpaceMono,
 	});
 
 	useEffect(() => {
-		Appearance.setColorScheme("light");
+		Appearance.setColorScheme(
+			"light"
+		);
 	}, []);
 
 	return (
 		<View style={styles.root}>
-			<Provider store={store}>
-				<RootLayoutInner fontsReady={fontsReady} />
+			<Provider
+				store={store}
+			>
+				<RootLayoutInner
+					fontsReady={
+						fontsReady
+					}
+				/>
 			</Provider>
 		</View>
 	);
 }
 
-const styles = StyleSheet.create({
-	root: {
-		flex: 1,
-		backgroundColor: SPLASH_BG,
-	},
+const styles =
+	StyleSheet.create({
+		root: {
+			flex: 1,
+			backgroundColor:
+				SPLASH_BG,
+		},
 
-	staticSplash: {
-		flex: 1,
-		backgroundColor: SPLASH_BG,
-		alignItems: "center",
-		justifyContent: "center",
-	},
+		staticSplash: {
+			flex: 1,
+			backgroundColor:
+				SPLASH_BG,
+			alignItems:
+				"center",
+			justifyContent:
+				"center",
+		},
 
-	staticSplashImage: {
-		width: 178,
-		height: 178,
-	},
+		staticSplashImage: {
+			width: 178,
+			height: 178,
+		},
 
-	staticSplashSpinner: {
-		marginTop: 18,
-	},
-});
+		staticSplashSpinner: {
+			marginTop: 18,
+		},
+	});
