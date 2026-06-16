@@ -75,6 +75,12 @@ const STATUS_FILTERS = [
 ];
 
 const AGENDA_FILTERS_STORAGE_KEY = "@fisiovet:agenda:list-filters:v1";
+const AGENDA_VIEW_STORAGE_KEY = "@fisiovet:agenda:view-mode:v1";
+
+const VIEW_MODES = {
+  TIMELINE: "timeline",
+  CALENDAR: "calendar",
+};
 
 const DEFAULT_AGENDA_FILTERS = {
   scope: "todos",
@@ -121,7 +127,7 @@ function startOfDayLocal(d) {
   return new Date(
     safeDate.getFullYear(),
     safeDate.getMonth(),
-    safeDate.getDate()
+    safeDate.getDate(),
   );
 }
 
@@ -209,6 +215,392 @@ function makeSections(items) {
     }));
 }
 
+function dateKeyLocal(dateLike) {
+  const d = startOfDayLocal(dateLike);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function monthTitle(dateLike) {
+  const d = toDateLocal(dateLike);
+  const label = d.toLocaleDateString("pt-BR", {
+    month: "long",
+    year: "numeric",
+  });
+
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
+function buildCalendarDays(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const first = new Date(year, month, 1);
+  const mondayIndex = (first.getDay() + 6) % 7;
+  const gridStart = new Date(year, month, 1 - mondayIndex);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+
+    return {
+      date,
+      key: dateKeyLocal(date),
+      inCurrentMonth: date.getMonth() === month,
+    };
+  });
+}
+
+function AgendaViewToggle({ value, onChange }) {
+  return (
+    <View style={styles.viewToggleOuter}>
+      <Pressable
+        onPress={() => onChange(VIEW_MODES.TIMELINE)}
+        style={({ pressed }) => [
+          styles.viewToggleItem,
+          value === VIEW_MODES.TIMELINE && styles.viewToggleItemActive,
+          pressed && { opacity: 0.78 },
+        ]}
+      >
+        <Ionicons
+          name="list-outline"
+          size={16}
+          color={value === VIEW_MODES.TIMELINE ? "#111827" : "#6B7280"}
+        />
+        <Text
+          style={[
+            styles.viewToggleText,
+            value === VIEW_MODES.TIMELINE && styles.viewToggleTextActive,
+          ]}
+        >
+          Timeline
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => onChange(VIEW_MODES.CALENDAR)}
+        style={({ pressed }) => [
+          styles.viewToggleItem,
+          value === VIEW_MODES.CALENDAR && styles.viewToggleItemActive,
+          pressed && { opacity: 0.78 },
+        ]}
+      >
+        <Ionicons
+          name="calendar-clear-outline"
+          size={16}
+          color={value === VIEW_MODES.CALENDAR ? "#111827" : "#6B7280"}
+        />
+        <Text
+          style={[
+            styles.viewToggleText,
+            value === VIEW_MODES.CALENDAR && styles.viewToggleTextActive,
+          ]}
+        >
+          Calendário
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function CalendarEventRow({ item, petsById }) {
+  const tutor = useSelector((state) => selectTutorById(state, item?.tutorId));
+  const evento = useSelector((state) => selectEventoById(item?.id)(state));
+
+  const status = evento?.status ?? item?.status ?? "pendente";
+  const color = STATUS_COLORS[status] || "#8E8E93";
+  const petNames = getEventPetNames(item, petsById);
+  const address = tutorShortAddress(tutor);
+
+  const openEvent = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    router.push({
+      pathname: "/(modals)/agenda-new",
+      params: { id: String(item.id) },
+    });
+  }, [item.id]);
+
+  return (
+    <Pressable
+      onPress={openEvent}
+      style={({ pressed }) => [
+        styles.calendarEventRow,
+        pressed && { backgroundColor: "#F6F7F9" },
+      ]}
+    >
+      <View style={[styles.calendarEventStripe, { backgroundColor: color }]} />
+
+      <View style={styles.calendarEventTimeWrap}>
+        <Text style={styles.calendarEventTime}>{fmtHour(item.start)}</Text>
+        <Text style={styles.calendarEventEnd}>{fmtHour(item.end)}</Text>
+      </View>
+
+      <View style={styles.calendarEventContent}>
+        <Text style={styles.calendarEventTitle} numberOfLines={1}>
+          {item.title || "Evento"}
+        </Text>
+
+        <Text style={styles.calendarEventMeta} numberOfLines={1}>
+          {[petNames, item.cliente || item.tutorNome, address]
+            .filter(Boolean)
+            .join(" • ") || "Sem informações adicionais"}
+        </Text>
+      </View>
+
+      <Ionicons name="chevron-forward" size={16} color="#A1A1AA" />
+    </Pressable>
+  );
+}
+
+function CalendarAgendaView({
+  filtered,
+  petsById,
+  refreshing,
+  onRefresh,
+  tint,
+  hasFilters,
+  clearAllFilters,
+}) {
+  const today = useMemo(() => startOfDayLocal(new Date()), []);
+  const [visibleMonth, setVisibleMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1),
+  );
+  const [selectedDate, setSelectedDate] = useState(today);
+
+  const eventsByDay = useMemo(() => {
+    const map = new Map();
+
+    for (const event of filtered || []) {
+      const key = dateKeyLocal(event.start);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(event);
+    }
+
+    for (const [, items] of map) {
+      items.sort((a, b) => toDateLocal(a.start) - toDateLocal(b.start));
+    }
+
+    return map;
+  }, [filtered]);
+
+  const days = useMemo(() => buildCalendarDays(visibleMonth), [visibleMonth]);
+  const selectedKey = dateKeyLocal(selectedDate);
+  const selectedEvents = eventsByDay.get(selectedKey) || [];
+
+  const changeMonth = useCallback((amount) => {
+    Haptics.selectionAsync().catch(() => {});
+
+    setVisibleMonth((current) => {
+      const next = new Date(
+        current.getFullYear(),
+        current.getMonth() + amount,
+        1,
+      );
+      setSelectedDate(new Date(next.getFullYear(), next.getMonth(), 1));
+      return next;
+    });
+  }, []);
+
+  const goToday = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    const current = startOfDayLocal(new Date());
+    setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
+    setSelectedDate(current);
+  }, []);
+
+  return (
+    <SectionList
+      sections={[
+        {
+          title: selectedKey,
+          data: selectedEvents,
+        },
+      ]}
+      keyExtractor={(item) => String(item.id)}
+      renderItem={({ item }) => (
+        <CalendarEventRow item={item} petsById={petsById} />
+      )}
+      ItemSeparatorComponent={() => (
+        <View style={styles.calendarEventDivider} />
+      )}
+      ListHeaderComponent={
+        <View style={styles.calendarContent}>
+          <View style={styles.calendarCard}>
+            <View style={styles.calendarMonthHeader}>
+              <Pressable
+                onPress={() => changeMonth(-1)}
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.calendarNavButton,
+                  pressed && { opacity: 0.58 },
+                ]}
+              >
+                <Ionicons name="chevron-back" size={21} color="#0A84FF" />
+              </Pressable>
+
+              <Pressable
+                onPress={goToday}
+                style={styles.calendarMonthTitleButton}
+              >
+                <Text style={styles.calendarMonthTitle}>
+                  {monthTitle(visibleMonth)}
+                </Text>
+                <Text style={styles.calendarTodayHint}>
+                  Toque para voltar a hoje
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => changeMonth(1)}
+                hitSlop={10}
+                style={({ pressed }) => [
+                  styles.calendarNavButton,
+                  pressed && { opacity: 0.58 },
+                ]}
+              >
+                <Ionicons name="chevron-forward" size={21} color="#0A84FF" />
+              </Pressable>
+            </View>
+
+            <View style={styles.calendarWeekHeader}>
+              {["SEG", "TER", "QUA", "QUI", "SEX", "SÁB", "DOM"].map((day) => (
+                <Text key={day} style={styles.calendarWeekDay}>
+                  {day}
+                </Text>
+              ))}
+            </View>
+
+            <View style={styles.calendarGrid}>
+              {days.map((day) => {
+                const isSelected = day.key === selectedKey;
+                const isToday = day.key === dateKeyLocal(today);
+                const dayEvents = eventsByDay.get(day.key) || [];
+                const eventColors = Array.from(
+                  new Set(
+                    dayEvents
+                      .map((event) => STATUS_COLORS[event.status || "pendente"])
+                      .filter(Boolean),
+                  ),
+                ).slice(0, 3);
+
+                return (
+                  <Pressable
+                    key={day.key}
+                    onPress={() => {
+                      Haptics.selectionAsync().catch(() => {});
+                      setSelectedDate(day.date);
+
+                      if (!day.inCurrentMonth) {
+                        setVisibleMonth(
+                          new Date(
+                            day.date.getFullYear(),
+                            day.date.getMonth(),
+                            1,
+                          ),
+                        );
+                      }
+                    }}
+                    style={({ pressed }) => [
+                      styles.calendarDayCell,
+                      pressed && { opacity: 0.62 },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.calendarDayNumberWrap,
+                        isSelected && styles.calendarDayNumberSelected,
+                        isToday && !isSelected && styles.calendarDayNumberToday,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.calendarDayNumber,
+                          !day.inCurrentMonth &&
+                            styles.calendarDayNumberOutside,
+                          isToday &&
+                            !isSelected &&
+                            styles.calendarDayNumberTodayText,
+                          isSelected && styles.calendarDayNumberSelectedText,
+                        ]}
+                      >
+                        {day.date.getDate()}
+                      </Text>
+                    </View>
+
+                    <View style={styles.calendarDotsRow}>
+                      {eventColors.map((eventColor) => (
+                        <View
+                          key={eventColor}
+                          style={[
+                            styles.calendarDot,
+                            { backgroundColor: eventColor },
+                          ]}
+                        />
+                      ))}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.selectedDayHeader}>
+            <View>
+              <Text style={styles.selectedDayEyebrow}>AGENDA DO DIA</Text>
+              <Text style={styles.selectedDayTitle}>
+                {selectedDate.toLocaleDateString("pt-BR", {
+                  weekday: "long",
+                  day: "2-digit",
+                  month: "long",
+                })}
+              </Text>
+            </View>
+
+            <View style={styles.selectedDayCountBadge}>
+              <Text style={styles.selectedDayCountText}>
+                {selectedEvents.length}
+              </Text>
+            </View>
+          </View>
+        </View>
+      }
+      ListEmptyComponent={
+        <View style={styles.calendarEmptyWrap}>
+          <Ionicons name="calendar-clear-outline" size={30} color="#A1A1AA" />
+          <Text style={styles.calendarEmptyTitle}>Nenhum evento neste dia</Text>
+          <Text style={styles.calendarEmptyText}>
+            Selecione outra data ou adicione um novo atendimento.
+          </Text>
+          {hasFilters && (
+            <Pressable
+              onPress={clearAllFilters}
+              style={styles.calendarClearFiltersButton}
+            >
+              <Text style={styles.calendarClearFiltersText}>
+                Limpar filtros
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      }
+      contentContainerStyle={styles.calendarListContent}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={tint}
+          colors={[tint]}
+          progressBackgroundColor="#FFFFFF"
+        />
+      }
+      stickySectionHeadersEnabled={false}
+      showsVerticalScrollIndicator={false}
+      contentInsetAdjustmentBehavior="automatic"
+    />
+  );
+}
+
 function SearchField({ value, onChangeText, placeholder, onClear }) {
   return (
     <View style={styles.searchWrap}>
@@ -239,7 +631,12 @@ function SearchField({ value, onChangeText, placeholder, onClear }) {
   );
 }
 
-const Chip = React.memo(function Chip({ label, active, onPress, tone = "blue" }) {
+const Chip = React.memo(function Chip({
+  label,
+  active,
+  onPress,
+  tone = "blue",
+}) {
   const palette = {
     blue: {
       activeBg: "rgba(10,132,255,0.12)",
@@ -294,6 +691,8 @@ const Chip = React.memo(function Chip({ label, active, onPress, tone = "blue" })
 });
 
 const AgendaListHeader = React.memo(function AgendaListHeader({
+  viewMode,
+  onChangeView,
   query,
   setQuery,
   scope,
@@ -307,18 +706,24 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
   onClearAll,
 }) {
   const handleSelect = useCallback((setter, value) => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
     setter(value);
   }, []);
 
-  const hasActiveFilters =
-    !!query ||
-    scope !== DEFAULT_AGENDA_FILTERS.scope ||
-    temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
-    statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+  const isCalendarView = viewMode === VIEW_MODES.CALENDAR;
+
+  const hasActiveFilters = isCalendarView
+    ? !!query || statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter
+    :
+      !!query ||
+      scope !== DEFAULT_AGENDA_FILTERS.scope ||
+      temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+      statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
 
   return (
     <View style={styles.listHeader}>
+      <AgendaViewToggle value={viewMode} onChange={onChangeView} />
+
       <View style={styles.filterMetaRow}>
         <Text style={styles.filterMetaText}>
           {filteredTotal} de {total} evento{total === 1 ? "" : "s"}
@@ -347,29 +752,33 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
       />
 
       <View style={styles.filtersBlock}>
-        <View style={styles.chipRow}>
-          {SCOPE_FILTERS.map((item) => (
-            <Chip
-              key={item.key}
-              label={item.label}
-              active={scope === item.key}
-              tone={item.tone}
-              onPress={() => handleSelect(setScope, item.key)}
-            />
-          ))}
-        </View>
+        {!isCalendarView && (
+          <>
+            <View style={styles.chipRow}>
+              {SCOPE_FILTERS.map((item) => (
+                <Chip
+                  key={item.key}
+                  label={item.label}
+                  active={scope === item.key}
+                  tone={item.tone}
+                  onPress={() => handleSelect(setScope, item.key)}
+                />
+              ))}
+            </View>
 
-        <View style={styles.chipRow}>
-          {TEMPORAL_FILTERS.map((item) => (
-            <Chip
-              key={item.key}
-              label={item.label}
-              active={temporal === item.key}
-              tone={item.tone}
-              onPress={() => handleSelect(setTemporal, item.key)}
-            />
-          ))}
-        </View>
+            <View style={styles.chipRow}>
+              {TEMPORAL_FILTERS.map((item) => (
+                <Chip
+                  key={item.key}
+                  label={item.label}
+                  active={temporal === item.key}
+                  tone={item.tone}
+                  onPress={() => handleSelect(setTemporal, item.key)}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
         <View style={styles.chipRow}>
           {STATUS_FILTERS.map((item) => (
@@ -399,7 +808,7 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
         bounciness: 6,
       }).start();
     },
-    [scale]
+    [scale],
   );
 
   const handlePress = useCallback(async () => {
@@ -407,7 +816,7 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch { }
+    } catch {}
 
     onPress?.();
   }, [disabled, onPress]);
@@ -449,8 +858,12 @@ export default function AgendaScreen() {
   const [query, setQuery] = useState("");
   const [scope, setScope] = useState(DEFAULT_AGENDA_FILTERS.scope);
   const [temporal, setTemporal] = useState(DEFAULT_AGENDA_FILTERS.temporal);
-  const [statusFilter, setStatusFilter] = useState(DEFAULT_AGENDA_FILTERS.statusFilter);
+  const [statusFilter, setStatusFilter] = useState(
+    DEFAULT_AGENDA_FILTERS.statusFilter,
+  );
   const [filtersHydrated, setFiltersHydrated] = useState(false);
+  const [viewMode, setViewMode] = useState(VIEW_MODES.TIMELINE);
+  const [viewHydrated, setViewHydrated] = useState(false);
 
   const [refreshing, setRefreshing] = useState(false);
 
@@ -479,18 +892,20 @@ export default function AgendaScreen() {
 
         const parsed = JSON.parse(raw);
 
-        const savedScope = SCOPE_FILTERS.some((item) => item.key === parsed?.scope)
+        const savedScope = SCOPE_FILTERS.some(
+          (item) => item.key === parsed?.scope,
+        )
           ? parsed.scope
           : DEFAULT_AGENDA_FILTERS.scope;
 
         const savedTemporal = TEMPORAL_FILTERS.some(
-          (item) => item.key === parsed?.temporal
+          (item) => item.key === parsed?.temporal,
         )
           ? parsed.temporal
           : DEFAULT_AGENDA_FILTERS.temporal;
 
         const savedStatus = STATUS_FILTERS.some(
-          (item) => item.key === parsed?.statusFilter
+          (item) => item.key === parsed?.statusFilter,
         )
           ? parsed.statusFilter
           : DEFAULT_AGENDA_FILTERS.statusFilter;
@@ -525,11 +940,44 @@ export default function AgendaScreen() {
         scope,
         temporal,
         statusFilter,
-      })
+      }),
     ).catch((err) => {
       console.log("Erro ao salvar filtros da agenda:", err?.message);
     });
   }, [filtersHydrated, scope, temporal, statusFilter]);
+
+  useEffect(() => {
+    let alive = true;
+
+    AsyncStorage.getItem(AGENDA_VIEW_STORAGE_KEY)
+      .then((savedView) => {
+        if (!alive) return;
+
+        setViewMode(
+          savedView === VIEW_MODES.CALENDAR
+            ? VIEW_MODES.CALENDAR
+            : VIEW_MODES.TIMELINE,
+        );
+      })
+      .catch((err) => {
+        console.log("Erro ao carregar visão da agenda:", err?.message);
+      })
+      .finally(() => {
+        if (alive) setViewHydrated(true);
+      });
+
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!viewHydrated) return;
+
+    AsyncStorage.setItem(AGENDA_VIEW_STORAGE_KEY, viewMode).catch((err) => {
+      console.log("Erro ao salvar visão da agenda:", err?.message);
+    });
+  }, [viewHydrated, viewMode]);
 
   useEffect(() => {
     let alive = true;
@@ -571,7 +1019,9 @@ export default function AgendaScreen() {
           accessibilityRole="button"
           accessibilityLabel="Adicionar evento"
           onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => { });
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
+              () => {},
+            );
             router.push({ pathname: "/(modals)/agenda-new" });
           }}
           style={({ pressed }) => [
@@ -599,30 +1049,33 @@ export default function AgendaScreen() {
     let list = (eventos || []).filter((event) => {
       const petNames = getEventPetNames(event, petsById);
       const haystack = norm(
-        `${event.title} ${event.cliente} ${event.tutorNome || ""} ${event.local || ""
-        } ${event.observacoes || ""} ${petNames}`
+        `${event.title} ${event.cliente} ${event.tutorNome || ""} ${
+          event.local || ""
+        } ${event.observacoes || ""} ${petNames}`,
       );
 
       return haystack.includes(q);
     });
 
-    list = list.filter((event) => {
-      const d = toDateLocal(event.start);
+    if (viewMode === VIEW_MODES.TIMELINE) {
+      list = list.filter((event) => {
+        const d = toDateLocal(event.start);
 
-      if (scope === "hoje") return sameDayLocal(d, currentNow);
-      if (scope === "semana") return inThisWeekLocal(d, currentNow);
+        if (scope === "hoje") return sameDayLocal(d, currentNow);
+        if (scope === "semana") return inThisWeekLocal(d, currentNow);
 
-      return true;
-    });
+        return true;
+      });
 
-    list = list.filter((event) => {
-      const dEnd = toDateLocal(event.end);
+      list = list.filter((event) => {
+        const dEnd = toDateLocal(event.end);
 
-      if (temporal === "futuros") return dEnd >= currentNow;
-      if (temporal === "passados") return dEnd < currentNow;
+        if (temporal === "futuros") return dEnd >= currentNow;
+        if (temporal === "passados") return dEnd < currentNow;
 
-      return true;
-    });
+        return true;
+      });
+    }
 
     list = list.filter((event) => {
       if (statusFilter === "todos") return true;
@@ -630,7 +1083,15 @@ export default function AgendaScreen() {
     });
 
     return list.sort((a, b) => toDateLocal(a.start) - toDateLocal(b.start));
-  }, [eventos, petsById, query, scope, temporal, statusFilter]);
+  }, [
+    eventos,
+    petsById,
+    query,
+    scope,
+    temporal,
+    statusFilter,
+    viewMode,
+  ]);
 
   const sections = useMemo(() => makeSections(filtered), [filtered]);
 
@@ -678,7 +1139,7 @@ export default function AgendaScreen() {
   useFocusEffect(
     useCallback(() => {
       scrollToTop(false);
-    }, [scrollToTop])
+    }, [scrollToTop]),
   );
 
   const onRefresh = useCallback(async () => {
@@ -702,15 +1163,18 @@ export default function AgendaScreen() {
   }, [dispatch, store]);
 
   const clearAllFilters = useCallback(() => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
 
     setQuery("");
-    setScope(DEFAULT_AGENDA_FILTERS.scope);
-    setTemporal(DEFAULT_AGENDA_FILTERS.temporal);
     setStatusFilter(DEFAULT_AGENDA_FILTERS.statusFilter);
 
+    if (viewMode === VIEW_MODES.TIMELINE) {
+      setScope(DEFAULT_AGENDA_FILTERS.scope);
+      setTemporal(DEFAULT_AGENDA_FILTERS.temporal);
+    }
+
     scrollToTop(false);
-  }, [scrollToTop]);
+  }, [scrollToTop, viewMode]);
 
   const renderSectionHeader = useCallback(
     ({ section }) => {
@@ -731,17 +1195,23 @@ export default function AgendaScreen() {
         </View>
       );
     },
-    [now]
+    [now],
   );
 
   const renderItem = useCallback(
     ({ item }) => <EventRow item={item} petsById={petsById} />,
-    [petsById]
+    [petsById],
   );
 
   const listHeader = useMemo(
     () => (
       <AgendaListHeader
+        viewMode={viewMode}
+        onChangeView={(nextView) => {
+          Haptics.selectionAsync().catch(() => {});
+          setViewMode(nextView);
+          scrollToTop(false);
+        }}
         query={query}
         setQuery={setQuery}
         scope={scope}
@@ -765,6 +1235,7 @@ export default function AgendaScreen() {
       />
     ),
     [
+      viewMode,
       query,
       scope,
       temporal,
@@ -773,64 +1244,94 @@ export default function AgendaScreen() {
       filteredTotal,
       clearAllFilters,
       scrollToTop,
-    ]
+    ],
   );
 
   const hasFilters =
-    !!query ||
-    scope !== DEFAULT_AGENDA_FILTERS.scope ||
-    temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
-    statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+    viewMode === VIEW_MODES.CALENDAR
+      ? !!query || statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter
+      :
+        !!query ||
+        scope !== DEFAULT_AGENDA_FILTERS.scope ||
+        temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+        statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={["left", "right"]}>
-      <SectionList
-        ref={listRef}
-        style={styles.list}
-        sections={sections}
-        keyExtractor={(item) => String(item.id)}
-        ListHeaderComponent={listHeader}
-        renderSectionHeader={renderSectionHeader}
-        renderItem={renderItem}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
-        contentContainerStyle={[
-          styles.listContent,
-          sections.length === 0 && { flexGrow: 1 },
-        ]}
-        ListEmptyComponent={
-          <EmptyAgendaCard
-            title="Nenhum evento encontrado"
-            subtitle="Ajuste os filtros ou adicione um novo evento."
-            actionLabel="Adicionar evento"
-            onClearFilters={clearAllFilters}
-            hasFilters={hasFilters}
-          />
-        }
-        refreshControl={
-          <RefreshControl
+    <SafeAreaView
+      style={[styles.safe, { backgroundColor: bg }]}
+      edges={["left", "right"]}
+    >
+      {viewMode === VIEW_MODES.TIMELINE ? (
+        <SectionList
+          ref={listRef}
+          style={styles.list}
+          sections={sections}
+          keyExtractor={(item) => String(item.id)}
+          ListHeaderComponent={listHeader}
+          renderSectionHeader={renderSectionHeader}
+          renderItem={renderItem}
+          ItemSeparatorComponent={() => <View style={styles.separator} />}
+          contentContainerStyle={[
+            styles.listContent,
+            sections.length === 0 && { flexGrow: 1 },
+          ]}
+          ListEmptyComponent={
+            <EmptyAgendaCard
+              title="Nenhum evento encontrado"
+              subtitle="Ajuste os filtros ou adicione um novo evento."
+              actionLabel="Adicionar evento"
+              onClearFilters={clearAllFilters}
+              hasFilters={hasFilters}
+            />
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={tint}
+              colors={[tint]}
+              progressBackgroundColor="#FFFFFF"
+            />
+          }
+          contentInsetAdjustmentBehavior="automatic"
+          stickySectionHeadersEnabled
+          removeClippedSubviews={Platform.OS === "android"}
+          initialNumToRender={12}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={50}
+          windowSize={9}
+          keyboardShouldPersistTaps="handled"
+        />
+      ) : (
+        <View style={styles.calendarScreen}>
+          {listHeader}
+
+          <CalendarAgendaView
+            filtered={filtered}
+            petsById={petsById}
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={tint}
-            colors={[tint]}
-            progressBackgroundColor="#FFFFFF"
+            tint={tint}
+            hasFilters={hasFilters}
+            clearAllFilters={clearAllFilters}
           />
-        }
-        contentInsetAdjustmentBehavior="automatic"
-        stickySectionHeadersEnabled
-        removeClippedSubviews={Platform.OS === "android"}
-        initialNumToRender={12}
-        maxToRenderPerBatch={10}
-        updateCellsBatchingPeriod={50}
-        windowSize={9}
-        keyboardShouldPersistTaps="handled"
-      />
+        </View>
+      )}
     </SafeAreaView>
   );
 }
 
 const EventRow = React.memo(function EventRow({ item, petsById }) {
-  const { id, title, start, end, cliente, observacoes, tutorId, petIds = [] } =
-    item;
+  const {
+    id,
+    title,
+    start,
+    end,
+    cliente,
+    observacoes,
+    tutorId,
+    petIds = [],
+  } = item;
 
   const dispatch = useDispatch();
   const swipeRef = useRef(null);
@@ -851,11 +1352,11 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
       (petIds || [])
         .map(
           (petId) =>
-            petsById?.[String(petId)]?.nome || petsById?.[String(petId)]?.name
+            petsById?.[String(petId)]?.nome || petsById?.[String(petId)]?.name,
         )
         .filter(Boolean)
         .join(", "),
-    [petIds, petsById]
+    [petIds, petsById],
   );
 
   const shortAddr = useMemo(() => tutorShortAddress(tutor), [tutor]);
@@ -874,7 +1375,7 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
             id: String(id),
             patch: { status: newStatus },
             changeStatus: true,
-          })
+          }),
         ).unwrap();
       } catch (error) {
         console.log("Erro ao atualizar status:", error);
@@ -883,7 +1384,7 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
         setPending(false);
       }
     },
-    [dispatch, id, pending]
+    [dispatch, id, pending],
   );
 
   const renderRightActions = useCallback(
@@ -910,7 +1411,7 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
         />
       </View>
     ),
-    [handleSetStatus, pending]
+    [handleSetStatus, pending],
   );
 
   const openEvent = useCallback(async () => {
@@ -947,30 +1448,45 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
 
           <View style={styles.eventBody}>
             <View style={styles.eventMainLine}>
-              <Text style={[styles.eventTitle, { color: text }]} numberOfLines={1}>
+              <Text
+                style={[styles.eventTitle, { color: text }]}
+                numberOfLines={1}
+              >
                 {title || "Evento"}
                 {petNames ? ` • ${petNames}` : ""}
               </Text>
 
-              <Text style={[styles.eventHour, { color: subtle }]} numberOfLines={1}>
+              <Text
+                style={[styles.eventHour, { color: subtle }]}
+                numberOfLines={1}
+              >
                 {fmtHour(start)} — {fmtHour(end)}
               </Text>
             </View>
 
             {!!cliente && (
-              <Text style={[styles.eventMetaStrong, { color: text }]} numberOfLines={1}>
+              <Text
+                style={[styles.eventMetaStrong, { color: text }]}
+                numberOfLines={1}
+              >
                 Tutor: {cliente}
               </Text>
             )}
 
             {!!observacoes && (
-              <Text style={[styles.eventMeta, { color: subtle }]} numberOfLines={2}>
+              <Text
+                style={[styles.eventMeta, { color: subtle }]}
+                numberOfLines={2}
+              >
                 {observacoes}
               </Text>
             )}
 
             {!!shortAddr && (
-              <Text style={[styles.eventMeta, { color: subtle }]} numberOfLines={1}>
+              <Text
+                style={[styles.eventMeta, { color: subtle }]}
+                numberOfLines={1}
+              >
                 • {shortAddr}
               </Text>
             )}
@@ -1333,5 +1849,360 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     color: "#EF4444",
+  },
+
+  viewToggleOuter: {
+    height: 38,
+    padding: 3,
+    borderRadius: 12,
+    backgroundColor: "rgba(118,118,128,0.12)",
+    flexDirection: "row",
+  },
+
+  viewToggleItem: {
+    flex: 1,
+    borderRadius: 9,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+
+  viewToggleItemActive: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 2,
+  },
+
+  viewToggleText: {
+    color: "#6B7280",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  viewToggleTextActive: {
+    color: "#111827",
+    fontWeight: "850",
+  },
+
+  calendarScreen: {
+    flex: 1,
+  },
+
+  calendarTopControls: {
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 8,
+    gap: 8,
+  },
+
+  calendarFilterSummary: {
+    minHeight: 22,
+    paddingHorizontal: 2,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  calendarFilterSummaryText: {
+    color: "#6B7280",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  calendarFilterClearText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "850",
+  },
+
+  calendarListContent: {
+    paddingBottom: 96,
+  },
+
+  calendarContent: {
+    paddingHorizontal: 16,
+    paddingTop: 4,
+  },
+
+  calendarCard: {
+    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 12,
+    borderRadius: 22,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.07)",
+    shadowColor: "#000",
+    shadowOpacity: 0.07,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 3,
+  },
+
+  calendarMonthHeader: {
+    minHeight: 48,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  calendarNavButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(10,132,255,0.09)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  calendarMonthTitleButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  calendarMonthTitle: {
+    color: "#111827",
+    fontSize: 17,
+    fontWeight: "850",
+    letterSpacing: -0.25,
+  },
+
+  calendarTodayHint: {
+    marginTop: 2,
+    color: "#8E8E93",
+    fontSize: 10,
+    fontWeight: "650",
+  },
+
+  calendarWeekHeader: {
+    marginTop: 8,
+    marginBottom: 3,
+    flexDirection: "row",
+  },
+
+  calendarWeekDay: {
+    flex: 1,
+    textAlign: "center",
+    color: "#8E8E93",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  calendarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+
+  calendarDayCell: {
+    width: "14.285714%",
+    height: 47,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    paddingTop: 4,
+  },
+
+  calendarDayNumberWrap: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  calendarDayNumberSelected: {
+    backgroundColor: "#0A84FF",
+    shadowColor: "#0A84FF",
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 2 },
+  },
+
+  calendarDayNumberToday: {
+    borderWidth: 1.5,
+    borderColor: "#0A84FF",
+  },
+
+  calendarDayNumber: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "750",
+  },
+
+  calendarDayNumberOutside: {
+    color: "#C7C7CC",
+  },
+
+  calendarDayNumberTodayText: {
+    color: "#0A84FF",
+    fontWeight: "850",
+  },
+
+  calendarDayNumberSelectedText: {
+    color: "#FFFFFF",
+    fontWeight: "850",
+  },
+
+  calendarDotsRow: {
+    height: 6,
+    marginTop: 3,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+
+  calendarDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+
+  selectedDayHeader: {
+    minHeight: 76,
+    paddingHorizontal: 4,
+    paddingTop: 18,
+    paddingBottom: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  selectedDayEyebrow: {
+    color: "#8E8E93",
+    fontSize: 10,
+    fontWeight: "850",
+    letterSpacing: 0.45,
+  },
+
+  selectedDayTitle: {
+    marginTop: 3,
+    color: "#111827",
+    fontSize: 17,
+    fontWeight: "850",
+    textTransform: "capitalize",
+    letterSpacing: -0.2,
+  },
+
+  selectedDayCountBadge: {
+    minWidth: 34,
+    height: 28,
+    paddingHorizontal: 9,
+    borderRadius: 14,
+    backgroundColor: "rgba(10,132,255,0.11)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  selectedDayCountText: {
+    color: "#0A84FF",
+    fontSize: 13,
+    fontWeight: "850",
+  },
+
+  calendarEventRow: {
+    minHeight: 72,
+    marginHorizontal: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.07)",
+    paddingRight: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  calendarEventStripe: {
+    width: 5,
+    alignSelf: "stretch",
+  },
+
+  calendarEventTimeWrap: {
+    width: 58,
+    paddingLeft: 11,
+  },
+
+  calendarEventTime: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "850",
+  },
+
+  calendarEventEnd: {
+    marginTop: 2,
+    color: "#8E8E93",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  calendarEventContent: {
+    flex: 1,
+    minWidth: 0,
+    paddingVertical: 12,
+    paddingRight: 8,
+  },
+
+  calendarEventTitle: {
+    color: "#111827",
+    fontSize: 14,
+    fontWeight: "850",
+  },
+
+  calendarEventMeta: {
+    marginTop: 4,
+    color: "#6B7280",
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "600",
+  },
+
+  calendarEventDivider: {
+    height: 8,
+  },
+
+  calendarEmptyWrap: {
+    marginHorizontal: 16,
+    minHeight: 175,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.07)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+
+  calendarEmptyTitle: {
+    marginTop: 10,
+    color: "#111827",
+    fontSize: 15,
+    fontWeight: "850",
+  },
+
+  calendarEmptyText: {
+    marginTop: 4,
+    color: "#6B7280",
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: "center",
+  },
+
+  calendarClearFiltersButton: {
+    marginTop: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(239,68,68,0.09)",
+  },
+
+  calendarClearFiltersText: {
+    color: "#EF4444",
+    fontSize: 12,
+    fontWeight: "850",
   },
 });

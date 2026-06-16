@@ -19,6 +19,7 @@ import {
   Switch,
   ActivityIndicator,
   Linking,
+  Keyboard,
 } from "react-native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
@@ -343,12 +344,45 @@ export default function PetNewModal() {
 
   const [initialized, setInitialized] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+  const scrollRef = useRef(null);
+  const observacoesRef = useRef(null);
 
   const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
 
   const tutoresBuscados = useSelector((state) =>
     tutoresByQuerySelectorRef.current(state, tutorQuery)
   );
+
+
+  useEffect(() => {
+    const showEvent =
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+    const hideEvent =
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+    const showSubscription = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+    });
+
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
+
+  const revealObservacoes = useCallback(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        scrollRef.current?.scrollToEnd({ animated: true });
+      }, Platform.OS === "ios" ? 180 : 80);
+    });
+  }, []);
 
   useEffect(() => {
     if (isEdit && !pet && _id) dispatch(fetchPet(_id));
@@ -817,10 +851,14 @@ export default function PetNewModal() {
       >
         <View style={styles.shell}>
           <ScrollView
+            ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={[
               styles.content,
-              { paddingBottom: 132 + insets.bottom },
+              {
+                paddingBottom:
+                  (keyboardVisible ? 28 : 132) + insets.bottom,
+              },
             ]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode={Platform.OS === "ios" ? "on-drag" : "none"}
@@ -1012,8 +1050,10 @@ export default function PetNewModal() {
               helper="Anotações livres sobre comportamento, restrições, histórico ou preferências."
             >
               <TextInput
+                ref={observacoesRef}
                 value={observacoes}
                 onChangeText={setObservacoes}
+                onFocus={revealObservacoes}
                 placeholder="Anotações gerais sobre o paciente..."
                 placeholderTextColor="#9CA3AF"
                 style={[styles.input, styles.textArea, { color: text }]}
@@ -1027,6 +1067,7 @@ export default function PetNewModal() {
             )}
           </ScrollView>
 
+          {!keyboardVisible && (
           <View
             style={[
               styles.fixedFooter,
@@ -1065,6 +1106,7 @@ export default function PetNewModal() {
               {firstError || "Você pode completar o cadastro do pet depois."}
             </Text>
           </View>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

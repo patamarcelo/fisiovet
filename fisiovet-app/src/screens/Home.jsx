@@ -94,7 +94,7 @@ const fmtDay = (iso) => {
     const d = new Date(iso);
 
     return d.toLocaleDateString('pt-BR', {
-        weekday: 'short',
+        weekday: 'long',
         day: '2-digit',
         month: 'short',
     });

@@ -274,6 +274,7 @@ function AppTextInput({
     multiline = false,
     keyboardType,
     icon,
+    onFocus,
 }) {
     return (
         <InputShell disabled={disabled} multiline={multiline}>
@@ -294,6 +295,7 @@ function AppTextInput({
                 editable={!disabled}
                 multiline={multiline}
                 keyboardType={keyboardType}
+                onFocus={onFocus}
                 textAlignVertical={multiline ? "top" : "center"}
                 style={[
                     styles.input,
@@ -690,6 +692,7 @@ export default function AgendaNewScreen() {
     const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
     const onSubmitRef = useRef(null);
     const preselectedPetIdRef = useRef(preselectPetIdParam);
+    const scrollRef = useRef(null);
 
     const [isEditing, setIsEditing] = useState(() => !eventIdParam);
     const [title, setTitle] = useState(() =>
@@ -725,6 +728,7 @@ export default function AgendaNewScreen() {
     const [recorrente, setRecorrente] = useState(false);
     const [recorrencias, setRecorrencias] = useState("4");
     const [saving, setSaving] = useState(false);
+    const [keyboardVisible, setKeyboardVisible] = useState(false);
 
     const disabled = !isEditing;
 
@@ -754,6 +758,35 @@ export default function AgendaNewScreen() {
     }, []);
 
     /* ---------- Effects ---------- */
+
+    useEffect(() => {
+        const showEvent =
+            Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent =
+            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const showSubscription = Keyboard.addListener(showEvent, () => {
+            setKeyboardVisible(true);
+        });
+
+        const hideSubscription = Keyboard.addListener(hideEvent, () => {
+            setKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
+
+    const revealObservacoes = useCallback(() => {
+        requestAnimationFrame(() => {
+            setTimeout(() => {
+                scrollRef.current?.scrollToEnd({ animated: true });
+            }, Platform.OS === "ios" ? 180 : 80);
+        });
+    }, []);
+
 
     useEffect(() => {
         if (!eventoExistente) return;
@@ -1312,18 +1345,25 @@ export default function AgendaNewScreen() {
             <KeyboardAvoidingView
                 style={styles.flex}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+                keyboardVerticalOffset={0}
             >
                 <ScrollView
+                    ref={scrollRef}
                     style={styles.flex}
                     contentContainerStyle={[
                         styles.content,
                         {
                             paddingBottom:
-                                (isEditing ? 108 : 28) + Math.max(insets.bottom, 0),
+                                (keyboardVisible
+                                    ? 28
+                                    : isEditing
+                                        ? 108
+                                        : 28) + Math.max(insets.bottom, 0),
                         },
                     ]}
                     keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+                    automaticallyAdjustKeyboardInsets={Platform.OS === "ios"}
                     onScrollBeginDrag={Keyboard.dismiss}
                     showsVerticalScrollIndicator={false}
                 >
@@ -1571,6 +1611,7 @@ export default function AgendaNewScreen() {
                             placeholder="Alguma observação sobre a consulta"
                             disabled={disabled}
                             multiline
+                            onFocus={revealObservacoes}
                         />
                     </SectionCard>
 
@@ -1581,7 +1622,7 @@ export default function AgendaNewScreen() {
                     )}
                 </ScrollView>
 
-                {isEditing && (
+                {isEditing && !keyboardVisible && (
                     <View
                         style={[
                             styles.footer,

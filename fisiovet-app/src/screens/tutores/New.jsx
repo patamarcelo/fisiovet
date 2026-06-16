@@ -295,6 +295,8 @@ export default function TutorForm() {
 	const cidadeRef = useRef(null);
 	const ufRef = useRef(null);
 	const complementoRef = useRef(null);
+	const observacoesRef = useRef(null);
+	const scrollRef = useRef(null);
 
 	const [nome, setNome] = useState("");
 	const [telefone, setTelefone] = useState("");
@@ -314,6 +316,45 @@ export default function TutorForm() {
 	const [submitting, setSubmitting] = useState(false);
 	const [cepTouched, setCepTouched] = useState(false);
 	const [cepFound, setCepFound] = useState(false);
+	const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+
+	useEffect(() => {
+		const showEvent =
+			Platform.OS === "ios"
+				? "keyboardWillShow"
+				: "keyboardDidShow";
+
+		const hideEvent =
+			Platform.OS === "ios"
+				? "keyboardWillHide"
+				: "keyboardDidHide";
+
+		const showSubscription = Keyboard.addListener(
+			showEvent,
+			() => setKeyboardVisible(true)
+		);
+
+		const hideSubscription = Keyboard.addListener(
+			hideEvent,
+			() => setKeyboardVisible(false)
+		);
+
+		return () => {
+			showSubscription.remove();
+			hideSubscription.remove();
+		};
+	}, []);
+
+	const revealObservacoes = useCallback(() => {
+		requestAnimationFrame(() => {
+			setTimeout(() => {
+				scrollRef.current?.scrollToEnd({
+					animated: true,
+				});
+			}, Platform.OS === "ios" ? 180 : 80);
+		});
+	}, []);
 
 	useEffect(() => {
 		if (id && !tutor) {
@@ -518,33 +559,32 @@ export default function TutorForm() {
 				</Pressable>
 			),
 
-			headerRight: () =>
-				isEdit ? (
-					<Pressable
-						onPress={confirmDelete}
-						disabled={submitting}
-						hitSlop={8}
-						accessibilityRole="button"
-						accessibilityLabel="Excluir tutor"
-						style={({ pressed }) => [
-							styles.headerActionButton,
-							styles.headerDeleteButton,
-							pressed &&
-								styles.headerActionButtonPressed,
-							submitting && {
-								opacity: 0.4,
-							},
-						]}
-					>
-						<Ionicons
-							name="trash-outline"
-							size={19}
-							color="#DC2626"
-						/>
-					</Pressable>
-				) : (
-					<View style={styles.headerActionPlaceholder} />
-				),
+			headerRight: isEdit
+				? () => (
+						<Pressable
+							onPress={confirmDelete}
+							disabled={submitting}
+							hitSlop={8}
+							accessibilityRole="button"
+							accessibilityLabel="Excluir tutor"
+							style={({ pressed }) => [
+								styles.headerActionButton,
+								styles.headerDeleteButton,
+								pressed &&
+									styles.headerActionButtonPressed,
+								submitting && {
+									opacity: 0.4,
+								},
+							]}
+						>
+							<Ionicons
+								name="trash-outline"
+								size={19}
+								color="#DC2626"
+							/>
+						</Pressable>
+					)
+				: undefined,
 		});
 	}, [
 		navigation,
@@ -859,24 +899,29 @@ export default function TutorForm() {
 					? "padding"
 					: undefined
 			}
-			keyboardVerticalOffset={
-				Platform.OS === "ios"
-					? 64
-					: 0
-			}
+			keyboardVerticalOffset={0}
 		>
 			<View style={styles.shell}>
 				<ScrollView
+					ref={scrollRef}
 					style={styles.scroll}
 					contentContainerStyle={[
 						styles.content,
 						{
 							paddingBottom:
-								148 +
+								(keyboardVisible ? 28 : 148) +
 								insets.bottom,
 						},
 					]}
 					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode={
+						Platform.OS === "ios"
+							? "interactive"
+							: "on-drag"
+					}
+					automaticallyAdjustKeyboardInsets={
+						Platform.OS === "ios"
+					}
 					showsVerticalScrollIndicator={false}
 				>
 					<FormSection
@@ -1137,8 +1182,10 @@ export default function TutorForm() {
 					>
 						<ThemedTextInput
 							placeholder="Anotações gerais sobre o tutor..."
+							ref={observacoesRef}
 							value={observacoes}
 							onChangeText={setObservacoes}
+							onFocus={revealObservacoes}
 							multiline
 							numberOfLines={4}
 							style={[
@@ -1164,6 +1211,7 @@ export default function TutorForm() {
 					)}
 				</ScrollView>
 
+				{!keyboardVisible && (
 				<View
 					style={[
 						styles.fixedFooter,
@@ -1223,6 +1271,7 @@ export default function TutorForm() {
 							: "Você pode completar os dados do tutor depois."}
 					</Text>
 				</View>
+				)}
 			</View>
 		</KeyboardAvoidingView>
 	);
@@ -1426,10 +1475,6 @@ const styles = StyleSheet.create({
 		],
 	},
 
-	headerActionPlaceholder: {
-		width: 36,
-		height: 36,
-	},
 
 	limitScreen: {
 		flex: 1,
