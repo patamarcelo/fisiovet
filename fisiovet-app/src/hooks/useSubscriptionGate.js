@@ -1,73 +1,163 @@
 // src/hooks/useSubscriptionGate.js
-import { useCallback, useMemo, useState } from "react";
-import { useSelector } from "react-redux";
+// @ts-nocheck
 
 import {
-	selectSubscriptionEnabled,
-	selectCurrentPlan,
+	useCallback,
+	useMemo,
+} from "react";
+
+import {
+	Alert,
+} from "react-native";
+
+import {
+	router,
+} from "expo-router";
+
+import {
+	useSelector,
+} from "react-redux";
+
+import {
 	selectCurrentLimits,
+	selectCurrentPlan,
+	selectSubscriptionEnabled,
 } from "@/src/store/slices/subscriptionSlice";
 
 import {
+	getLimitMessage,
 	getLimitStatus,
 	getUsageFromState,
 } from "@/src/utils/subscriptionLimits";
 
-export function useSubscriptionGate() {
-	const enabled = useSelector(selectSubscriptionEnabled);
-	const plan = useSelector(selectCurrentPlan);
-	const limits = useSelector(selectCurrentLimits);
-	const state = useSelector((s) => s);
+export function useSubscriptionGate(
+	resource
+) {
+	const enabled =
+		useSelector(
+			selectSubscriptionEnabled
+		);
 
-	const [limitModal, setLimitModal] = useState({
-		visible: false,
-		resource: null,
-		current: 0,
-		limit: 0,
-	});
+	const plan =
+		useSelector(
+			selectCurrentPlan
+		);
 
-	const usage = useMemo(() => getUsageFromState(state), [state]);
+	const limits =
+		useSelector(
+			selectCurrentLimits
+		);
 
-	const checkLimit = useCallback(
-		(resource) => {
-			const result = getLimitStatus({
+	const usage =
+		useSelector(
+			getUsageFromState
+		);
+
+	const status =
+		useMemo(
+			() =>
+				getLimitStatus({
+					enabled,
+					plan,
+					limits,
+					usage,
+					resource,
+				}),
+			[
 				enabled,
 				plan,
 				limits,
 				usage,
 				resource,
-			});
+			]
+		);
 
-			if (!result.allowed) {
-				setLimitModal({
-					visible: true,
-					resource,
-					current: result.current,
-					limit: result.limit,
-				});
+	const openPlans =
+		useCallback(() => {
+			router.push(
+				"/(home-modals)/assinatura"
+			);
+		}, []);
 
-				return false;
+	const showLimitAlert =
+		useCallback(() => {
+			if (
+				status.allowed
+			) {
+				return true;
 			}
 
-			return true;
-		},
-		[enabled, plan, limits, usage]
-	);
+			const {
+				title,
+				message,
+			} =
+				getLimitMessage(
+					status
+				);
 
-	const closeLimitModal = useCallback(() => {
-		setLimitModal((prev) => ({
-			...prev,
-			visible: false,
-		}));
-	}, []);
+			Alert.alert(
+				title,
+				message,
+				[
+					{
+						text:
+							"Agora não",
+						style:
+							"cancel",
+					},
+					{
+						text:
+							"Ver planos",
+						onPress:
+							openPlans,
+					},
+				]
+			);
+
+			return false;
+		}, [
+			status,
+			openPlans,
+		]);
+
+	/*
+	 * Executa uma função somente se a criação estiver permitida.
+	 *
+	 * Exemplo:
+	 * guard(() => router.push("/pet-new"));
+	 */
+	const guard =
+		useCallback(
+			(callback) => {
+				if (
+					!status.allowed
+				) {
+					showLimitAlert();
+					return false;
+				}
+
+				callback?.();
+				return true;
+			},
+			[
+				status.allowed,
+				showLimitAlert,
+			]
+		);
 
 	return {
+		...status,
+
 		enabled,
 		plan,
 		limits,
 		usage,
-		checkLimit,
-		limitModal,
-		closeLimitModal,
+
+		canCreate:
+			status.allowed,
+
+		openPlans,
+		showLimitAlert,
+		guard,
 	};
 }

@@ -65,9 +65,27 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="financeiro"
                 options={{
-                    presentation: 'fullScreenModal',
-                    animation: "slide_from_bottom",
                     headerShown: false,
+                    presentation: "card",
+                    animation: "slide_from_right",
+                    gestureEnabled: true,
+                }}
+            />
+            <Stack.Screen
+                name="financeiro-home/[id]"
+                options={{
+                    headerShown: true,
+                    title: "Lançamento",
+
+                    presentation: "fullScreenModal",
+                    animation: "slide_from_bottom",
+
+                    gestureEnabled: true,
+                    gestureDirection: "vertical",
+
+                    headerTitleAlign: "center",
+                    headerBackTitleVisible: false,
+                    headerShadowVisible: false,
                 }}
             />
             <Stack.Screen
@@ -152,6 +170,16 @@ export default function ModalLayout() {
                 name="pets/[id]/detail"
                 options={{
                     headerShown: true,
+                    presentation: "card",
+                    animation: "slide_from_right",
+                    gestureEnabled: true,
+                }}
+            />
+            <Stack.Screen
+                name="pets/[id]/timeline"
+                options={{
+                    headerShown: true,
+                    title: "Timeline",
                     presentation: "card",
                     animation: "slide_from_right",
                     gestureEnabled: true,

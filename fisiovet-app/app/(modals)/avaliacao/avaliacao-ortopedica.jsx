@@ -28,6 +28,103 @@ import {
 } from "@/src/store/slices/avaliacaoSlice";
 
 /* ---------- Firestore ---------- */
+function toDate(value) {
+	if (!value) {
+		return null;
+	}
+
+	if (value instanceof Date) {
+		return Number.isNaN(value.getTime())
+			? null
+			: value;
+	}
+
+	if (
+		typeof value?.toDate ===
+		"function"
+	) {
+		try {
+			const date =
+				value.toDate();
+
+			return Number.isNaN(
+				date.getTime()
+			)
+				? null
+				: date;
+		} catch {
+			return null;
+		}
+	}
+
+	if (value?._seconds) {
+		const date =
+			new Date(
+				value._seconds * 1000
+			);
+
+		return Number.isNaN(
+			date.getTime()
+		)
+			? null
+			: date;
+	}
+
+	if (
+		typeof value === "number"
+	) {
+		const date =
+			new Date(
+				value < 1e12
+					? value * 1000
+					: value
+			);
+
+		return Number.isNaN(
+			date.getTime()
+		)
+			? null
+			: date;
+	}
+
+	const date =
+		new Date(value);
+
+	return Number.isNaN(
+		date.getTime()
+	)
+		? null
+		: date;
+}
+
+function formatDocumentDate(value) {
+	const date =
+		toDate(value);
+
+	if (!date) {
+		return null;
+	}
+
+	return date.toLocaleString(
+		"pt-BR",
+		{
+			day: "2-digit",
+			month: "long",
+			year: "numeric",
+			hour: "2-digit",
+			minute: "2-digit",
+		}
+	);
+}
+
+function serializeDate(value) {
+	const date = toDate(value);
+
+	return date
+		? date.toISOString()
+		: null;
+}
+
 
 async function fetchAvaliacaoOrtopedica({
 	firestore,
@@ -123,6 +220,13 @@ function normalizeOrtopedicaDraft(petId, docData) {
 		id: docData?.id,
 		petId,
 		title: "",
+		createdAt:
+			docData?.createdAt ||
+			null,
+
+		updatedAt:
+			docData?.updatedAt ||
+			null,
 		tipo: "ortopedica",
 		textos: {
 			queixaPrincipal: "",
@@ -175,6 +279,15 @@ function normalizeOrtopedicaDraft(petId, docData) {
 
 	return {
 		...base,
+		createdAt:
+			serializeDate(
+				docData?.createdAt
+			),
+
+		updatedAt:
+			serializeDate(
+				docData?.updatedAt
+			),
 		title: docData?.title ?? base.title,
 		tipo: docData?.tipo ?? docData?.type ?? base.tipo,
 		textos: {
@@ -293,18 +406,101 @@ const respostaPalpacaoOptions = [
 
 /* ---------- UI Documento ---------- */
 
-function DocumentHeader({ title }) {
+function DocumentHeader({
+	title,
+	createdAt,
+	updatedAt,
+}) {
+	const createdText =
+		formatDocumentDate(
+			createdAt
+		);
+
+	const updatedText =
+		formatDocumentDate(
+			updatedAt
+		);
+
+	const createdDate =
+		toDate(createdAt);
+
+	const updatedDate =
+		toDate(updatedAt);
+
+	const wasUpdated =
+		createdDate &&
+		updatedDate &&
+		updatedDate.getTime() >
+		createdDate.getTime() +
+		1000;
+
 	return (
 		<View style={styles.documentHero}>
 			<View style={styles.documentIcon}>
-				<Ionicons name="body-outline" size={20} color="#FFFFFF" />
+				<Ionicons
+					name="body-outline"
+					size={20}
+					color="#FFFFFF"
+				/>
 			</View>
 
-			<View style={{ flex: 1, minWidth: 0 }}>
-				<Text style={styles.documentEyebrow}>AVALIAÇÃO ORTOPÉDICA</Text>
-				<Text style={styles.documentTitle} numberOfLines={2}>
-					{title || "Avaliação ortopédica"}
+			<View
+				style={{
+					flex: 1,
+					minWidth: 0,
+				}}
+			>
+				<Text
+					style={
+						styles.documentEyebrow
+					}
+				>
+					AVALIAÇÃO ORTOPÉDICA
 				</Text>
+
+				<Text
+					style={
+						styles.documentTitle
+					}
+					numberOfLines={2}
+				>
+					{title ||
+						"Avaliação ortopédica"}
+				</Text>
+
+				{!!createdText && (
+					<View
+						style={
+							styles.documentDateRow
+						}
+					>
+						<Ionicons
+							name="calendar-outline"
+							size={12}
+							color="#6B7280"
+						/>
+
+						<Text
+							style={
+								styles.documentDateText
+							}
+						>
+							Criado em{" "}
+							{createdText}
+						</Text>
+					</View>
+				)}
+
+				{wasUpdated && (
+					<Text
+						style={
+							styles.documentUpdatedText
+						}
+					>
+						Atualizado em{" "}
+						{updatedText}
+					</Text>
+				)}
 			</View>
 		</View>
 	);
@@ -425,7 +621,11 @@ function DocumentView({ draft }) {
 			contentContainerStyle={styles.documentContent}
 			showsVerticalScrollIndicator
 		>
-			<DocumentHeader title={draft?.title} />
+			<DocumentHeader
+				title={draft?.title}
+				createdAt={draft?.createdAt}
+				updatedAt={draft?.updatedAt}
+			/>
 
 			<DocumentSection number="1" title="Queixa e histórico">
 				<DocField
@@ -982,7 +1182,26 @@ export default function AvaliacaoOrtopedica() {
 					payload,
 				});
 
-				const normalized = normalizeOrtopedicaDraft(String(petId), payload);
+				const normalized =
+					normalizeOrtopedicaDraft(
+						String(petId),
+						{
+							...payload,
+
+							id:
+								String(
+									avaliacaoId
+								),
+
+							createdAt:
+								original?.createdAt ||
+								draft?.createdAt ||
+								null,
+
+							updatedAt:
+								new Date(),
+						}
+					);
 
 				setOriginal(normalized);
 
@@ -1903,5 +2122,28 @@ const styles = StyleSheet.create({
 		color: "white",
 		fontWeight: "800",
 		marginLeft: 7,
+	},
+	documentDateRow: {
+		marginTop: 6,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 5,
+	},
+
+	documentDateText: {
+		flex: 1,
+		color: "#6B7280",
+		fontSize: 10.5,
+		lineHeight: 14,
+		fontWeight: "650",
+	},
+
+	documentUpdatedText: {
+		marginTop: 2,
+		marginLeft: 17,
+		color: "#9CA3AF",
+		fontSize: 9.5,
+		lineHeight: 13,
+		fontWeight: "550",
 	},
 });

@@ -1,1 +1,1 @@
-export { default } from '@/src/screens/agenda/New';
+export { default } from '@/src/screens/agenda/AgendaFormScreen';

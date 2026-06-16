@@ -10,6 +10,7 @@ import {
 	Image,
 	StyleSheet,
 	View,
+	Platform
 } from "react-native";
 import { ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
@@ -37,10 +38,21 @@ import { DarkAppTheme, LightAppTheme } from "@/src/theme/AppTheme";
 import { ColorSchemeProvider, useColorMode } from "@/src/theme/color-scheme";
 import SplashLoadingScreen from "@/components/SplashLoadingScreen";
 
+
+import {
+	configureAppleSubscriptions,
+	getPlanFromCustomerInfo,
+	subscribeToAppleCustomerInfo,
+} from "@/src/services/subscriptions/appleSubscriptions";
+
+import {
+	setSubscriptionStatus,
+} from "@/src/store/slices/subscriptionSlice";
+
 const SPLASH_BG = "#F7F8FA";
 const SPLASH_IMAGE = require("@/assets/images/splash-fisiovet.png");
 
-SplashScreen.preventAutoHideAsync().catch(() => {});
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
 function StaticSplash({ showSpinner = false }) {
 	return (
@@ -84,6 +96,112 @@ function BootSplash() {
 function useAuthBinding() {
 	const dispatch = useDispatch();
 	const [authReady, setAuthReady] = useState(false);
+
+	useEffect(() => {
+		let alive = true;
+		let unsubscribeRevenueCat = null;
+
+		const syncRevenueCatCustomerInfo = (
+			customerInfo
+		) => {
+			if (!alive) return;
+
+			const subscription =
+				getPlanFromCustomerInfo(
+					customerInfo
+				);
+
+			dispatch(
+				setSubscriptionStatus({
+					plan:
+						subscription.plan,
+
+					status:
+						subscription.status,
+
+					source:
+						subscription.source,
+
+					productId:
+						subscription.productId,
+
+					currentPeriodEnd:
+						subscription.currentPeriodEnd,
+
+					originalTransactionId:
+						null,
+				})
+			);
+		};
+
+		const unsub = onAuthStateChanged(
+			auth,
+			async (u) => {
+				try {
+					const dto =
+						mapFirebaseUserToDTO(u);
+
+					dispatch(setUser(dto));
+
+					if (dto?.uid) {
+						try {
+							await dispatch(
+								syncUserProfile(dto)
+							).unwrap();
+						} catch (error) {
+							console.log(
+								"Falha ao sincronizar profile:",
+								error
+							);
+						}
+
+						if (
+							Platform.OS ===
+							"ios"
+						) {
+							try {
+								const customerInfo =
+									await configureAppleSubscriptions(
+										dto.uid
+									);
+
+								syncRevenueCatCustomerInfo(
+									customerInfo
+								);
+
+								unsubscribeRevenueCat?.();
+
+								unsubscribeRevenueCat =
+									subscribeToAppleCustomerInfo(
+										syncRevenueCatCustomerInfo
+									);
+							} catch (error) {
+								console.log(
+									"Falha ao configurar RevenueCat:",
+									error
+								);
+							}
+						}
+					}
+				} catch (error) {
+					console.log(
+						"Falha no auth binding:",
+						error
+					);
+				} finally {
+					if (alive) {
+						setAuthReady(true);
+					}
+				}
+			}
+		);
+
+		return () => {
+			alive = false;
+			unsub?.();
+			unsubscribeRevenueCat?.();
+		};
+	}, [dispatch]);
 
 	useEffect(() => {
 		let alive = true;
@@ -135,6 +253,7 @@ function AuthGate({ children }) {
 		const ALLOWED_TOP = [
 			"configuracoes",
 			"(modals)",
+			"(home-modals)",
 			"pacientes",
 			"(maps)",
 			"(files)",
@@ -186,6 +305,16 @@ function RootNavigator() {
 					<Stack.Screen name="(auth)" />
 					<Stack.Screen name="configuracoes" options={{ headerShown: false }} />
 					<Stack.Screen name="(modals)" options={{ headerShown: false }} />
+					<Stack.Screen
+						name="(home-modals)"
+						options={{
+							headerShown: false,
+							presentation: "fullScreenModal",
+							animation: "slide_from_bottom",
+							gestureEnabled: true,
+							gestureDirection: "vertical",
+						}}
+					/>
 					<Stack.Screen name="(maps)" options={{ headerShown: false }} />
 					<Stack.Screen name="(files)" options={{ headerShown: false }} />
 
@@ -210,7 +339,7 @@ function AppBoot({ fontsReady, persistReady }) {
 
 		const timer = setTimeout(() => {
 			didHideNativeSplash.current = true;
-			SplashScreen.hideAsync().catch(() => {});
+			SplashScreen.hideAsync().catch(() => { });
 		}, 80);
 
 		return () => clearTimeout(timer);

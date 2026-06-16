@@ -296,7 +296,7 @@ function UpcomingEventsList({
                             ).catch(() => { });
 
                             router.push({
-                                pathname: '/(modals)/agenda-new',
+                                pathname: '/(home-modals)/agenda-new',
                                 params: {
                                     tutorId: '',
                                     tutorNome: '',
@@ -736,7 +736,7 @@ export default function Home() {
                                     label="Pet"
                                     accessibilityLabel="Adicionar pet"
                                     textIcon={textIcon}
-                                    onPress={() => router.push('/(modals)/pet-new')}
+                                    onPress={() => router.push('/(home-modals)/pet-new')}
                                     icon={
                                         <MaterialIcons
                                             name="pets"
@@ -751,7 +751,7 @@ export default function Home() {
                                 label="Tutor"
                                 accessibilityLabel="Adicionar tutor"
                                 textIcon={textIcon}
-                                onPress={() => router.push('/(modals)/tutor-new')}
+                                onPress={() => router.push('/(home-modals)/tutor-new')}
                                 icon={
                                     <Ionicons
                                         name="person-sharp"
@@ -766,7 +766,7 @@ export default function Home() {
                                     label="Evento"
                                     accessibilityLabel="Adicionar evento"
                                     textIcon={textIcon}
-                                    onPress={() => router.push('/(modals)/agenda-new')}
+                                    onPress={() => router.push('/(home-modals)/agenda-new')}
                                     icon={
                                         <Ionicons
                                             name="calendar-outline"

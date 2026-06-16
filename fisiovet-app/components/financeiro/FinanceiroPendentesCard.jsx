@@ -248,7 +248,7 @@ const PendingRow = React.memo(
 
                 router.push({
                     pathname:
-                        '/(modals)/financeiro/[id]',
+                        '/(home-modals)/financeiro/[id]',
 
                     params: {
                         id: String(

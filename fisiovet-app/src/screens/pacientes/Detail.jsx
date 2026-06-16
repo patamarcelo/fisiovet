@@ -549,12 +549,25 @@ export default function PetDetail() {
 
 					<ActionCard
 						title="Timeline"
-						subtitle="Em breve"
+						subtitle="Histórico completo do paciente"
 						icon="clock.arrow.circlepath"
 						border={border}
 						text={text}
 						subtle={subtle}
-						onPress={() => Alert.alert("Timeline", "Abrir feed cronológico")}
+						onPress={() =>
+							router.push({
+								pathname:
+									"/(modals)/pets/[id]/timeline",
+
+								params: {
+									id:
+										String(pet.id),
+
+									petName:
+										pet.nome || "",
+								},
+							})
+						}
 					/>
 
 					<ActionCard

@@ -39,6 +39,102 @@ import {
 } from "@/src/store/slices/avaliacaoSlice";
 
 /* ---------- Firestore ---------- */
+function toDate(value) {
+    if (!value) {
+        return null;
+    }
+
+    if (value instanceof Date) {
+        return Number.isNaN(value.getTime())
+            ? null
+            : value;
+    }
+
+    if (
+        typeof value?.toDate ===
+        "function"
+    ) {
+        try {
+            const date =
+                value.toDate();
+
+            return Number.isNaN(
+                date.getTime()
+            )
+                ? null
+                : date;
+        } catch {
+            return null;
+        }
+    }
+
+    if (value?._seconds) {
+        const date =
+            new Date(
+                value._seconds * 1000
+            );
+
+        return Number.isNaN(
+            date.getTime()
+        )
+            ? null
+            : date;
+    }
+
+    if (
+        typeof value === "number"
+    ) {
+        const date =
+            new Date(
+                value < 1e12
+                    ? value * 1000
+                    : value
+            );
+
+        return Number.isNaN(
+            date.getTime()
+        )
+            ? null
+            : date;
+    }
+
+    const date =
+        new Date(value);
+
+    return Number.isNaN(
+        date.getTime()
+    )
+        ? null
+        : date;
+}
+
+function formatDocumentDate(value) {
+    const date =
+        toDate(value);
+
+    if (!date) {
+        return null;
+    }
+
+    return date.toLocaleString(
+        "pt-BR",
+        {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        }
+    );
+}
+
+function serializeDate(value) {
+    const date = toDate(value);
+
+    return date
+        ? date.toISOString()
+        : null;
+}
 
 async function fetchAvaliacao({ uid, petId, avaliacaoId }) {
     const ref = doc(
@@ -114,10 +210,30 @@ async function deleteAvaliacao({ uid, petId, avaliacaoId }) {
 
 /* ---------- Normalização ---------- */
 
-function normalizeDraftAnamnese(petId, docData) {
+function normalizeDraftAnamnese(
+    petId,
+    docData = {}
+) {
     const base = {
-        title: "Anamnese – Fisioterapia",
-        tipo: "anamnese",
+        id:
+            docData?.id ||
+            null,
+
+        petId:
+            String(petId),
+
+        title:
+            "Anamnese – Fisioterapia",
+
+        tipo:
+            "anamnese",
+
+        createdAt:
+            null,
+
+        updatedAt:
+            null,
+
         textos: {
             queixaPrincipal: "",
             historiaDoencaAtual: "",
@@ -132,6 +248,7 @@ function normalizeDraftAnamnese(petId, docData) {
             descricaoDor: "",
             observacoesGerais: "",
         },
+
         habitos: {
             escadas: false,
             acessoRua: false,
@@ -140,15 +257,18 @@ function normalizeDraftAnamnese(petId, docData) {
             sobeDesceSofa: false,
             sobeDesceCama: false,
         },
+
         funcional: {
             levantaSozinho: false,
             caminhaSemApoio: false,
             escorrega: false,
             dificuldadeLevantar: false,
         },
+
         dor: {
             nivel: "leve",
         },
+
         expectativas: {
             reduzirDor: false,
             melhorarMobilidade: false,
@@ -157,31 +277,58 @@ function normalizeDraftAnamnese(petId, docData) {
         },
     };
 
-    const f = docData?.fields || {};
+    const fields =
+        docData?.fields || {};
 
     return {
         ...base,
-        title: docData?.title ?? base.title,
-        tipo: docData?.tipo ?? base.tipo,
+
+        id:
+            docData?.id ??
+            base.id,
+
+        createdAt:
+            serializeDate(
+                docData?.createdAt
+            ),
+
+        updatedAt:
+            serializeDate(
+                docData?.updatedAt
+            ),
+
+        title:
+            docData?.title ??
+            base.title,
+
+        tipo:
+            docData?.tipo ??
+            docData?.type ??
+            base.tipo,
+
         textos: {
             ...base.textos,
-            ...(f.textos || {}),
+            ...(fields.textos || {}),
         },
+
         habitos: {
             ...base.habitos,
-            ...(f.habitos || {}),
+            ...(fields.habitos || {}),
         },
+
         funcional: {
             ...base.funcional,
-            ...(f.funcional || {}),
+            ...(fields.funcional || {}),
         },
+
         dor: {
             ...base.dor,
-            ...(f.dor || {}),
+            ...(fields.dor || {}),
         },
+
         expectativas: {
             ...base.expectativas,
-            ...(f.expectativas || {}),
+            ...(fields.expectativas || {}),
         },
     };
 }
@@ -233,18 +380,101 @@ const expectativasLabels = {
 
 /* ---------- UI Documento ---------- */
 
-function DocumentHeader({ title }) {
+function DocumentHeader({
+    title,
+    createdAt,
+    updatedAt,
+}) {
+    const createdDate =
+        toDate(createdAt);
+
+    const updatedDate =
+        toDate(updatedAt);
+
+    const createdText =
+        formatDocumentDate(
+            createdAt
+        );
+
+    const updatedText =
+        formatDocumentDate(
+            updatedAt
+        );
+
+    const wasUpdated =
+        createdDate &&
+        updatedDate &&
+        updatedDate.getTime() >
+        createdDate.getTime() +
+        1000;
+
     return (
         <View style={styles.documentHero}>
             <View style={styles.documentIcon}>
-                <Ionicons name="document-text-outline" size={20} color="#FFFFFF" />
+                <Ionicons
+                    name="document-text-outline"
+                    size={20}
+                    color="#FFFFFF"
+                />
             </View>
 
-            <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.documentEyebrow}>ANAMNESE</Text>
-                <Text style={styles.documentTitle} numberOfLines={2}>
-                    {title || "Anamnese – Fisioterapia"}
+            <View
+                style={{
+                    flex: 1,
+                    minWidth: 0,
+                }}
+            >
+                <Text
+                    style={
+                        styles.documentEyebrow
+                    }
+                >
+                    ANAMNESE
                 </Text>
+
+                <Text
+                    style={
+                        styles.documentTitle
+                    }
+                    numberOfLines={2}
+                >
+                    {title ||
+                        "Anamnese – Fisioterapia"}
+                </Text>
+
+                {!!createdText && (
+                    <View
+                        style={
+                            styles.documentDateRow
+                        }
+                    >
+                        <Ionicons
+                            name="calendar-outline"
+                            size={12}
+                            color="#6B7280"
+                        />
+
+                        <Text
+                            style={
+                                styles.documentDateText
+                            }
+                        >
+                            Criado em{" "}
+                            {createdText}
+                        </Text>
+                    </View>
+                )}
+
+                {wasUpdated && (
+                    <Text
+                        style={
+                            styles.documentUpdatedText
+                        }
+                    >
+                        Atualizado em{" "}
+                        {updatedText}
+                    </Text>
+                )}
             </View>
         </View>
     );
@@ -361,7 +591,15 @@ function DocumentView({ draft }) {
             contentContainerStyle={styles.documentContent}
             showsVerticalScrollIndicator
         >
-            <DocumentHeader title={draft?.title} />
+            <DocumentHeader
+                title={draft?.title}
+                createdAt={
+                    draft?.createdAt
+                }
+                updatedAt={
+                    draft?.updatedAt
+                }
+            />
 
             <DocumentSection number="1" title="Queixa principal">
                 <DocField
@@ -840,7 +1078,26 @@ export default function AnamneseFormScreen() {
                     payload,
                 });
 
-                const normalized = normalizeDraftAnamnese(String(petId), payload);
+                const normalized =
+                    normalizeDraftAnamnese(
+                        String(petId),
+                        {
+                            ...payload,
+
+                            id:
+                                String(
+                                    avaliacaoId
+                                ),
+
+                            createdAt:
+                                original?.createdAt ??
+                                draft?.createdAt ??
+                                null,
+
+                            updatedAt:
+                                new Date(),
+                        }
+                    );
 
                 setOriginal(normalized);
                 dispatch(
@@ -1319,7 +1576,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(0,0,0,0.055)",
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         marginBottom: 10,
         shadowColor: "#000",
         shadowOpacity: 0.035,
@@ -1336,6 +1593,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         marginRight: 10,
+        marginTop: 2,
     },
 
     documentEyebrow: {
@@ -1664,5 +1922,28 @@ const styles = StyleSheet.create({
         color: "white",
         fontWeight: "800",
         marginLeft: 7,
+    },
+    documentDateRow: {
+        marginTop: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+    },
+
+    documentDateText: {
+        flex: 1,
+        color: "#6B7280",
+        fontSize: 10.5,
+        lineHeight: 14,
+        fontWeight: "650",
+    },
+
+    documentUpdatedText: {
+        marginTop: 2,
+        marginLeft: 17,
+        color: "#9CA3AF",
+        fontSize: 9.5,
+        lineHeight: 13,
+        fontWeight: "550",
     },
 });
