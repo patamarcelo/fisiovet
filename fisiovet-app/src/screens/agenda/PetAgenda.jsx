@@ -1,4 +1,4 @@
-// src/screens/agenda/List.jsx
+// src/screens/agenda/pet/List.jsx
 // @ts-nocheck
 import React, {
   useCallback,
@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import {
+  Alert,
   Animated,
   InteractionManager,
   Platform,
@@ -21,7 +22,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
+import {
+  router,
+  useFocusEffect,
+  useLocalSearchParams,
+  useNavigation,
+} from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { shallowEqual, useDispatch, useSelector } from "react-redux";
@@ -29,6 +35,7 @@ import { Swipeable } from "react-native-gesture-handler";
 
 import { useThemeColor } from "@/hooks/useThemeColor";
 import {
+  deleteEvento,
   loadAgenda,
   selectAllEventos,
   selectEventoById,
@@ -36,7 +43,11 @@ import {
 } from "@/src/store/slices/agendaSlice";
 import { loadSyncQueue } from "@/src/store/slices/syncQueueSlice";
 import { selectTutorById } from "@/src/store/slices/tutoresSlice";
-import { fetchPet, selectPetById, selectPetsState } from "@/src/store/slices/petsSlice";
+import {
+  fetchPet,
+  selectPetById,
+  selectPetsState,
+} from "@/src/store/slices/petsSlice";
 import { useStore } from "react-redux";
 
 import { EmptyAgendaCard } from "./_ListEmpty";
@@ -49,11 +60,6 @@ const STATUS_COLORS = {
   cancelado: "#E74C3C",
 };
 
-const STATUS_LABELS = {
-  confirmado: "Confirmado",
-  pendente: "Pendente",
-  cancelado: "Cancelado",
-};
 
 const SCOPE_FILTERS = [
   { key: "hoje", label: "Hoje", tone: "blue" },
@@ -68,7 +74,7 @@ const TEMPORAL_FILTERS = [
 ];
 
 const STATUS_FILTERS = [
-  { key: "todos", label: "Status", tone: "blue" },
+  { key: "todos", label: "Todos", tone: "blue" },
   { key: "confirmado", label: "Confirmados", tone: "green" },
   { key: "pendente", label: "Pendentes", tone: "orange" },
   { key: "cancelado", label: "Cancelados", tone: "red" },
@@ -164,13 +170,6 @@ function fmtDateLabel(dateLike) {
   });
 }
 
-function hexToRgba(hex, alpha = 1) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 function getEventPetNames(event, petsById) {
   return (event?.petIds || [])
@@ -315,7 +314,7 @@ function CalendarEventRow({ item, petsById }) {
   const address = tutorShortAddress(tutor);
 
   const openEvent = useCallback(() => {
-    Haptics.selectionAsync().catch(() => {});
+    Haptics.selectionAsync().catch(() => { });
     router.push({
       pathname: "/(modals)/agenda-new",
       params: { id: String(item.id) },
@@ -390,7 +389,7 @@ function CalendarAgendaView({
   const selectedEvents = eventsByDay.get(selectedKey) || [];
 
   const changeMonth = useCallback((amount) => {
-    Haptics.selectionAsync().catch(() => {});
+    Haptics.selectionAsync().catch(() => { });
 
     setVisibleMonth((current) => {
       const next = new Date(
@@ -404,7 +403,7 @@ function CalendarAgendaView({
   }, []);
 
   const goToday = useCallback(() => {
-    Haptics.selectionAsync().catch(() => {});
+    Haptics.selectionAsync().catch(() => { });
     const current = startOfDayLocal(new Date());
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
     setSelectedDate(current);
@@ -489,7 +488,7 @@ function CalendarAgendaView({
                   <Pressable
                     key={day.key}
                     onPress={() => {
-                      Haptics.selectionAsync().catch(() => {});
+                      Haptics.selectionAsync().catch(() => { });
                       setSelectedDate(day.date);
 
                       if (!day.inCurrentMonth) {
@@ -518,10 +517,10 @@ function CalendarAgendaView({
                         style={[
                           styles.calendarDayNumber,
                           !day.inCurrentMonth &&
-                            styles.calendarDayNumberOutside,
+                          styles.calendarDayNumberOutside,
                           isToday &&
-                            !isSelected &&
-                            styles.calendarDayNumberTodayText,
+                          !isSelected &&
+                          styles.calendarDayNumberTodayText,
                           isSelected && styles.calendarDayNumberSelectedText,
                         ]}
                       >
@@ -677,6 +676,9 @@ const Chip = React.memo(function Chip({
       ]}
     >
       <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.86}
         style={[
           styles.chipText,
           active && {
@@ -706,24 +708,143 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
   filteredTotal,
   onClearAll,
 }) {
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
   const handleSelect = useCallback((setter, value) => {
     Haptics.selectionAsync().catch(() => {});
     setter(value);
   }, []);
 
+  const toggleFilters = useCallback(() => {
+    Haptics.selectionAsync().catch(() => {});
+    setFiltersExpanded((current) => !current);
+  }, []);
+
   const isCalendarView = viewMode === VIEW_MODES.CALENDAR;
 
-  const hasActiveFilters = isCalendarView
-    ? !!query || statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter
-    :
-      !!query ||
-      scope !== DEFAULT_AGENDA_FILTERS.scope ||
-      temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
-      statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+
+    if (!isCalendarView) {
+      if (scope !== DEFAULT_AGENDA_FILTERS.scope) count += 1;
+      if (temporal !== DEFAULT_AGENDA_FILTERS.temporal) count += 1;
+    }
+
+    if (statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter) count += 1;
+
+    return count;
+  }, [isCalendarView, scope, temporal, statusFilter]);
+
+  const hasActiveFilters = Boolean(query) || activeFilterCount > 0;
 
   return (
     <View style={styles.listHeader}>
       <AgendaViewToggle value={viewMode} onChange={onChangeView} />
+
+      <SearchField
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Buscar por tutor, pet, local ou observação"
+        onClear={() => setQuery("")}
+      />
+
+      <View style={styles.filtersCard}>
+        <Pressable
+          onPress={toggleFilters}
+          accessibilityRole="button"
+          accessibilityLabel={
+            filtersExpanded ? "Recolher filtros" : "Expandir filtros"
+          }
+          style={({ pressed }) => [
+            styles.filtersAccordionHeader,
+            pressed && styles.filtersAccordionHeaderPressed,
+          ]}
+        >
+          <View style={styles.filtersAccordionLeft}>
+            <View style={styles.filtersIconWrap}>
+              <Ionicons name="options-outline" size={17} color="#0A84FF" />
+            </View>
+
+            <View style={styles.filtersAccordionTextWrap}>
+              <Text style={styles.filtersAccordionTitle}>Filtros</Text>
+              <Text style={styles.filtersAccordionSubtitle} numberOfLines={1}>
+                {activeFilterCount > 0
+                  ? `${activeFilterCount} filtro${activeFilterCount === 1 ? "" : "s"} ativo${activeFilterCount === 1 ? "" : "s"}`
+                  : "Refine período e status"}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.filtersAccordionRight}>
+            {activeFilterCount > 0 && (
+              <View style={styles.activeFiltersCountBadge}>
+                <Text style={styles.activeFiltersCountText}>
+                  {activeFilterCount}
+                </Text>
+              </View>
+            )}
+
+            <Ionicons
+              name={filtersExpanded ? "chevron-up" : "chevron-down"}
+              size={18}
+              color="#6B7280"
+            />
+          </View>
+        </Pressable>
+
+        {filtersExpanded && (
+          <View style={styles.filtersAccordionContent}>
+            {!isCalendarView && (
+              <>
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterGroupLabel}>PERÍODO</Text>
+                  <View style={styles.chipRow}>
+                    {SCOPE_FILTERS.map((item) => (
+                      <Chip
+                        key={item.key}
+                        label={item.label}
+                        active={scope === item.key}
+                        tone={item.tone}
+                        onPress={() => handleSelect(setScope, item.key)}
+                      />
+                    ))}
+                  </View>
+                </View>
+
+                <View style={styles.filterGroup}>
+                  <Text style={styles.filterGroupLabel}>TEMPORALIDADE</Text>
+                  <View style={styles.chipRow}>
+                    {TEMPORAL_FILTERS.map((item) => (
+                      <Chip
+                        key={item.key}
+                        label={item.label}
+                        active={temporal === item.key}
+                        tone={item.tone}
+                        onPress={() => handleSelect(setTemporal, item.key)}
+                      />
+                    ))}
+                  </View>
+                </View>
+              </>
+            )}
+
+            <View style={styles.filterGroup}>
+              <Text style={styles.filterGroupLabel}>STATUS</Text>
+              <View style={styles.chipRow}>
+                {STATUS_FILTERS.map((item) => (
+                  <Chip
+                    key={item.key}
+                    label={item.label}
+                    active={statusFilter === item.key}
+                    tone={item.tone}
+                    onPress={() => handleSelect(setStatusFilter, item.key)}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        )}
+      </View>
 
       <View style={styles.filterMetaRow}>
         <Text style={styles.filterMetaText}>
@@ -744,60 +865,18 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
           </Pressable>
         )}
       </View>
-
-      <SearchField
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Buscar por tutor, pet, local ou observação"
-        onClear={() => setQuery("")}
-      />
-
-      <View style={styles.filtersBlock}>
-        {!isCalendarView && (
-          <>
-            <View style={styles.chipRow}>
-              {SCOPE_FILTERS.map((item) => (
-                <Chip
-                  key={item.key}
-                  label={item.label}
-                  active={scope === item.key}
-                  tone={item.tone}
-                  onPress={() => handleSelect(setScope, item.key)}
-                />
-              ))}
-            </View>
-
-            <View style={styles.chipRow}>
-              {TEMPORAL_FILTERS.map((item) => (
-                <Chip
-                  key={item.key}
-                  label={item.label}
-                  active={temporal === item.key}
-                  tone={item.tone}
-                  onPress={() => handleSelect(setTemporal, item.key)}
-                />
-              ))}
-            </View>
-          </>
-        )}
-
-        <View style={styles.chipRow}>
-          {STATUS_FILTERS.map((item) => (
-            <Chip
-              key={item.key}
-              label={item.label}
-              active={statusFilter === item.key}
-              tone={item.tone}
-              onPress={() => handleSelect(setStatusFilter, item.key)}
-            />
-          ))}
-        </View>
-      </View>
     </View>
   );
 });
 
-function SwipeAction({ label, color, onPress, last, disabled }) {
+function SwipeAction({
+  label,
+  icon,
+  color,
+  onPress,
+  last = false,
+  disabled = false,
+}) {
   const scale = useRef(new Animated.Value(1)).current;
 
   const animateTo = useCallback(
@@ -817,7 +896,7 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    } catch { }
 
     onPress?.();
   }, [disabled, onPress]);
@@ -843,6 +922,14 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
           disabled && { opacity: 0.7 },
         ]}
       >
+        {!!icon && (
+          <Ionicons
+            name={icon}
+            size={21}
+            color="#FFFFFF"
+          />
+        )}
+
         <Text style={styles.swipeActionText}>{label}</Text>
       </Pressable>
     </Animated.View>
@@ -1401,7 +1488,10 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
   const dispatch = useDispatch();
   const swipeRef = useRef(null);
 
-  const [pending, setPending] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(false);
+
+  const isPendingAction = pendingStatus || pendingDelete;
 
   const text = useThemeColor({}, "text");
   const subtle = useThemeColor({ light: "#6B7280", dark: "#9AA0A6" }, "text");
@@ -1411,6 +1501,58 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
 
   const status = evento?.status ?? item.status ?? "pendente";
   const color = STATUS_COLORS[status] || "#8E8E93";
+
+  const financeiro =
+    evento?.financeiro &&
+    typeof evento.financeiro === "object" &&
+    !Array.isArray(evento.financeiro)
+      ? evento.financeiro
+      : item?.financeiro &&
+          typeof item.financeiro === "object" &&
+          !Array.isArray(item.financeiro)
+        ? item.financeiro
+        : {};
+
+  const lancamentoId =
+    financeiro?.lancamentoId != null
+      ? String(financeiro.lancamentoId)
+      : null;
+
+  const hasFinanceiro = Boolean(lancamentoId);
+
+  const financeiroStatus =
+    financeiro?.status ||
+    (financeiro?.pago ? "pago" : "pendente");
+
+  const financeiroStatusLabel =
+    {
+      rascunho: "Financeiro em rascunho",
+      pendente: "Pagamento pendente",
+      parcial: "Pagamento parcial",
+      pago: "Pagamento concluído",
+      vencido: "Pagamento vencido",
+      cancelado: "Lançamento cancelado",
+    }[financeiroStatus] || "Pagamento pendente";
+
+  const financeiroStatusColor =
+    {
+      rascunho: "#8E8E93",
+      pendente: "#F59E0B",
+      parcial: "#F97316",
+      pago: "#16A34A",
+      vencido: "#EF4444",
+      cancelado: "#8E8E93",
+    }[financeiroStatus] || "#F59E0B";
+
+  const financeiroStatusBackground =
+    {
+      rascunho: "rgba(142,142,147,0.08)",
+      pendente: "rgba(245,158,11,0.08)",
+      parcial: "rgba(249,115,22,0.08)",
+      pago: "rgba(22,163,74,0.08)",
+      vencido: "rgba(239,68,68,0.08)",
+      cancelado: "rgba(142,142,147,0.08)",
+    }[financeiroStatus] || "rgba(245,158,11,0.08)";
 
   const petNames = useMemo(
     () =>
@@ -1428,9 +1570,14 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
 
   const handleSetStatus = useCallback(
     async (newStatus) => {
-      if (pending) return;
+      if (isPendingAction) return;
 
-      setPending(true);
+      if (newStatus === status) {
+        swipeRef.current?.close?.();
+        return;
+      }
+
+      setPendingStatus(true);
 
       try {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -1446,10 +1593,10 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
         console.log("Erro ao atualizar status:", error);
       } finally {
         swipeRef.current?.close?.();
-        setPending(false);
+        setPendingStatus(false);
       }
     },
-    [dispatch, id, pending],
+    [dispatch, id, isPendingAction, status],
   );
 
   const renderRightActions = useCallback(
@@ -1459,24 +1606,87 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
           label="Confirmar"
           color="#16A34A"
           onPress={() => handleSetStatus("confirmado")}
-          disabled={pending}
+          disabled={isPendingAction}
         />
         <SwipeAction
           label="Pendente"
           color="#F59E0B"
           onPress={() => handleSetStatus("pendente")}
-          disabled={pending}
+          disabled={isPendingAction}
         />
         <SwipeAction
           label="Cancelar"
           color="#EF4444"
           onPress={() => handleSetStatus("cancelado")}
           last
-          disabled={pending}
+          disabled={isPendingAction}
         />
       </View>
     ),
-    [handleSetStatus, pending],
+    [handleSetStatus, isPendingAction],
+  );
+
+  const confirmDelete = useCallback(() => {
+    if (!id || isPendingAction) return;
+
+    swipeRef.current?.close?.();
+
+    Alert.alert(
+      "Excluir evento?",
+      "Esta ação é irreversível. O evento será removido definitivamente da agenda.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: async () => {
+            setPendingDelete(true);
+
+            try {
+              await Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Warning,
+              );
+
+              await dispatch(deleteEvento(String(id))).unwrap();
+
+              await Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success,
+              ).catch(() => {});
+            } catch (error) {
+              console.log("Erro ao excluir evento:", error);
+
+              Alert.alert(
+                "Não foi possível excluir",
+                error?.message ||
+                  "Ocorreu um erro ao excluir o evento. Tente novamente.",
+              );
+            } finally {
+              setPendingDelete(false);
+              swipeRef.current?.close?.();
+            }
+          },
+        },
+      ],
+    );
+  }, [dispatch, id, isPendingAction]);
+
+  const renderLeftActions = useCallback(
+    () => (
+      <View style={styles.deleteActionContainer}>
+        <SwipeAction
+          label="Excluir"
+          icon="trash-outline"
+          color="#EF4444"
+          onPress={confirmDelete}
+          disabled={isPendingAction}
+          last
+        />
+      </View>
+    ),
+    [confirmDelete, isPendingAction],
   );
 
   const openEvent = useCallback(async () => {
@@ -1492,9 +1702,13 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
     <View style={styles.rowOuter}>
       <Swipeable
         ref={swipeRef}
+        enabled={Boolean(id) && !isPendingAction}
+        overshootLeft={false}
         overshootRight={false}
+        renderLeftActions={renderLeftActions}
         renderRightActions={renderRightActions}
         friction={2}
+        leftThreshold={28}
         rightThreshold={28}
         containerStyle={styles.swipeableContainer}
       >
@@ -1534,7 +1748,7 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
                 style={[styles.eventMetaStrong, { color: text }]}
                 numberOfLines={1}
               >
-                Tutor: {cliente}
+                {cliente}
               </Text>
             )}
 
@@ -1557,33 +1771,58 @@ const EventRow = React.memo(function EventRow({ item, petsById }) {
             )}
 
             <View style={styles.eventFooter}>
-              <StatusPill status={status} />
+              {hasFinanceiro ? (
+                <View
+                  style={[
+                    styles.financeSummaryRow,
+                    {
+                      backgroundColor: financeiroStatusBackground,
+                    },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.financeStatusDot,
+                      {
+                        backgroundColor: financeiroStatusColor,
+                      },
+                    ]}
+                  />
+
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.financeSummaryText,
+                      {
+                        color: financeiroStatusColor,
+                      },
+                    ]}
+                  >
+                    {financeiroStatusLabel}
+                  </Text>
+                </View>
+              ) : (
+                <View />
+              )}
 
               <View style={styles.chevronBox}>
                 <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
               </View>
             </View>
+
+            {isPendingAction && (
+              <View pointerEvents="none" style={styles.updatingOverlay}>
+                <Text style={styles.updatingText}>
+                  {pendingDelete ? "Excluindo…" : "Atualizando…"}
+                </Text>
+              </View>
+            )}
           </View>
         </Pressable>
       </Swipeable>
     </View>
   );
 });
-
-function StatusPill({ status }) {
-  const safeStatus = status || "pendente";
-  const color = STATUS_COLORS[safeStatus] || "#8E8E93";
-  const label =
-    STATUS_LABELS[safeStatus] ||
-    `${safeStatus.charAt(0).toUpperCase()}${safeStatus.slice(1)}`;
-  const bg = hexToRgba(color, 0.14);
-
-  return (
-    <View style={[styles.statusPill, { backgroundColor: bg }]}>
-      <Text style={[styles.statusPillText, { color }]}>{label}</Text>
-    </View>
-  );
-}
 
 export { EventRow };
 
@@ -1689,36 +1928,144 @@ const styles = StyleSheet.create({
     color: "#111827",
   },
 
-  filtersBlock: {
+  filtersCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(15,23,42,0.07)",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+
+  filtersAccordionHeader: {
+    minHeight: 58,
+    paddingHorizontal: 13,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  filtersAccordionHeaderPressed: {
+    backgroundColor: "rgba(118,118,128,0.06)",
+  },
+
+  filtersAccordionLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  filtersIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: "rgba(10,132,255,0.10)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  filtersAccordionTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+
+  filtersAccordionTitle: {
+    color: "#111827",
+    fontSize: 13,
+    fontWeight: "850",
+  },
+
+  filtersAccordionSubtitle: {
+    marginTop: 2,
+    color: "#8E8E93",
+    fontSize: 11,
+    fontWeight: "650",
+  },
+
+  filtersAccordionRight: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
 
+  activeFiltersCountBadge: {
+    minWidth: 24,
+    height: 24,
+    paddingHorizontal: 7,
+    borderRadius: 12,
+    backgroundColor: "rgba(10,132,255,0.11)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  activeFiltersCountText: {
+    color: "#0A84FF",
+    fontSize: 11,
+    fontWeight: "850",
+  },
+
+  filtersAccordionContent: {
+    paddingHorizontal: 13,
+    paddingTop: 12,
+    paddingBottom: 13,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(60,60,67,0.12)",
+    gap: 14,
+  },
+
+  filterGroup: {
+    gap: 7,
+  },
+
+  filterGroupLabel: {
+    paddingLeft: 2,
+    color: "#8E8E93",
+    fontSize: 9.5,
+    fontWeight: "850",
+    letterSpacing: 0.45,
+  },
+
   chipRow: {
+    width: "100%",
     flexDirection: "row",
-    gap: 8,
+    gap: 6,
     flexWrap: "nowrap",
     alignItems: "center",
   },
 
   chip: {
-    minHeight: 34,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 30,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
     borderRadius: 999,
     backgroundColor: "#FFFFFF",
     borderWidth: 1,
     borderColor: "rgba(15,23,42,0.08)",
+    alignItems: "center",
+    justifyContent: "center",
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.035,
+    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1 },
     elevation: 1,
   },
 
   chipText: {
-    fontSize: 12,
+    fontSize: 10.5,
+    lineHeight: 13,
     fontWeight: "750",
     color: "#4B5563",
+    textAlign: "center",
   },
 
   clearButton: {
@@ -1742,7 +2089,7 @@ const styles = StyleSheet.create({
 
   sectionBandWrap: {
     backgroundColor: "#FFFFFF",
-    paddingTop: 8,
+    paddingTop: 0,
   },
 
   sectionBand: {
@@ -1840,21 +2187,38 @@ const styles = StyleSheet.create({
 
   eventFooter: {
     marginTop: 9,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    gap: 12,
   },
 
-  statusPill: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 999,
+  financeSummaryRow: {
+    minHeight: 28,
+    width: "46%",
+    maxWidth: 220,
+    paddingHorizontal: 9,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
   },
 
-  statusPillText: {
-    fontSize: 11,
-    fontWeight: "800",
+  financeStatusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
   },
+
+  financeSummaryText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 10.5,
+    lineHeight: 14,
+    fontWeight: "700",
+  },
+
 
   chevronBox: {
     width: 24,
@@ -1890,6 +2254,7 @@ const styles = StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
 
   swipeActionText: {
@@ -1897,6 +2262,27 @@ const styles = StyleSheet.create({
     fontWeight: "850",
     fontSize: 12,
   },
+
+  deleteActionContainer: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    paddingLeft: 8,
+    paddingRight: 2,
+  },
+
+  updatingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(255,255,255,0.62)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  updatingText: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "750",
+  },
+
   filterMetaRow: {
     minHeight: 24,
     flexDirection: "row",

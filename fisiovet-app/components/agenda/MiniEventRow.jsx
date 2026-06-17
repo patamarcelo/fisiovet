@@ -40,6 +40,7 @@ import {
 } from "react-native-gesture-handler";
 
 import {
+    deleteEvento,
     selectEventoById,
     updateEvento,
 } from "@/src/store/slices/agendaSlice";
@@ -277,6 +278,7 @@ function getNavigationUrls({
 
 function SwipeAction({
     label,
+    icon,
     color,
     onPress,
     last = false,
@@ -366,8 +368,7 @@ function SwipeAction({
                         },
 
                         pressed &&
-                            Platform.OS ===
-                            "ios"
+                            Platform.OS === "ios"
                             ? {
                                 opacity: 0.82,
                             }
@@ -378,6 +379,14 @@ function SwipeAction({
                         },
                     ]}
             >
+                {!!icon && (
+                    <Ionicons
+                        name={icon}
+                        size={21}
+                        color="#FFFFFF"
+                    />
+                )}
+
                 <Text
                     style={
                         styles.swipeActionText
@@ -573,6 +582,15 @@ export default function MiniEventRow({
         setPendingStatus,
     ] = useState(false);
 
+    const [
+        pendingDelete,
+        setPendingDelete,
+    ] = useState(false);
+
+    const isPendingAction =
+        pendingStatus ||
+        pendingDelete;
+
     const eventId =
         item?.id != null
             ? String(item.id)
@@ -720,6 +738,28 @@ export default function MiniEventRow({
         }[financeiroStatus] ||
         "Pagamento pendente";
 
+    const financeiroStatusColor =
+        {
+            rascunho: COLORS.neutral,
+            pendente: COLORS.pending,
+            parcial: "#F97316",
+            pago: COLORS.confirmed,
+            vencido: COLORS.cancelled,
+            cancelado: COLORS.neutral,
+        }[financeiroStatus] ||
+        COLORS.pending;
+
+    const financeiroStatusBackground =
+        {
+            rascunho: "rgba(142,142,147,0.08)",
+            pendente: "rgba(245,158,11,0.08)",
+            parcial: "rgba(249,115,22,0.08)",
+            pago: "rgba(22,163,74,0.08)",
+            vencido: "rgba(239,68,68,0.08)",
+            cancelado: "rgba(142,142,147,0.08)",
+        }[financeiroStatus] ||
+        "rgba(245,158,11,0.08)";
+
     /* ---------------------------- Update status --------------------------- */
 
     const handleSetStatus =
@@ -863,6 +903,117 @@ export default function MiniEventRow({
             ]
         );
 
+
+    /* ---------------------------- Delete event ---------------------------- */
+
+    const confirmDelete =
+        useCallback(() => {
+            if (
+                !eventId ||
+                isPendingAction
+            ) {
+                return;
+            }
+
+            swipeRef.current
+                ?.close?.();
+
+            Alert.alert(
+                "Excluir evento?",
+                "Esta ação é irreversível. O evento será removido definitivamente da agenda.",
+                [
+                    {
+                        text: "Cancelar",
+                        style: "cancel",
+                    },
+                    {
+                        text: "Excluir",
+                        style: "destructive",
+
+                        onPress: async () => {
+                            setPendingDelete(
+                                true
+                            );
+
+                            try {
+                                await Haptics
+                                    .notificationAsync(
+                                        Haptics
+                                            .NotificationFeedbackType
+                                            .Warning
+                                    );
+
+                                await dispatch(
+                                    deleteEvento(
+                                        eventId
+                                    )
+                                ).unwrap();
+
+                                await Haptics
+                                    .notificationAsync(
+                                        Haptics
+                                            .NotificationFeedbackType
+                                            .Success
+                                    )
+                                    .catch(() => { });
+                            } catch (error) {
+                                console.log(
+                                    "Erro ao excluir evento:",
+                                    error
+                                );
+
+                                Alert.alert(
+                                    "Não foi possível excluir",
+                                    error?.message ||
+                                    "Ocorreu um erro ao excluir o evento. Tente novamente."
+                                );
+                            } finally {
+                                setPendingDelete(
+                                    false
+                                );
+
+                                swipeRef.current
+                                    ?.close?.();
+                            }
+                        },
+                    },
+                ]
+            );
+        }, [
+            dispatch,
+            eventId,
+            isPendingAction,
+        ]);
+
+    const renderLeftActions =
+        useCallback(
+            () => (
+                <View
+                    style={
+                        styles.deleteActionContainer
+                    }
+                >
+                    <SwipeAction
+                        label="Excluir"
+                        icon="trash-outline"
+                        color={
+                            COLORS.cancelled
+                        }
+                        onPress={
+                            confirmDelete
+                        }
+                        disabled={
+                            isPendingAction
+                        }
+                        last
+                    />
+                </View>
+            ),
+            [
+                confirmDelete,
+                isPendingAction,
+            ]
+        );
     /* ---------------------------- Open event ---------------------------- */
 
     const openEvent =
@@ -1199,15 +1350,22 @@ export default function MiniEventRow({
                     Boolean(
                         eventId
                     ) &&
-                    !pendingStatus
+                    !isPendingAction
+                }
+                overshootLeft={
+                    false
                 }
                 overshootRight={
                     false
+                }
+                renderLeftActions={
+                    renderLeftActions
                 }
                 renderRightActions={
                     renderRightActions
                 }
                 friction={2}
+                leftThreshold={28}
                 rightThreshold={28}
                 containerStyle={
                     styles.swipeableContainer
@@ -1376,34 +1534,37 @@ export default function MiniEventRow({
 
                         {hasFinanceiro && (
                             <View
-                                style={
-                                    styles.financeSummaryRow
-                                }
+                                style={[
+                                    styles.financeSummaryRow,
+                                    {
+                                        backgroundColor:
+                                            financeiroStatusBackground,
+
+                                        borderBottomColor:
+                                            financeiroStatusColor,
+                                    },
+                                ]}
                             >
                                 <View
                                     style={[
                                         styles.financeStatusDot,
-
                                         {
                                             backgroundColor:
-                                                isFinanceiroPago
-                                                    ? COLORS.confirmed
-                                                    : financeiroStatus ===
-                                                        "vencido"
-                                                        ? COLORS.cancelled
-                                                        : COLORS.pending,
+                                                financeiroStatusColor,
                                         },
                                     ]}
                                 />
 
                                 <Text
-                                    style={
-                                        styles.financeSummaryText
-                                    }
+                                    style={[
+                                        styles.financeSummaryText,
+                                        {
+                                            color:
+                                                financeiroStatusColor,
+                                        },
+                                    ]}
                                 >
-                                    {
-                                        financeiroStatusLabel
-                                    }
+                                    {financeiroStatusLabel}
                                 </Text>
                             </View>
                         )}
@@ -1470,7 +1631,7 @@ export default function MiniEventRow({
                         />
                     </View>
 
-                    {pendingStatus && (
+                    {isPendingAction && (
                         <View
                             pointerEvents="none"
                             style={
@@ -1482,7 +1643,9 @@ export default function MiniEventRow({
                                     styles.updatingText
                                 }
                             >
-                                Atualizando…
+                                {pendingDelete
+                                    ? "Excluindo…"
+                                    : "Atualizando…"}
                             </Text>
                         </View>
                     )}
@@ -1647,16 +1810,16 @@ const styles =
 
         financeSummaryRow: {
             marginTop: 9,
-            minHeight: 24,
-            paddingHorizontal: 8,
-            borderRadius: 8,
+            minHeight: 28,
+            width: "46%",
+            paddingHorizontal: 9,
 
-            backgroundColor:
-                "rgba(118,118,128,0.055)",
+            borderRadius: 8,
+            // borderBottomWidth: 1,
 
             flexDirection: "row",
             alignItems: "center",
-            gap: 6,
+            gap: 7,
         },
 
         financeStatusDot: {
@@ -1668,10 +1831,9 @@ const styles =
         financeSummaryText: {
             flex: 1,
             minWidth: 0,
-            color:
-                COLORS.secondaryText,
             fontSize: 10.5,
-            fontWeight: "600",
+            lineHeight: 14,
+            fontWeight: "700",
         },
 
         separator: {
@@ -1902,5 +2064,21 @@ const styles =
 
             backgroundColor:
                 "rgba(60,60,67,0.22)",
+        },
+        deleteActionContainer: {
+            flexDirection: "row",
+            alignItems: "stretch",
+            paddingLeft: 8,
+            paddingRight: 2,
+        },
+
+        swipeAction: {
+            minWidth: 92,
+            height: "100%",
+            paddingHorizontal: 14,
+
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
         },
     });
