@@ -34,7 +34,7 @@ function PetItem({ pet, textColor, subtle, tutor }) {
 		if (!pet?.id) return;
 
 		router.push({
-			pathname: "/(modals)/pets/[id]/detail",
+			pathname: "/(modals)/pets/[id]",
 			params: {
 				id: String(pet.id),
 				from: "tutor",

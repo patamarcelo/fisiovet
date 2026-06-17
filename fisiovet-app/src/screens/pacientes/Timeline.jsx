@@ -50,6 +50,12 @@ import {
   selectFinanceiroStatus,
 } from "@/src/store/slices/financeiroSlice";
 
+import {
+  fetchAnotacoesByPet,
+  makeSelectAnotacoesByPet,
+  selectAnotacoesLoadingByPet,
+} from "@/src/store/slices/anotacoesSlice";
+
 import { usePetAvaliacoes } from "@/src/features/avaliacoes/usePetAvaliacoes";
 import { usePetExams } from "@/src/features/exams/usePetExams";
 
@@ -64,6 +70,7 @@ const COLORS = {
   purple: "#8B5CF6",
   pink: "#EC4899",
   teal: "#0F766E",
+  amber: "#D97706",
 };
 
 const FILTERS = [
@@ -71,6 +78,7 @@ const FILTERS = [
   { key: "evento", label: "Consultas" },
   { key: "avaliacao", label: "Avaliações" },
   { key: "exame", label: "Exames" },
+  { key: "anotacao", label: "Anotações" },
   { key: "financeiro", label: "Financeiro" },
 ];
 
@@ -97,6 +105,12 @@ const TYPE_META = {
     label: "Documento",
     color: COLORS.teal,
     background: "rgba(15,118,110,0.10)",
+    icon: "document-text-outline",
+  },
+  anotacao: {
+    label: "Anotação",
+    color: COLORS.amber,
+    background: "rgba(217,119,6,0.10)",
     icon: "document-text-outline",
   },
   financeiro: {
@@ -396,6 +410,30 @@ function normalizeExame(exame) {
   };
 }
 
+function normalizeAnotacao(anotacao) {
+  const date = firstValidDate(
+    anotacao?.createdAt,
+    anotacao?.updatedAt
+  );
+
+  return {
+    id: `anotacao:${anotacao.id}`,
+    sourceId: String(anotacao.id),
+    type: "anotacao",
+    date,
+    title: firstText(
+      anotacao?.titulo,
+      "Anotação"
+    ),
+    subtitle: firstText(
+      anotacao?.texto,
+      "Anotação clínica registrada"
+    ),
+    badge: "Anotação",
+    raw: anotacao,
+  };
+}
+
 function normalizeFinanceiro(lancamento) {
   const date = firstValidDate(
     lancamento?.competencia,
@@ -510,30 +548,65 @@ function FilterChip({ item, active, onPress }) {
   );
 }
 
-function TimelineItem({ item, last, onPress }) {
-  const meta = TYPE_META[item.type] || TYPE_META.evento;
+function TimelineItem({
+  item,
+  first,
+  last,
+  onPress,
+}) {
+  const meta =
+    TYPE_META[item.type] ||
+    TYPE_META.evento;
 
   return (
     <View style={styles.timelineItem}>
       <View style={styles.timelineAxis}>
+        {!first && (
+          <View
+            style={[
+              styles.timelineLineTop,
+              {
+                backgroundColor:
+                  `${meta.color}2B`,
+              },
+            ]}
+          />
+        )}
+
         <View
           style={[
-            styles.timelineDot,
-            { backgroundColor: meta.color },
+            styles.timelineDotHalo,
+            {
+              backgroundColor:
+                meta.background,
+            },
           ]}
         >
-          <Ionicons
-            name={meta.icon}
-            size={15}
-            color="#FFFFFF"
-          />
+          <View
+            style={[
+              styles.timelineDot,
+              {
+                backgroundColor:
+                  meta.color,
+              },
+            ]}
+          >
+            <Ionicons
+              name={meta.icon}
+              size={15}
+              color="#FFFFFF"
+            />
+          </View>
         </View>
 
         {!last && (
           <View
             style={[
-              styles.timelineLine,
-              { backgroundColor: `${meta.color}35` },
+              styles.timelineLineBottom,
+              {
+                backgroundColor:
+                  `${meta.color}2B`,
+              },
             ]}
           />
         )}
@@ -541,28 +614,53 @@ function TimelineItem({ item, last, onPress }) {
 
       <Pressable
         onPress={() => {
-          Haptics.selectionAsync().catch(() => {});
+          Haptics.selectionAsync()
+            .catch(() => {});
+
           onPress?.();
         }}
         style={({ pressed }) => [
           styles.timelineCard,
+          {
+            borderColor:
+              `${meta.color}22`,
+          },
           pressed && {
-            opacity: 0.82,
-            transform: [{ scale: 0.995 }],
+            opacity: 0.86,
+            transform: [
+              {
+                scale: 0.996,
+              },
+            ],
           },
         ]}
       >
-        <View style={styles.timelineCardHeader}>
+        <View style={styles.timelineCardTop}>
           <View
             style={[
               styles.typePill,
-              { backgroundColor: meta.background },
+              {
+                backgroundColor:
+                  meta.background,
+              },
             ]}
           >
+            <View
+              style={[
+                styles.typePillDot,
+                {
+                  backgroundColor:
+                    meta.color,
+                },
+              ]}
+            />
+
             <Text
               style={[
                 styles.typePillText,
-                { color: meta.color },
+                {
+                  color: meta.color,
+                },
               ]}
             >
               {meta.label}
@@ -570,9 +668,21 @@ function TimelineItem({ item, last, onPress }) {
           </View>
 
           {!!item.date && (
-            <Text style={styles.timeText}>
-              {formatHour(item.date)}
-            </Text>
+            <View
+              style={styles.timeBadge}
+            >
+              <Ionicons
+                name="time-outline"
+                size={12}
+                color={COLORS.faint}
+              />
+
+              <Text
+                style={styles.timeText}
+              >
+                {formatHour(item.date)}
+              </Text>
+            </View>
           )}
         </View>
 
@@ -597,7 +707,9 @@ function TimelineItem({ item, last, onPress }) {
             <Text
               style={[
                 styles.itemBadge,
-                { color: meta.color },
+                {
+                  color: meta.color,
+                },
               ]}
               numberOfLines={1}
             >
@@ -606,8 +718,10 @@ function TimelineItem({ item, last, onPress }) {
           )}
 
           <View style={styles.openLabel}>
-            <Text style={styles.openLabelText}>
-              Abrir
+            <Text
+              style={styles.openLabelText}
+            >
+              Ver detalhes
             </Text>
 
             <Ionicons
@@ -698,8 +812,20 @@ export default function PetTimelineScreen() {
     [petId]
   );
 
+  const anotacoesSelector = useMemo(
+    () => makeSelectAnotacoesByPet(petId || ""),
+    [petId]
+  );
+
+  const anotacoesLoadingSelector = useMemo(
+    () => selectAnotacoesLoadingByPet(petId || ""),
+    [petId]
+  );
+
   const eventos = useSelector(eventosSelector);
   const lancamentos = useSelector(financeiroSelector);
+  const anotacoes = useSelector(anotacoesSelector);
+  const anotacoesLoadingStatus = useSelector(anotacoesLoadingSelector);
 
   const {
     items: avaliacoes,
@@ -785,6 +911,7 @@ export default function PetTimelineScreen() {
       dispatch(fetchPet(petId)),
       dispatch(loadAgenda()),
       dispatch(loadLancamentos()),
+      dispatch(fetchAnotacoesByPet(petId)),
     ]);
   }, [dispatch, petId]);
 
@@ -813,12 +940,14 @@ export default function PetTimelineScreen() {
     const eventItems = (eventos || []).map(normalizeEvento);
     const evaluationItems = (avaliacoes || []).map(normalizeAvaliacao);
     const examItems = (exames || []).map(normalizeExame);
+    const annotationItems = (anotacoes || []).map(normalizeAnotacao);
     const financialItems = (lancamentos || []).map(normalizeFinanceiro);
 
     return [
       ...eventItems,
       ...evaluationItems,
       ...examItems,
+      ...annotationItems,
       ...financialItems,
     ].sort(
       (a, b) =>
@@ -829,6 +958,7 @@ export default function PetTimelineScreen() {
     eventos,
     avaliacoes,
     exames,
+    anotacoes,
     lancamentos,
   ]);
 
@@ -858,11 +988,13 @@ export default function PetTimelineScreen() {
       eventos: eventos?.length || 0,
       avaliacoes: avaliacoes?.length || 0,
       exames: exames?.length || 0,
+      anotacoes: anotacoes?.length || 0,
     }),
     [
       eventos?.length,
       avaliacoes?.length,
       exames?.length,
+      anotacoes?.length,
     ]
   );
 
@@ -913,6 +1045,18 @@ export default function PetTimelineScreen() {
         return;
       }
 
+      if (item.type === "anotacao") {
+        router.push({
+          pathname: "/(modals)/anotacoes/[petId]",
+          params: {
+            petId: String(petId),
+            anotacaoId: String(item.sourceId),
+          },
+        });
+
+        return;
+      }
+
       if (item.type === "avaliacao") {
         router.push({
           pathname: getAvaliacaoRoute(item),
@@ -932,7 +1076,8 @@ export default function PetTimelineScreen() {
       agendaStatus === "loading" ||
       financeiroStatus === "loading" ||
       loadingAvaliacoes ||
-      loadingExames
+      loadingExames ||
+      anotacoesLoadingStatus === "loading"
     ) &&
     allItems.length === 0;
 
@@ -1032,29 +1177,45 @@ export default function PetTimelineScreen() {
               Exames
             </Text>
           </View>
+
+          <View style={styles.summaryDivider} />
+
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryValue}>
+              {summary.anotacoes}
+            </Text>
+
+            <Text style={styles.summaryLabel}>
+              Anotações
+            </Text>
+          </View>
         </View>
 
         {(avaliacoesError || examesError) && (
           <PartialError />
         )}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {FILTERS.map((item) => (
-            <FilterChip
-              key={item.key}
-              item={item}
-              active={filter === item.key}
-              onPress={() => {
-                Haptics.selectionAsync().catch(() => {});
-                setFilter(item.key);
-              }}
-            />
-          ))}
-        </ScrollView>
+        <View style={styles.filtersFullBleed}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.filters}
+          >
+            {FILTERS.map((item) => (
+              <FilterChip
+                key={item.key}
+                item={item}
+                active={filter === item.key}
+                onPress={() => {
+                  Haptics.selectionAsync()
+                    .catch(() => {});
+
+                  setFilter(item.key);
+                }}
+              />
+            ))}
+          </ScrollView>
+        </View>
 
         {initialLoading ? (
           <View style={styles.loadingBox}>
@@ -1074,46 +1235,116 @@ export default function PetTimelineScreen() {
           />
         ) : (
           <View style={styles.timeline}>
-            {groups.map((group) => (
-              <View
-                key={group.key}
-                style={styles.dayGroup}
-              >
-                <View style={styles.dayHeader}>
-                  <View>
-                    <Text style={styles.dayTitle}>
-                      {formatDay(group.date)}
-                    </Text>
+            {groups.map((group, groupIndex) => {
+              const isLastGroup =
+                groupIndex ===
+                groups.length - 1;
 
-                    {!!group.date && (
-                      <Text style={styles.weekday}>
-                        {formatWeekday(group.date)}
-                      </Text>
-                    )}
+              return (
+                <View
+                  key={group.key}
+                  style={styles.dayGroup}
+                >
+                  <View style={styles.dayHeader}>
+                    <View
+                      style={styles.dayAxis}
+                    >
+                      <View
+                        style={styles.dayDot}
+                      />
+
+                      {!isLastGroup && (
+                        <View
+                          style={
+                            styles.dayConnector
+                          }
+                        />
+                      )}
+                    </View>
+
+                    <View
+                      style={styles.dayHeaderMain}
+                    >
+                      <View>
+                        <Text
+                          style={styles.dayTitle}
+                        >
+                          {formatDay(group.date)}
+                        </Text>
+
+                        {!!group.date && (
+                          <Text
+                            style={styles.weekday}
+                          >
+                            {formatWeekday(
+                              group.date
+                            )}
+                          </Text>
+                        )}
+                      </View>
+
+                      <View
+                        style={
+                          styles.dayHeaderActions
+                        }
+                      >
+                        <View
+                          style={
+                            styles.dayCountBadge
+                          }
+                        >
+                          <Text
+                            style={
+                              styles.dayCountText
+                            }
+                          >
+                            {group.data.length}
+                          </Text>
+                        </View>
+
+                        {isToday(group.date) && (
+                          <View
+                            style={
+                              styles.todayBadge
+                            }
+                          >
+                            <Text
+                              style={
+                                styles.todayText
+                              }
+                            >
+                              Hoje
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    </View>
                   </View>
 
-                  {isToday(group.date) && (
-                    <View style={styles.todayBadge}>
-                      <Text style={styles.todayText}>
-                        Hoje
-                      </Text>
-                    </View>
-                  )}
+                  <View
+                    style={styles.dayItems}
+                  >
+                    {group.data.map(
+                      (item, index) => (
+                        <TimelineItem
+                          key={item.id}
+                          item={item}
+                          first={index === 0}
+                          last={
+                            index ===
+                            group.data.length -
+                              1
+                          }
+                          onPress={() =>
+                            openItem(item)
+                          }
+                        />
+                      ),
+                    )}
+                  </View>
                 </View>
-
-                {group.data.map((item, index) => (
-                  <TimelineItem
-                    key={item.id}
-                    item={item}
-                    last={
-                      index ===
-                      group.data.length - 1
-                    }
-                    onPress={() => openItem(item)}
-                  />
-                ))}
-              </View>
-            ))}
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -1138,7 +1369,6 @@ const styles = StyleSheet.create({
   },
 
   content: {
-    paddingHorizontal: 16,
     paddingTop: 14,
     gap: 14,
   },
@@ -1154,6 +1384,7 @@ const styles = StyleSheet.create({
 
   heroCard: {
     minHeight: 92,
+    marginHorizontal: 16,
     padding: 15,
     borderRadius: 21,
     backgroundColor: COLORS.card,
@@ -1202,6 +1433,7 @@ const styles = StyleSheet.create({
 
   summaryRow: {
     minHeight: 78,
+    marginHorizontal: 16,
     paddingHorizontal: 8,
     borderRadius: 18,
     backgroundColor: COLORS.card,
@@ -1226,8 +1458,9 @@ const styles = StyleSheet.create({
   summaryLabel: {
     marginTop: 3,
     color: COLORS.subtle,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
+    textAlign: "center",
   },
 
   summaryDivider: {
@@ -1237,6 +1470,7 @@ const styles = StyleSheet.create({
   },
 
   partialError: {
+    marginHorizontal: 16,
     paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 14,
@@ -1256,14 +1490,19 @@ const styles = StyleSheet.create({
     fontWeight: "650",
   },
 
+  filtersFullBleed: {
+    marginHorizontal: 0,
+  },
+
   filters: {
     gap: 8,
-    paddingRight: 10,
+    paddingHorizontal: 16,
+    paddingRight: 22,
   },
 
   filterChip: {
-    minHeight: 36,
-    paddingHorizontal: 13,
+    minHeight: 38,
+    paddingHorizontal: 15,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: COLORS.border,
@@ -1290,6 +1529,7 @@ const styles = StyleSheet.create({
 
   loadingBox: {
     minHeight: 180,
+    marginHorizontal: 16,
     alignItems: "center",
     justifyContent: "center",
     gap: 10,
@@ -1302,6 +1542,7 @@ const styles = StyleSheet.create({
 
   emptyCard: {
     minHeight: 240,
+    marginHorizontal: 16,
     padding: 24,
     borderRadius: 22,
     backgroundColor: COLORS.card,
@@ -1338,25 +1579,85 @@ const styles = StyleSheet.create({
   },
 
   timeline: {
-    gap: 22,
+    gap: 4,
+    paddingHorizontal: 16,
   },
 
   dayGroup: {
-    gap: 5,
+    position: "relative",
   },
 
   dayHeader: {
-    minHeight: 45,
-    marginBottom: 6,
-    paddingHorizontal: 3,
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+
+  dayAxis: {
+    width: 44,
+    alignItems: "center",
+    position: "relative",
+  },
+
+  dayDot: {
+    width: 12,
+    height: 12,
+    marginTop: 18,
+    borderRadius: 6,
+    backgroundColor: COLORS.blue,
+    borderWidth: 3,
+    borderColor: "rgba(10,132,255,0.16)",
+    zIndex: 3,
+  },
+
+  dayConnector: {
+    position: "absolute",
+    top: 29,
+    bottom: -18,
+    width: 2,
+    backgroundColor: "rgba(10,132,255,0.14)",
+  },
+
+  dayHeaderMain: {
+    flex: 1,
+    minWidth: 0,
+    paddingBottom: 9,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: "rgba(15,23,42,0.08)",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
 
+  dayHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
+
+  dayCountBadge: {
+    minWidth: 28,
+    height: 26,
+    paddingHorizontal: 8,
+    borderRadius: 13,
+    backgroundColor: "rgba(15,23,42,0.06)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  dayCountText: {
+    color: COLORS.subtle,
+    fontSize: 11,
+    fontWeight: "850",
+  },
+
+  dayItems: {
+    marginTop: 6,
+  },
+
   dayTitle: {
     color: COLORS.text,
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "850",
     textTransform: "capitalize",
   },
@@ -1387,47 +1688,70 @@ const styles = StyleSheet.create({
   },
 
   timelineAxis: {
-    width: 42,
+    width: 44,
     alignItems: "center",
+    position: "relative",
+  },
+
+  timelineLineTop: {
+    position: "absolute",
+    top: 0,
+    height: 14,
+    width: 2,
+  },
+
+  timelineLineBottom: {
+    position: "absolute",
+    top: 40,
+    bottom: 0,
+    width: 2,
+  },
+
+  timelineDotHalo: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 3,
   },
 
   timelineDot: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
-    zIndex: 2,
-  },
-
-  timelineLine: {
-    width: 2,
-    flex: 1,
-    minHeight: 72,
-    marginVertical: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.10,
+    shadowRadius: 5,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    elevation: 2,
   },
 
   timelineCard: {
     flex: 1,
     minWidth: 0,
     marginBottom: 12,
-    padding: 13,
-    borderRadius: 18,
+    padding: 14,
+    borderRadius: 19,
     backgroundColor: COLORS.card,
     borderWidth: 1,
-    borderColor: COLORS.border,
     shadowColor: "#000",
-    shadowOpacity: 0.04,
-    shadowRadius: 7,
+    shadowOpacity: 0.045,
+    shadowRadius: 10,
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 4,
     },
     elevation: 1,
   },
 
-  timelineCardHeader: {
-    minHeight: 25,
+  timelineCardTop: {
+    minHeight: 26,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -1435,11 +1759,19 @@ const styles = StyleSheet.create({
   },
 
   typePill: {
-    minHeight: 24,
-    paddingHorizontal: 9,
+    minHeight: 26,
+    paddingHorizontal: 10,
     borderRadius: 999,
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
+  },
+
+  typePillDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
 
   typePillText: {
@@ -1447,11 +1779,25 @@ const styles = StyleSheet.create({
     fontWeight: "850",
   },
 
+  timeBadge: {
+    minHeight: 24,
+    paddingHorizontal: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(15,23,42,0.045)",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+
   timeText: {
     color: COLORS.faint,
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: "750",
   },
+
+
+
+
 
   itemTitle: {
     marginTop: 9,

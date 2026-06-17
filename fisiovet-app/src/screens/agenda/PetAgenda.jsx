@@ -21,7 +21,7 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useFocusEffect, useNavigation } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams, useNavigation } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { shallowEqual, useDispatch, useSelector } from "react-redux";
@@ -36,7 +36,7 @@ import {
 } from "@/src/store/slices/agendaSlice";
 import { loadSyncQueue } from "@/src/store/slices/syncQueueSlice";
 import { selectTutorById } from "@/src/store/slices/tutoresSlice";
-import { selectPetsState } from "@/src/store/slices/petsSlice";
+import { fetchPet, selectPetById, selectPetsState } from "@/src/store/slices/petsSlice";
 import { useStore } from "react-redux";
 
 import { EmptyAgendaCard } from "./_ListEmpty";
@@ -74,8 +74,8 @@ const STATUS_FILTERS = [
   { key: "cancelado", label: "Cancelados", tone: "red" },
 ];
 
-const AGENDA_FILTERS_STORAGE_KEY = "@fisiovet:agenda:list-filters:v1";
-const AGENDA_VIEW_STORAGE_KEY = "@fisiovet:agenda:view-mode:v1";
+const AGENDA_FILTERS_STORAGE_KEY = "@fisiovet:agenda:pet-list-filters:v1";
+const AGENDA_VIEW_STORAGE_KEY = "@fisiovet:agenda:pet-view-mode:v1";
 
 const VIEW_MODES = {
   TIMELINE: "timeline",
@@ -315,7 +315,7 @@ function CalendarEventRow({ item, petsById }) {
   const address = tutorShortAddress(tutor);
 
   const openEvent = useCallback(() => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
     router.push({
       pathname: "/(modals)/agenda-new",
       params: { id: String(item.id) },
@@ -390,7 +390,7 @@ function CalendarAgendaView({
   const selectedEvents = eventsByDay.get(selectedKey) || [];
 
   const changeMonth = useCallback((amount) => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
 
     setVisibleMonth((current) => {
       const next = new Date(
@@ -404,7 +404,7 @@ function CalendarAgendaView({
   }, []);
 
   const goToday = useCallback(() => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
     const current = startOfDayLocal(new Date());
     setVisibleMonth(new Date(current.getFullYear(), current.getMonth(), 1));
     setSelectedDate(current);
@@ -489,7 +489,7 @@ function CalendarAgendaView({
                   <Pressable
                     key={day.key}
                     onPress={() => {
-                      Haptics.selectionAsync().catch(() => { });
+                      Haptics.selectionAsync().catch(() => {});
                       setSelectedDate(day.date);
 
                       if (!day.inCurrentMonth) {
@@ -518,10 +518,10 @@ function CalendarAgendaView({
                         style={[
                           styles.calendarDayNumber,
                           !day.inCurrentMonth &&
-                          styles.calendarDayNumberOutside,
+                            styles.calendarDayNumberOutside,
                           isToday &&
-                          !isSelected &&
-                          styles.calendarDayNumberTodayText,
+                            !isSelected &&
+                            styles.calendarDayNumberTodayText,
                           isSelected && styles.calendarDayNumberSelectedText,
                         ]}
                       >
@@ -707,7 +707,7 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
   onClearAll,
 }) {
   const handleSelect = useCallback((setter, value) => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
     setter(value);
   }, []);
 
@@ -716,10 +716,10 @@ const AgendaListHeader = React.memo(function AgendaListHeader({
   const hasActiveFilters = isCalendarView
     ? !!query || statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter
     :
-    !!query ||
-    scope !== DEFAULT_AGENDA_FILTERS.scope ||
-    temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
-    statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+      !!query ||
+      scope !== DEFAULT_AGENDA_FILTERS.scope ||
+      temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+      statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
 
   return (
     <View style={styles.listHeader}>
@@ -817,7 +817,7 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
 
     try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch { }
+    } catch {}
 
     onPress?.();
   }, [disabled, onPress]);
@@ -849,9 +849,16 @@ function SwipeAction({ label, color, onPress, last, disabled }) {
   );
 }
 
-export default function AgendaScreen() {
+export default function PetAgendaScreen() {
+  const params = useLocalSearchParams();
   const navigation = useNavigation();
   const dispatch = useDispatch();
+
+  const rawPetId = Array.isArray(params.petId)
+    ? params.petId[0]
+    : params.petId;
+
+  const petId = rawPetId ? String(rawPetId) : null;
   const listRef = useRef(null);
   const sectionsRef = useRef([]);
   const store = useStore();
@@ -874,6 +881,16 @@ export default function AgendaScreen() {
   const eventos = useSelector(selectAllEventos);
   const petsState = useSelector(selectPetsState, shallowEqual);
   const petsById = petsState?.byId || {};
+
+  const pet = useSelector((state) =>
+    petId ? selectPetById(petId)(state) : null
+  );
+
+  useEffect(() => {
+    if (petId && !pet) {
+      dispatch(fetchPet(petId));
+    }
+  }, [dispatch, petId, pet]);
 
   useEffect(() => {
     let alive = true;
@@ -1011,7 +1028,7 @@ export default function AgendaScreen() {
   useLayoutEffect(() => {
     navigation.setOptions({
       headerLargeTitle: false,
-      headerTitle: "Agenda",
+      headerTitle: pet?.nome ? `Agenda de ${pet.nome}` : "Agenda do pet",
       headerTitleStyle: { color: tint, fontWeight: "800" },
       headerStyle: { backgroundColor: bg },
       headerShadowVisible: false,
@@ -1021,9 +1038,17 @@ export default function AgendaScreen() {
           accessibilityLabel="Adicionar evento"
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(
-              () => { },
+              () => {},
             );
-            router.push({ pathname: "/(modals)/agenda-new" });
+            router.push({
+              pathname: "/(modals)/agenda-new",
+              params: {
+                tutorId: pet?.tutor?.id ? String(pet.tutor.id) : "",
+                tutorNome: pet?.tutor?.nome || "",
+                preselectPetId: petId || "",
+                petNome: pet?.nome || "",
+              },
+            });
           }}
           style={({ pressed }) => [
             styles.headerAddButton,
@@ -1041,16 +1066,34 @@ export default function AgendaScreen() {
         </Pressable>
       ),
     });
-  }, [navigation, tint, bg]);
+  }, [
+    navigation,
+    tint,
+    bg,
+    pet?.nome,
+    pet?.tutor?.id,
+    pet?.tutor?.nome,
+    petId,
+  ]);
 
   const filtered = useMemo(() => {
     const q = norm(query);
     const currentNow = new Date();
 
-    let list = (eventos || []).filter((event) => {
+    let list = (eventos || [])
+      .filter((event) => {
+        if (!petId) return false;
+
+        return (
+          Array.isArray(event?.petIds) &&
+          event.petIds.map(String).includes(petId)
+        );
+      })
+      .filter((event) => {
       const petNames = getEventPetNames(event, petsById);
       const haystack = norm(
-        `${event.title} ${event.cliente} ${event.tutorNome || ""} ${event.local || ""
+        `${event.title} ${event.cliente} ${event.tutorNome || ""} ${
+          event.local || ""
         } ${event.observacoes || ""} ${petNames}`,
       );
 
@@ -1086,6 +1129,7 @@ export default function AgendaScreen() {
   }, [
     eventos,
     petsById,
+    petId,
     query,
     scope,
     temporal,
@@ -1099,7 +1143,15 @@ export default function AgendaScreen() {
     sectionsRef.current = sections || [];
   }, [sections]);
 
-  const total = eventos?.length || 0;
+  const total = useMemo(() => {
+    if (!petId) return 0;
+
+    return (eventos || []).filter(
+      (event) =>
+        Array.isArray(event?.petIds) &&
+        event.petIds.map(String).includes(petId),
+    ).length;
+  }, [eventos, petId]);
   const filteredTotal = filtered?.length || 0;
   const now = useMemo(() => new Date(), [sections.length]);
 
@@ -1163,7 +1215,7 @@ export default function AgendaScreen() {
   }, [dispatch, store]);
 
   const clearAllFilters = useCallback(() => {
-    Haptics.selectionAsync().catch(() => { });
+    Haptics.selectionAsync().catch(() => {});
 
     setQuery("");
     setStatusFilter(DEFAULT_AGENDA_FILTERS.statusFilter);
@@ -1208,7 +1260,7 @@ export default function AgendaScreen() {
       <AgendaListHeader
         viewMode={viewMode}
         onChangeView={(nextView) => {
-          Haptics.selectionAsync().catch(() => { });
+          Haptics.selectionAsync().catch(() => {});
           setViewMode(nextView);
           scrollToTop(false);
         }}
@@ -1251,10 +1303,23 @@ export default function AgendaScreen() {
     viewMode === VIEW_MODES.CALENDAR
       ? !!query || statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter
       :
-      !!query ||
-      scope !== DEFAULT_AGENDA_FILTERS.scope ||
-      temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
-      statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+        !!query ||
+        scope !== DEFAULT_AGENDA_FILTERS.scope ||
+        temporal !== DEFAULT_AGENDA_FILTERS.temporal ||
+        statusFilter !== DEFAULT_AGENDA_FILTERS.statusFilter;
+
+  if (!petId) {
+    return (
+      <SafeAreaView
+        style={[styles.safe, { backgroundColor: bg }]}
+        edges={["left", "right"]}
+      >
+        <View style={styles.invalidState}>
+          <Text style={styles.invalidStateText}>Pet inválido.</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -1277,8 +1342,8 @@ export default function AgendaScreen() {
           ]}
           ListEmptyComponent={
             <EmptyAgendaCard
-              title="Nenhum evento encontrado"
-              subtitle="Ajuste os filtros ou adicione um novo evento."
+              title="Nenhum evento encontrado para este pet"
+              subtitle="Ajuste os filtros ou adicione um novo evento para este pet."
               actionLabel="Adicionar evento"
               onClearFilters={clearAllFilters}
               hasFilters={hasFilters}
@@ -1525,6 +1590,18 @@ export { EventRow };
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
+  },
+
+  invalidState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  invalidStateText: {
+    color: "#6B7280",
+    fontSize: 14,
+    fontWeight: "600",
   },
 
   list: {

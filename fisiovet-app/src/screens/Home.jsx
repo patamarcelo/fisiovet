@@ -43,7 +43,12 @@ import { updateSystem, selectNavPreference } from '@/src/store/slices/systemSlic
 import { processSyncQueue } from '@/src/services/syncProcessor';
 
 import MiniEventRow from '@/components/agenda/MiniEventRow';
+
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 /* ---------- Assets ---------- */
+const FINANCE_PENDING_FILTER_KEY =
+    '@fisiovet:financeiro:includePendingEvents';
 
 const HOME_LOGO = require('../../assets/images/splash-fisiovet.png');
 
@@ -427,6 +432,20 @@ export default function Home() {
         (state) => state.system?.financeiro?.showValues ?? false
     );
 
+    const includePendingFinanceEvents =
+        useSelector(
+            (state) =>
+                state.system
+                    ?.financeiro
+                    ?.includePendingEvents ??
+                true
+        );
+
+    const [
+        financeFilterHydrated,
+        setFinanceFilterHydrated,
+    ] = useState(false);
+
     const tutoresCount = tutores?.length || 0;
 
     const petsCount = useMemo(
@@ -445,6 +464,54 @@ export default function Home() {
             headerShown: false,
         });
     }, [navigation]);
+
+    useEffect(() => {
+        let alive = true;
+
+        async function loadFinanceFilterPreference() {
+            try {
+                const savedValue =
+                    await AsyncStorage.getItem(
+                        FINANCE_PENDING_FILTER_KEY
+                    );
+
+                if (!alive) {
+                    return;
+                }
+
+                if (savedValue !== null) {
+                    const includePending =
+                        savedValue === 'true';
+
+                    dispatch(
+                        updateSystem({
+                            financeiro: {
+                                includePendingEvents:
+                                    includePending,
+                            },
+                        })
+                    );
+                }
+            } catch (error) {
+                console.warn(
+                    'Erro ao carregar filtro financeiro:',
+                    error
+                );
+            } finally {
+                if (alive) {
+                    setFinanceFilterHydrated(
+                        true
+                    );
+                }
+            }
+        }
+
+        loadFinanceFilterPreference();
+
+        return () => {
+            alive = false;
+        };
+    }, [dispatch]);
 
     useEffect(() => {
         let alive = true;
@@ -474,7 +541,7 @@ export default function Home() {
             alive = false;
         };
     }, [dispatch, store]);
-    
+
 
     useEffect(() => {
         let currentNavigation =
@@ -604,6 +671,47 @@ export default function Home() {
     }, [eventos]);
 
     const avatarUri = localAvatar || photoURL;
+
+    const handleTogglePendingFinanceEvents =
+        useCallback(async () => {
+            const nextValue =
+                !includePendingFinanceEvents;
+
+            Haptics.selectionAsync().catch(
+                () => { }
+            );
+
+            /*
+             * Atualiza imediatamente a interface.
+             */
+            dispatch(
+                updateSystem({
+                    financeiro: {
+                        includePendingEvents:
+                            nextValue,
+                    },
+                })
+            );
+
+            /*
+             * Persiste a preferência para
+             * as próximas aberturas do app.
+             */
+            try {
+                await AsyncStorage.setItem(
+                    FINANCE_PENDING_FILTER_KEY,
+                    String(nextValue)
+                );
+            } catch (error) {
+                console.warn(
+                    'Erro ao salvar filtro financeiro:',
+                    error
+                );
+            }
+        }, [
+            dispatch,
+            includePendingFinanceEvents,
+        ]);
 
     return (
         <SafeAreaView
@@ -840,16 +948,30 @@ export default function Home() {
                     </View>
 
                     <FinanceiroPendentesCard
-                        cardelevation={CARD_ELEVATION}
-                        showValues={showFinanceValues}
+                        cardelevation={
+                            CARD_ELEVATION
+                        }
+                        showValues={
+                            showFinanceValues
+                        }
                         onToggleValues={() =>
                             dispatch(
                                 updateSystem({
                                     financeiro: {
-                                        showValues: !showFinanceValues,
+                                        showValues:
+                                            !showFinanceValues,
                                     },
                                 })
                             )
+                        }
+                        includePendingEvents={
+                            includePendingFinanceEvents
+                        }
+                        pendingFilterHydrated={
+                            financeFilterHydrated
+                        }
+                        onTogglePendingEvents={
+                            handleTogglePendingFinanceEvents
                         }
                     />
                 </ScrollView>

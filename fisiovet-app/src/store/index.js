@@ -13,6 +13,7 @@ import bootstrapReducer from './bootstrapSlice';
 import subscriptionReducer from "./slices/subscriptionSlice";
 import syncQueueReducer from "./slices/syncQueueSlice";
 import financeiroReducer from './slices/financeiroSlice';
+import anotacoesReducer from "@/src/store/slices/anotacoesSlice";
 
 import { clearSession } from "./sessionActions";
 
@@ -27,6 +28,7 @@ const appReducer = combineReducers({
 	bootstrap: bootstrapReducer, // ⬅️ novo
 	subscription: subscriptionReducer,
 	syncQueue: syncQueueReducer,
+	 anotacoes: anotacoesReducer,
 
 });
 

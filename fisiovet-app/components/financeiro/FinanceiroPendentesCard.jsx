@@ -158,6 +158,18 @@ function isEventoConfirmado(evento) {
     ].includes(status);
 }
 
+function isEventoPendente(evento) {
+    const status =
+        normalizeStatus(
+            evento?.status
+        );
+
+    return [
+        'pendente',
+        'aguardando',
+    ].includes(status);
+}
+
 function getStatusMeta(status) {
     if (
         status ===
@@ -447,6 +459,10 @@ export default function FinanceiroPendentesCard({
     cardelevation,
     showValues = false,
     onToggleValues,
+
+    includePendingEvents = true,
+    onTogglePendingEvents,
+    pendingFilterHydrated = true,
 }) {
     const dispatch = useDispatch();
 
@@ -570,64 +586,93 @@ export default function FinanceiroPendentesCard({
         totalCount,
         extrasCount,
     } = useMemo(() => {
-        const filtered =
-            lancamentos.filter(
-                (lancamento) => {
-                    if (
-                        !PENDING_FINANCIAL_STATUSES.includes(
-                            lancamento.status
-                        )
-                    ) {
-                        return false;
-                    }
+        const filtered = lancamentos
+            .filter((lancamento) => {
+                const statusFinanceiro =
+                    normalizeStatus(
+                        lancamento?.status
+                    );
 
-                    const saldo =
-                        Number(
-                            lancamento
-                                ?.valores
-                                ?.saldo || 0
+                const isStatusAberto =
+                    PENDING_FINANCIAL_STATUSES
+                        .map(normalizeStatus)
+                        .includes(
+                            statusFinanceiro
                         );
 
-                    if (saldo <= 0) {
-                        return false;
-                    }
-
-                    const isEvento =
-                        lancamento?.origem
-                            ?.tipo ===
-                        'evento';
-
-                    if (!isEvento) {
-                        return true;
-                    }
-
-                    const eventoId =
-                        lancamento?.origem
-                            ?.eventoId;
-
-                    const evento =
-                        eventoId
-                            ? eventosById[
-                            String(
-                                eventoId
-                            )
-                            ]
-                            : null;
-
-                    /*
-                     * Eventos pendentes ou cancelados na agenda
-                     * não entram no card de valores efetivos.
-                     * Eles continuam disponíveis no filtro
-                     * "Previstos" da tela Financeiro.
-                     */
-                    return isEventoConfirmado(
-                        evento
-                    );
+                if (!isStatusAberto) {
+                    return false;
                 }
-            );
 
-        filtered.sort(
-            (a, b) => {
+                const saldo = Number(
+                    lancamento
+                        ?.valores
+                        ?.saldo || 0
+                );
+
+                if (
+                    !Number.isFinite(saldo) ||
+                    saldo <= 0
+                ) {
+                    return false;
+                }
+
+                const isEvento =
+                    lancamento?.origem
+                        ?.tipo === 'evento';
+
+                /*
+                 * Lançamentos avulsos não dependem
+                 * do status da agenda.
+                 */
+                if (!isEvento) {
+                    return true;
+                }
+
+                const eventoId =
+                    lancamento?.origem
+                        ?.eventoId;
+
+                const evento =
+                    eventoId != null
+                        ? eventosById[
+                        String(eventoId)
+                        ]
+                        : null;
+
+                /*
+                 * Evita esconder lançamentos antigos
+                 * quando o evento não estiver carregado
+                 * ou não for mais encontrado.
+                 */
+                if (!evento) {
+                    return true;
+                }
+
+                if (
+                    isEventoConfirmado(
+                        evento
+                    )
+                ) {
+                    return true;
+                }
+
+                if (
+                    includePendingEvents &&
+                    isEventoPendente(
+                        evento
+                    )
+                ) {
+                    return true;
+                }
+
+                /*
+                 * Cancelados e demais status
+                 * ficam fora do resumo.
+                 */
+                return false;
+            })
+            .sort((a, b) => {
                 const dateA =
                     safeDate(
                         a.vencimento ||
@@ -641,21 +686,32 @@ export default function FinanceiroPendentesCard({
                     )?.getTime() || 0;
 
                 return dateA - dateB;
-            }
-        );
+            });
 
         const total =
             filtered.reduce(
                 (
                     accumulator,
                     lancamento
-                ) =>
-                    accumulator +
-                    Number(
-                        lancamento
-                            ?.valores
-                            ?.saldo || 0
-                    ),
+                ) => {
+                    const saldo =
+                        Number(
+                            lancamento
+                                ?.valores
+                                ?.saldo || 0
+                        );
+
+                    return (
+                        accumulator +
+                        (
+                            Number.isFinite(
+                                saldo
+                            )
+                                ? saldo
+                                : 0
+                        )
+                    );
+                },
                 0
             );
 
@@ -685,6 +741,7 @@ export default function FinanceiroPendentesCard({
     }, [
         lancamentos,
         eventosById,
+        includePendingEvents,
     ]);
 
     const temPendentes =
@@ -725,6 +782,16 @@ export default function FinanceiroPendentesCard({
 
             onToggleValues?.();
         }, [onToggleValues]);
+
+
+    const handleTogglePendingEvents =
+        useCallback(() => {
+            Haptics.selectionAsync().catch(
+                () => { }
+            );
+
+            onTogglePendingEvents?.();
+        }, [onTogglePendingEvents]);
 
     return (
         <View
@@ -790,12 +857,16 @@ export default function FinanceiroPendentesCard({
                                 styles.cardSubtitle,
                                 {
                                     color:
-                                        textIcon,
+                                        includePendingEvents
+                                            ? COLORS.orangeStrong
+                                            : COLORS.green,
                                 },
                             ]}
                             numberOfLines={1}
                         >
-                            Valores confirmados a receber
+                            {includePendingEvents
+                                ? 'Confirmados e pendentes'
+                                : 'Somente confirmados'}
                         </Text>
                     </View>
                 </View>
@@ -805,6 +876,54 @@ export default function FinanceiroPendentesCard({
                         styles.headerActions
                     }
                 >
+                    <Pressable
+                        onPress={
+                            handleTogglePendingEvents
+                        }
+                        disabled={
+                            !pendingFilterHydrated
+                        }
+                        hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityState={{
+                            selected:
+                                !includePendingEvents,
+                            disabled:
+                                !pendingFilterHydrated,
+                        }}
+                        accessibilityLabel={
+                            includePendingEvents
+                                ? 'Exibindo confirmados e pendentes. Toque para mostrar somente confirmados.'
+                                : 'Exibindo somente confirmados. Toque para incluir pendentes.'
+                        }
+                        style={({
+                            pressed,
+                        }) => [
+                                styles.statusFilterButton,
+
+                                includePendingEvents
+                                    ? styles.statusFilterButtonPending
+                                    : styles.statusFilterButtonConfirmed,
+
+                                pressed && {
+                                    opacity: 0.65,
+                                },
+
+                                !pendingFilterHydrated && {
+                                    opacity: 0.45,
+                                },
+                            ]}
+                    >
+                        <Ionicons
+                            name="checkmark-done"
+                            size={19}
+                            color={
+                                includePendingEvents
+                                    ? COLORS.orangeStrong
+                                    : COLORS.green
+                            }
+                        />
+                    </Pressable>
                     <Pressable
                         onPress={
                             handleToggleValues
@@ -1091,12 +1210,11 @@ export default function FinanceiroPendentesCard({
                         style={[
                             styles.emptySub,
                             {
-                                color:
-                                    textIcon,
+                                color: textIcon,
                             },
                         ]}
                     >
-                        Lançamentos confirmados com saldo em aberto aparecerão aqui.
+                        Lançamentos com saldo em aberto aparecerão aqui.
                     </Text>
                 </View>
             )}
@@ -1413,5 +1531,28 @@ const styles = StyleSheet.create({
         color: COLORS.orangeStrong,
         fontSize: 10.5,
         fontWeight: '750',
+    },
+    statusFilterButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth:
+            StyleSheet.hairlineWidth,
+    },
+
+    statusFilterButtonConfirmed: {
+        backgroundColor:
+            'rgba(22,163,74,0.10)',
+        borderColor:
+            'rgba(22,163,74,0.22)',
+    },
+
+    statusFilterButtonPending: {
+        backgroundColor:
+            'rgba(249,115,22,0.10)',
+        borderColor:
+            'rgba(249,115,22,0.22)',
     },
 });

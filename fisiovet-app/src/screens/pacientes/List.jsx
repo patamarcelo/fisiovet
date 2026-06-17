@@ -109,7 +109,7 @@ function navigateToPet(petId) {
 	Haptics.selectionAsync().catch(() => {});
 
 	router.push({
-		pathname: "/(phone)/pacientes/[id]",
+		pathname: "/(modals)/pets/[id]",
 		params: { id: String(petId) },
 	});
 }

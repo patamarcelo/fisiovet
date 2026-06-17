@@ -13,10 +13,10 @@ import {
     KeyboardAvoidingView,
     Platform,
     Keyboard,
-    SafeAreaView,
     StyleSheet,
 } from "react-native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useDispatch, useSelector } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -26,6 +26,8 @@ import {
     clearDraft,
     replaceDraft,
 } from "@/src/store/slices/avaliacaoSlice";
+
+import { exportAvaliacoesPdf } from "@/src/services/avaliacaoPdf";
 
 /* ---------- Firestore ---------- */
 function toDate(value) {
@@ -380,20 +382,108 @@ const sensibilidadeLabels = {
 
 /* ---------- UI Documento ---------- */
 
+function getPetAgeLabel(pet = {}) {
+    const directAge =
+        pet?.idade ||
+        pet?.age;
+
+    if (directAge != null && String(directAge).trim()) {
+        return String(directAge);
+    }
+
+    const birthDate =
+        toDate(
+            pet?.dataNascimento ||
+            pet?.nascimento ||
+            pet?.birthDate
+        );
+
+    if (!birthDate) {
+        return null;
+    }
+
+    const today = new Date();
+
+    let years =
+        today.getFullYear() -
+        birthDate.getFullYear();
+
+    const monthDifference =
+        today.getMonth() -
+        birthDate.getMonth();
+
+    if (
+        monthDifference < 0 ||
+        (
+            monthDifference === 0 &&
+            today.getDate() <
+            birthDate.getDate()
+        )
+    ) {
+        years -= 1;
+    }
+
+    if (years > 0) {
+        return `${years} ano${years === 1 ? "" : "s"}`;
+    }
+
+    const months = Math.max(
+        0,
+        (
+            today.getFullYear() -
+            birthDate.getFullYear()
+        ) * 12 +
+        today.getMonth() -
+        birthDate.getMonth()
+    );
+
+    return `${months} mês${months === 1 ? "" : "es"}`;
+}
+
+function PetInfoItem({
+    icon,
+    label,
+    value,
+}) {
+    if (!isFilled(value)) {
+        return null;
+    }
+
+    return (
+        <View style={styles.petInfoItem}>
+            <Ionicons
+                name={icon}
+                size={13}
+                color="#64748B"
+            />
+
+            <View style={styles.petInfoText}>
+                <Text style={styles.petInfoLabel}>
+                    {label}
+                </Text>
+
+                <Text
+                    style={styles.petInfoValue}
+                    numberOfLines={1}
+                >
+                    {String(value)}
+                </Text>
+            </View>
+        </View>
+    );
+}
+
 function DocumentHeader({
     title,
     createdAt,
     updatedAt,
+    pet,
 }) {
     const createdText =
-        formatDocumentDate(
-            createdAt
-        );
+        formatDocumentDate(createdAt);
 
     const updatedText =
-        formatDocumentDate(
-            updatedAt
-        );
+        formatDocumentDate(updatedAt);
 
     const wasUpdated =
         createdText &&
@@ -402,34 +492,118 @@ function DocumentHeader({
         toDate(createdAt)?.getTime() +
         1000;
 
+    const petName =
+        pet?.nome ||
+        pet?.name ||
+        "Paciente";
+
+    const species =
+        pet?.especie ||
+        pet?.species ||
+        null;
+
+    const breed =
+        pet?.raca ||
+        pet?.breed ||
+        null;
+
+    const sex =
+        pet?.sexo ||
+        pet?.sex ||
+        null;
+
+    const weight =
+        pet?.peso != null
+            ? `${pet.peso} kg`
+            : pet?.weight != null
+                ? `${pet.weight} kg`
+                : null;
+
+    const age =
+        getPetAgeLabel(pet);
+
     return (
-        <View style={styles.documentHero}>
-            <View style={styles.documentIcon}>
-                <Ionicons
-                    name="fitness-outline"
-                    size={20}
-                    color="#FFFFFF"
+        <View style={styles.clinicalHeader}>
+            <View style={styles.clinicalHeaderTop}>
+                <View style={styles.clinicalAvatar}>
+                    <Ionicons
+                        name="paw"
+                        size={22}
+                        color="#166534"
+                    />
+                </View>
+
+                <View style={styles.clinicalHeaderMain}>
+                    <Text style={styles.clinicalEyebrow}>
+                        PACIENTE
+                    </Text>
+
+                    <Text
+                        style={styles.clinicalPatientName}
+                        numberOfLines={1}
+                    >
+                        {petName}
+                    </Text>
+
+                    <View style={styles.clinicalMetaLine}>
+                        {[species, breed]
+                            .filter(isFilled)
+                            .map((item, index) => (
+                                <React.Fragment key={`${item}-${index}`}>
+                                    {index > 0 && (
+                                        <View style={styles.clinicalMetaDot} />
+                                    )}
+
+                                    <Text style={styles.clinicalMetaText}>
+                                        {item}
+                                    </Text>
+                                </React.Fragment>
+                            ))}
+                    </View>
+                </View>
+
+                <View style={styles.clinicalTypeBadge}>
+                    <Ionicons
+                        name="fitness-outline"
+                        size={12}
+                        color="#166534"
+                    />
+
+                    <Text style={styles.clinicalTypeBadgeText}>
+                        NEUROLÓGICA
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.clinicalDivider} />
+
+            <View style={styles.clinicalInfoRow}>
+                <PetInfoItem
+                    icon="male-female-outline"
+                    label="Sexo"
+                    value={sex}
+                />
+
+                <PetInfoItem
+                    icon="calendar-outline"
+                    label="Idade"
+                    value={age}
+                />
+
+                <PetInfoItem
+                    icon="scale-outline"
+                    label="Peso"
+                    value={weight}
                 />
             </View>
 
-            <View
-                style={{
-                    flex: 1,
-                    minWidth: 0,
-                }}
-            >
-                <Text
-                    style={
-                        styles.documentEyebrow
-                    }
-                >
-                    AVALIAÇÃO NEUROLÓGICA
+            <View style={styles.clinicalDocumentBlock}>
+                <Text style={styles.clinicalDocumentEyebrow}>
+                    DOCUMENTO CLÍNICO
                 </Text>
 
                 <Text
-                    style={
-                        styles.documentTitle
-                    }
+                    style={styles.clinicalDocumentTitle}
                     numberOfLines={2}
                 >
                     {title ||
@@ -437,36 +611,22 @@ function DocumentHeader({
                 </Text>
 
                 {!!createdText && (
-                    <View
-                        style={
-                            styles.documentDateRow
-                        }
-                    >
+                    <View style={styles.clinicalDateRow}>
                         <Ionicons
                             name="calendar-outline"
                             size={12}
-                            color="#6B7280"
+                            color="#4B5563"
                         />
 
-                        <Text
-                            style={
-                                styles.documentDateText
-                            }
-                        >
-                            Criado em{" "}
-                            {createdText}
+                        <Text style={styles.clinicalDateText}>
+                            Criado em {createdText}
                         </Text>
                     </View>
                 )}
 
                 {wasUpdated && (
-                    <Text
-                        style={
-                            styles.documentUpdatedText
-                        }
-                    >
-                        Atualizado em{" "}
-                        {updatedText}
+                    <Text style={styles.clinicalUpdatedText}>
+                        Atualizado em {updatedText}
                     </Text>
                 )}
             </View>
@@ -573,7 +733,7 @@ function DocOptionSummary({ label, value, options }) {
     );
 }
 
-function DocumentView({ draft }) {
+function DocumentView({ draft, pet }) {
     return (
         <ScrollView
             contentContainerStyle={styles.documentContent}
@@ -583,6 +743,7 @@ function DocumentView({ draft }) {
                 title={draft?.title}
                 createdAt={draft?.createdAt}
                 updatedAt={draft?.updatedAt}
+                pet={pet}
             />
 
             <DocumentSection number="1" title="Estado mental e consciência">
@@ -823,6 +984,7 @@ function ChipRadioGroup({ label, subtitle, value, options, onChange, disabled })
 export default function AvaliacaoNeurologicaScreen() {
     const { id: petId, avaliacaoId } = useLocalSearchParams();
     const dispatch = useDispatch();
+    const insets = useSafeAreaInsets();
 
     const { auth, firestore, firestoreModule } = ensureFirebase() || {};
 
@@ -833,6 +995,8 @@ export default function AvaliacaoNeurologicaScreen() {
     const [loading, setLoading] = useState(isExisting);
     const [saving, setSaving] = useState(false);
     const [original, setOriginal] = useState(null);
+    const [petData, setPetData] = useState(null);
+    const [exportingPdf, setExportingPdf] = useState(false);
 
     useEffect(() => {
         if (!petId) return;
@@ -886,6 +1050,139 @@ export default function AvaliacaoNeurologicaScreen() {
             }
         })();
     }, [isExisting, firestore, auth, petId, avaliacaoId, dispatch]);
+
+    useEffect(() => {
+        let active = true;
+
+        (async () => {
+            if (
+                !petId ||
+                !firestore ||
+                !auth?.currentUser?.uid
+            ) {
+                return;
+            }
+
+            try {
+                const petSnap =
+                    await firestore
+                        .collection("users")
+                        .doc(String(auth.currentUser.uid))
+                        .collection("pets")
+                        .doc(String(petId))
+                        .get();
+
+                if (!active || !petSnap.exists) {
+                    return;
+                }
+
+                setPetData({
+                    id: petSnap.id,
+                    ...petSnap.data(),
+                });
+            } catch (error) {
+                console.warn(
+                    "fetch pet name for PDF",
+                    error?.message
+                );
+            }
+        })();
+
+        return () => {
+            active = false;
+        };
+    }, [
+        petId,
+        firestore,
+        auth,
+    ]);
+
+    const buildCurrentEvaluationForPdf = useCallback(() => {
+        if (!draft) {
+            return null;
+        }
+
+        return {
+            id:
+                String(
+                    avaliacaoId ||
+                    draft?.id ||
+                    "preview"
+                ),
+            title:
+                draft?.title?.trim() ||
+                "Avaliação neurológica",
+            tipo: "neurologica",
+            type: "neurologica",
+            petId: String(petId),
+            createdAt:
+                draft?.createdAt ||
+                original?.createdAt ||
+                null,
+            updatedAt:
+                draft?.updatedAt ||
+                original?.updatedAt ||
+                null,
+            fields: {
+                estadoMental:
+                    draft?.estadoMental || {},
+                textos:
+                    draft?.textos || {},
+                nervosCranianos:
+                    draft?.nervosCranianos || {},
+                reflexos:
+                    draft?.reflexos || {},
+                sensibilidade:
+                    draft?.sensibilidade || {},
+            },
+        };
+    }, [
+        draft,
+        avaliacaoId,
+        petId,
+        original,
+    ]);
+
+    const handleExportPdf = useCallback(async () => {
+        const evaluation =
+            buildCurrentEvaluationForPdf();
+
+        if (!evaluation) {
+            Alert.alert(
+                "Exportar PDF",
+                "Não foi possível preparar esta avaliação."
+            );
+            return;
+        }
+
+        try {
+            setExportingPdf(true);
+
+            await exportAvaliacoesPdf({
+                evaluations: [evaluation],
+                petName:
+                    petData?.nome ||
+                    petData?.name ||
+                    "",
+            });
+        } catch (error) {
+            console.log(
+                "export avaliação neurológica pdf error",
+                error
+            );
+
+            Alert.alert(
+                "Exportar PDF",
+                error?.message ||
+                    "Não foi possível gerar o PDF."
+            );
+        } finally {
+            setExportingPdf(false);
+        }
+    }, [
+        buildCurrentEvaluationForPdf,
+        petData,
+    ]);
 
     const updateTitle = useCallback(
         (text) => {
@@ -1319,7 +1616,55 @@ export default function AvaliacaoNeurologicaScreen() {
             />
 
             {isExisting && !editing ? (
-                <DocumentView draft={draft} />
+                <View style={styles.documentMode}>
+                    <DocumentView
+                        draft={draft}
+                        pet={petData}
+                    />
+
+                    <View style={styles.pdfFooter}>
+                        <View
+                            style={[
+                                styles.pdfFooterInner,
+                                {
+                                    paddingBottom:
+                                        Math.max(
+                                            insets.bottom,
+                                            14
+                                        ) + 10,
+                                },
+                            ]}
+                        >
+                            <TouchableOpacity
+                                onPress={handleExportPdf}
+                                disabled={exportingPdf}
+                                activeOpacity={0.86}
+                                style={[
+                                    styles.pdfButton,
+                                    exportingPdf && {
+                                        opacity: 0.72,
+                                    },
+                                ]}
+                            >
+                                {exportingPdf ? (
+                                    <ActivityIndicator color="#FFFFFF" />
+                                ) : (
+                                    <Ionicons
+                                        name="share-outline"
+                                        size={19}
+                                        color="#FFFFFF"
+                                    />
+                                )}
+
+                                <Text style={styles.pdfButtonText}>
+                                    {exportingPdf
+                                        ? "Gerando PDF..."
+                                        : "Exportar"}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
             ) : (
                 <ScrollView
                     contentContainerStyle={styles.formContent}
@@ -1477,8 +1822,19 @@ export default function AvaliacaoNeurologicaScreen() {
             )}
 
             {editing && (
-                <SafeAreaView style={styles.saveFooter}>
-                    <View style={{ padding: 12 }}>
+                <View style={styles.saveFooter}>
+                    <View
+                        style={[
+                            styles.saveFooterInner,
+                            {
+                                paddingBottom:
+                                    Math.max(
+                                        insets.bottom,
+                                        14
+                                    ) + 12,
+                            },
+                        ]}
+                    >
                         <TouchableOpacity
                             onPress={handleSave}
                             disabled={saving}
@@ -1504,7 +1860,7 @@ export default function AvaliacaoNeurologicaScreen() {
                             )}
                         </TouchableOpacity>
                     </View>
-                </SafeAreaView>
+                </View>
             )}
         </KeyboardAvoidingView>
     );
@@ -1560,50 +1916,203 @@ const styles = StyleSheet.create({
     documentContent: {
         paddingHorizontal: 14,
         paddingTop: 12,
-        paddingBottom: 34,
+        paddingBottom: 156,
     },
 
-    documentHero: {
+    documentMode: {
+        flex: 1,
+    },
+
+    clinicalHeader: {
+        marginBottom: 4,
+        paddingHorizontal: 15,
+        paddingTop: 15,
+        paddingBottom: 14,
+        borderRadius: 20,
         backgroundColor: "#FFFFFF",
-        borderRadius: 14,
-        paddingHorizontal: 13,
-        paddingVertical: 12,
         borderWidth: 1,
-        borderColor: "rgba(0,0,0,0.055)",
+        borderColor: "rgba(15,23,42,0.08)",
+        shadowColor: "#000000",
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+        shadowOffset: {
+            width: 0,
+            height: 5,
+        },
+        elevation: 2,
+    },
+
+    clinicalHeaderTop: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 10,
-        shadowColor: "#000",
-        shadowOpacity: 0.035,
-        shadowRadius: 6,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 1,
     },
 
-    documentIcon: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
-        backgroundColor: "#2563EB",
+    clinicalAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 16,
+        backgroundColor: "rgba(22,163,74,0.10)",
+        borderWidth: 1,
+        borderColor: "rgba(22,163,74,0.14)",
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 10,
+        marginRight: 12,
     },
 
-    documentEyebrow: {
-        fontSize: 10,
-        fontWeight: "900",
-        letterSpacing: 0.5,
-        color: "#2563EB",
-        marginBottom: 1,
+    clinicalHeaderMain: {
+        flex: 1,
+        minWidth: 0,
     },
 
-    documentTitle: {
-        fontSize: 16,
+    clinicalEyebrow: {
+        color: "#16A34A",
+        fontSize: 9.5,
         fontWeight: "900",
+        letterSpacing: 0.8,
+    },
+
+    clinicalPatientName: {
+        marginTop: 2,
         color: "#111827",
-        letterSpacing: -0.24,
+        fontSize: 20,
+        fontWeight: "900",
+        letterSpacing: -0.35,
+    },
+
+    clinicalMetaLine: {
+        minHeight: 17,
+        marginTop: 4,
+        flexDirection: "row",
+        alignItems: "center",
+        flexWrap: "wrap",
+    },
+
+    clinicalMetaText: {
+        color: "#4B5563",
+        fontSize: 11.5,
+        fontWeight: "700",
+    },
+
+    clinicalMetaDot: {
+        width: 3,
+        height: 3,
+        borderRadius: 2,
+        marginHorizontal: 7,
+        backgroundColor: "#9CA3AF",
+    },
+
+    clinicalTypeBadge: {
+        marginLeft: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: "rgba(22,163,74,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(22,163,74,0.14)",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+
+    clinicalTypeBadgeText: {
+        color: "#166534",
+        fontSize: 8.5,
+        fontWeight: "900",
+        letterSpacing: 0.45,
+    },
+
+    clinicalDivider: {
+        height: StyleSheet.hairlineWidth,
+        marginVertical: 12,
+        backgroundColor: "rgba(15,23,42,0.08)",
+    },
+
+    clinicalInfoRow: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+
+    petInfoItem: {
+        flex: 1,
+        minWidth: 88,
+        minHeight: 38,
+        paddingHorizontal: 9,
+        paddingVertical: 7,
+        borderRadius: 11,
+        backgroundColor: "#F9FAFB",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(15,23,42,0.07)",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+    },
+
+    petInfoText: {
+        flex: 1,
+        minWidth: 0,
+    },
+
+    petInfoLabel: {
+        color: "#16A34A",
+        fontSize: 8,
+        fontWeight: "900",
+        textTransform: "uppercase",
+        letterSpacing: 0.35,
+    },
+
+    petInfoValue: {
+        marginTop: 1,
+        color: "#111827",
+        fontSize: 11,
+        fontWeight: "800",
+    },
+
+    clinicalDocumentBlock: {
+        marginTop: 12,
+        paddingTop: 12,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(15,23,42,0.08)",
+    },
+
+    clinicalDocumentEyebrow: {
+        color: "#16A34A",
+        fontSize: 9,
+        fontWeight: "900",
+        letterSpacing: 0.65,
+    },
+
+    clinicalDocumentTitle: {
+        marginTop: 3,
+        color: "#111827",
+        fontSize: 16,
         lineHeight: 20,
+        fontWeight: "900",
+        letterSpacing: -0.2,
+    },
+
+    clinicalDateRow: {
+        marginTop: 7,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+    },
+
+    clinicalDateText: {
+        flex: 1,
+        color: "#4B5563",
+        fontSize: 10.5,
+        lineHeight: 14,
+        fontWeight: "700",
+    },
+
+    clinicalUpdatedText: {
+        marginTop: 2,
+        marginLeft: 17,
+        color: "#6B7280",
+        fontSize: 9.5,
+        lineHeight: 13,
+        fontWeight: "600",
     },
 
     docSection: {
@@ -1787,7 +2296,7 @@ const styles = StyleSheet.create({
 
     formContent: {
         padding: 16,
-        paddingBottom: 160,
+        paddingBottom: 180,
     },
 
     formSectionTitle: {
@@ -1856,6 +2365,45 @@ const styles = StyleSheet.create({
         color: "#111827",
     },
 
+    pdfFooter: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: "rgba(255,255,255,0.97)",
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(15,23,42,0.10)",
+        shadowColor: "#000000",
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+        shadowOffset: {
+            width: 0,
+            height: -4,
+        },
+        elevation: 10,
+    },
+
+    pdfFooterInner: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+
+    pdfButton: {
+        height: 50,
+        borderRadius: 15,
+        backgroundColor: "#16A34A",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+    },
+
+    pdfButtonText: {
+        color: "#FFFFFF",
+        fontSize: 14.5,
+        fontWeight: "850",
+    },
+
     saveFooter: {
         position: "absolute",
         left: 0,
@@ -1864,6 +2412,11 @@ const styles = StyleSheet.create({
         backgroundColor: "white",
         borderTopWidth: 1,
         borderTopColor: "rgba(0,0,0,0.08)",
+    },
+
+    saveFooterInner: {
+    	paddingHorizontal: 16,
+    	paddingTop: 12,
     },
 
     saveButton: {

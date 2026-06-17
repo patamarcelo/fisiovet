@@ -1,5 +1,5 @@
-// src/screens/tutores/Form.jsx
-// @ts-nocheck
+//src/screens/tutores/Form.jsx
+//@ts-nocheck
 
 import React, {
 	useCallback,
@@ -51,6 +51,12 @@ import { fetchAddressByCep } from "@/src/services/cep";
 import { geocodeAddress } from "@/src/services/geocoding";
 
 import {
+	autocompleteAddress,
+	createPlacesSessionToken,
+	getAddressDetails,
+} from "@/src/services/addressAutocomplete";
+
+import {
 	maskCep,
 	maskPhone,
 } from "@/src/utils/masks";
@@ -91,7 +97,19 @@ function hasMinimumAddressForGeocode(address) {
 	);
 }
 
-function FormSection({ title, helper, children }) {
+function isCepOnlyQuery(value) {
+	const text = String(value || "").trim();
+	const digits = onlyDigits(text);
+	const hasLetters = /[a-zA-ZÀ-ÿ]/.test(text);
+
+	return !hasLetters && digits.length > 0;
+}
+
+function FormSection({
+	title,
+	helper,
+	children,
+}) {
 	return (
 		<View style={styles.section}>
 			<View style={styles.sectionHeader}>
@@ -113,7 +131,12 @@ function FormSection({ title, helper, children }) {
 	);
 }
 
-function Field({ label, helper, error, children }) {
+function Field({
+	label,
+	helper,
+	error,
+	children,
+}) {
 	return (
 		<View style={styles.field}>
 			{!!label && (
@@ -288,18 +311,21 @@ export default function TutorForm() {
 		!tutorGate.canCreate;
 
 	const emailRef = useRef(null);
-	const cepRef = useRef(null);
+	const addressQueryRef = useRef(null);
 	const numeroRef = useRef(null);
 	const telefoneRef = useRef(null);
 	const bairroRef = useRef(null);
 	const cidadeRef = useRef(null);
 	const ufRef = useRef(null);
 	const complementoRef = useRef(null);
+	const autocompleteTimerRef = useRef(null);
+	const sessionTokenRef = useRef(null);
 
 	const [nome, setNome] = useState("");
 	const [telefone, setTelefone] = useState("");
 	const [email, setEmail] = useState("");
 
+	const [addressQuery, setAddressQuery] = useState("");
 	const [cep, setCep] = useState("");
 	const [logradouro, setLogradouro] = useState("");
 	const [numero, setNumero] = useState("");
@@ -310,10 +336,13 @@ export default function TutorForm() {
 
 	const [observacoes, setObservacoes] = useState("");
 
-	const [loadingCep, setLoadingCep] = useState(false);
+	const [loadingAddress, setLoadingAddress] = useState(false);
+	const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+	const [addressFound, setAddressFound] = useState(false);
+	const [selectedGeo, setSelectedGeo] = useState(null);
+	const [addressSuggestions, setAddressSuggestions] = useState([]);
+	const [showSuggestions, setShowSuggestions] = useState(false);
 	const [submitting, setSubmitting] = useState(false);
-	const [cepTouched, setCepTouched] = useState(false);
-	const [cepFound, setCepFound] = useState(false);
 
 	useEffect(() => {
 		if (id && !tutor) {
@@ -324,11 +353,31 @@ export default function TutorForm() {
 	useEffect(() => {
 		if (!tutor) return;
 
+		const currentCep =
+			tutor?.endereco?.cep || "";
+
+		const currentFormatted =
+			tutor?.endereco?.formatted || "";
+
+		const currentAddressQuery =
+			currentCep
+				? maskCep(currentCep)
+				: currentFormatted ||
+					[
+						tutor?.endereco?.logradouro,
+						tutor?.endereco?.numero,
+						tutor?.endereco?.cidade,
+						tutor?.endereco?.uf,
+					]
+						.filter(Boolean)
+						.join(", ");
+
 		setNome(tutor?.nome || "");
 		setTelefone(tutor?.telefone || "");
 		setEmail(tutor?.email || "");
 
-		setCep(tutor?.endereco?.cep || "");
+		setAddressQuery(currentAddressQuery);
+		setCep(currentCep);
 		setLogradouro(tutor?.endereco?.logradouro || "");
 		setNumero(tutor?.endereco?.numero || "");
 		setBairro(tutor?.endereco?.bairro || "");
@@ -336,8 +385,19 @@ export default function TutorForm() {
 		setUf(tutor?.endereco?.uf || "");
 		setComplemento(tutor?.endereco?.complemento || "");
 
+		setSelectedGeo(tutor?.geo || null);
+		setAddressFound(Boolean(currentCep || currentFormatted));
+
 		setObservacoes(tutor?.observacoes || "");
 	}, [tutor?.id]);
+
+	useEffect(() => {
+		return () => {
+			if (autocompleteTimerRef.current) {
+				clearTimeout(autocompleteTimerRef.current);
+			}
+		};
+	}, []);
 
 	const goBack = useCallback(() => {
 		if (router.canGoBack()) {
@@ -427,7 +487,7 @@ export default function TutorForm() {
 
 	const isSubmitDisabled =
 		submitting ||
-		loadingCep ||
+		loadingAddress ||
 		!validation.isValid;
 
 	const confirmDelete = useCallback(() => {
@@ -554,74 +614,72 @@ export default function TutorForm() {
 		goBack,
 	]);
 
-	const onChangeCep = useCallback(async (value) => {
-		const digits = onlyDigits(value);
-
-		setCepTouched(true);
-		setCepFound(false);
-		setCep(digits);
-
-		if (!digits || digits.length < 8) return;
-
-		try {
-			setLoadingCep(true);
-
-			const address =
-				await fetchAddressByCep(digits);
-
-			setLogradouro(address?.logradouro || "");
-			setBairro(address?.bairro || "");
-			setCidade(address?.cidade || "");
-			setUf(address?.uf || "");
-			setComplemento(address?.complemento || "");
-			setCepFound(true);
-
-			numeroRef.current?.focus();
-		} catch (error) {
-			Alert.alert(
-				"CEP",
-				error?.message ||
-					"Não foi possível buscar o CEP. Você pode preencher o endereço manualmente."
-			);
-		} finally {
-			setLoadingCep(false);
-		}
-	}, []);
-
 	const normalizeGoogleAddress = useCallback((components = []) => {
-		const get = (type) => {
-			const component = components.find((item) =>
-				item.types?.includes(type)
-			);
+		const get = (...types) => {
+			for (const type of types) {
+				const component = components.find((item) =>
+					item?.types?.includes(type)
+				);
 
-			return component
-				? {
-						long: component.long_name,
-						short: component.short_name,
-					}
-				: {
-						long: "",
-						short: "",
+				if (component) {
+					return {
+						long:
+							component.longText ||
+							component.long_name ||
+							"",
+						short:
+							component.shortText ||
+							component.short_name ||
+							"",
 					};
+				}
+			}
+
+			return {
+				long: "",
+				short: "",
+			};
 		};
 
 		const streetNumber = get("street_number");
 		const route = get("route");
-		const sublocality = get("sublocality");
-		const neighborhood = sublocality.long
-			? sublocality
-			: get("neighborhood");
-		const locality = get("locality");
-		const adminArea = get("administrative_area_level_1");
+
+		const neighborhood = get(
+			"neighborhood",
+			"sublocality_level_1",
+			"sublocality"
+		);
+
+		const sublocality = get(
+			"sublocality_level_1",
+			"sublocality"
+		);
+
+		const locality = get(
+			"locality",
+			"postal_town",
+			"administrative_area_level_2",
+			"sublocality_level_1"
+		);
+
+		const adminArea = get(
+			"administrative_area_level_1"
+		);
+
 		const postalCode = get("postal_code");
 		const country = get("country");
 
 		return {
-			street_number: streetNumber.long || null,
-			route: route.long || null,
-			neighborhood: neighborhood.long || null,
-			sublocality: sublocality.long || null,
-			locality: locality.long || null,
+			street_number:
+				streetNumber.long || null,
+			route:
+				route.long || null,
+			neighborhood:
+				neighborhood.long || null,
+			sublocality:
+				sublocality.long || null,
+			locality:
+				locality.long || null,
 			admin_area_level_1:
 				adminArea.short ||
 				adminArea.long ||
@@ -630,18 +688,516 @@ export default function TutorForm() {
 				country.short ||
 				country.long ||
 				null,
-			postal_code: postalCode.long || null,
+			postal_code:
+				postalCode.long || null,
 		};
 	}, []);
+
+	const buildGeoPayload = useCallback((geo) => {
+		const viewport =
+			geo?.raw?.geometry?.viewport;
+
+		const navigationPoints =
+			geo?.raw?.navigation_points;
+
+		return {
+			lat:
+				geo?.lat ??
+				null,
+			lng:
+				geo?.lng ??
+				null,
+			placeId:
+				geo?.placeId ??
+				null,
+			precision:
+				geo?.precision ||
+				geo?.raw?.geometry?.location_type ||
+				null,
+			types:
+				geo?.raw?.types ||
+				[],
+			viewport: viewport
+				? {
+						northeast: {
+							lat:
+								viewport?.northeast?.lat ??
+								null,
+							lng:
+								viewport?.northeast?.lng ??
+								null,
+						},
+						southwest: {
+							lat:
+								viewport?.southwest?.lat ??
+								null,
+							lng:
+								viewport?.southwest?.lng ??
+								null,
+						},
+					}
+				: null,
+			navigationPoints:
+				navigationPoints ||
+				null,
+			provider: "google",
+			retrievedAt: Date.now(),
+			raw:
+				geo?.raw ||
+				null,
+		};
+	}, []);
+
+	const invalidateSelectedGeo = useCallback(() => {
+		setSelectedGeo(null);
+		setAddressFound(false);
+	}, []);
+
+	const applyGoogleAddress = useCallback(
+		(geo, options = {}) => {
+			const normalized =
+				normalizeGoogleAddress(
+					geo?.raw?.address_components || []
+				);
+
+			const nextLogradouro =
+				normalized?.route ||
+				options?.fallbackAddress?.logradouro ||
+				"";
+
+			const nextNumero =
+				normalized?.street_number ||
+				options?.fallbackAddress?.numero ||
+				"";
+
+			const nextBairro =
+				normalized?.neighborhood ||
+				normalized?.sublocality ||
+				options?.fallbackAddress?.bairro ||
+				"";
+
+			const nextCidade =
+				normalized?.locality ||
+				options?.fallbackAddress?.cidade ||
+				"";
+
+			const nextUf =
+				normalized?.admin_area_level_1 ||
+				options?.fallbackAddress?.uf ||
+				"";
+
+			const nextCep = onlyDigits(
+				normalized?.postal_code ||
+					options?.fallbackAddress?.cep ||
+					""
+			);
+
+			setLogradouro(nextLogradouro);
+			setNumero(nextNumero);
+			setBairro(nextBairro);
+			setCidade(nextCidade);
+			setUf(nextUf);
+			setCep(nextCep);
+
+			setAddressQuery(
+				geo?.formattedAddress ||
+					(nextCep
+						? maskCep(nextCep)
+						: options?.originalQuery || "")
+			);
+
+			setSelectedGeo(
+				buildGeoPayload(geo)
+			);
+
+			setAddressFound(true);
+
+			if (!nextNumero) {
+				setTimeout(() => {
+					numeroRef.current?.focus();
+				}, 120);
+			}
+		},
+		[
+			normalizeGoogleAddress,
+			buildGeoPayload,
+		]
+	);
+
+	const handleAddressQueryChange = useCallback(
+		(value) => {
+			invalidateSelectedGeo();
+
+			if (autocompleteTimerRef.current) {
+				clearTimeout(autocompleteTimerRef.current);
+			}
+
+			const cepMode = isCepOnlyQuery(value);
+
+			if (cepMode) {
+				const digits = onlyDigits(value).slice(0, 8);
+
+				setCep(digits);
+				setAddressQuery(maskCep(digits));
+				setAddressSuggestions([]);
+				setShowSuggestions(false);
+				setLoadingSuggestions(false);
+
+				return;
+			}
+
+			setCep("");
+			setAddressQuery(value);
+
+			const query = String(value || "").trim();
+
+			if (query.length < 3) {
+				setAddressSuggestions([]);
+				setShowSuggestions(false);
+				setLoadingSuggestions(false);
+				return;
+			}
+
+			if (!sessionTokenRef.current) {
+				sessionTokenRef.current =
+					createPlacesSessionToken();
+			}
+
+			autocompleteTimerRef.current = setTimeout(async () => {
+				try {
+					setLoadingSuggestions(true);
+
+					const results = await autocompleteAddress({
+						input: query,
+						sessionToken: sessionTokenRef.current,
+					});
+
+					setAddressSuggestions(results);
+					setShowSuggestions(results.length > 0);
+				} catch (error) {
+					console.log(
+						"Autocomplete de endereço:",
+						error?.message
+					);
+
+					setAddressSuggestions([]);
+					setShowSuggestions(false);
+				} finally {
+					setLoadingSuggestions(false);
+				}
+			}, 400);
+		},
+		[invalidateSelectedGeo]
+	);
+
+	const handleSelectSuggestion = useCallback(
+		async (suggestion) => {
+			try {
+				if (autocompleteTimerRef.current) {
+					clearTimeout(autocompleteTimerRef.current);
+					autocompleteTimerRef.current = null;
+				}
+
+				setLoadingAddress(true);
+				setShowSuggestions(false);
+
+				const place = await getAddressDetails({
+					placeId: suggestion.placeId,
+					sessionToken: sessionTokenRef.current,
+				});
+
+				const placeComponents =
+					place?.addressComponents || [];
+
+				let normalized =
+					normalizeGoogleAddress(placeComponents);
+
+				let fallbackGeo = null;
+
+				if (
+					!normalized?.locality ||
+					!normalized?.postal_code
+				) {
+					try {
+						fallbackGeo = await geocodeAddress({
+							logradouro:
+								place?.formattedAddress ||
+								suggestion.description ||
+								"",
+						});
+
+						const fallbackNormalized =
+							normalizeGoogleAddress(
+								fallbackGeo?.raw?.address_components ||
+								[]
+							);
+
+						normalized = {
+							street_number:
+								normalized?.street_number ||
+								fallbackNormalized?.street_number ||
+								null,
+							route:
+								normalized?.route ||
+								fallbackNormalized?.route ||
+								null,
+							neighborhood:
+								normalized?.neighborhood ||
+								fallbackNormalized?.neighborhood ||
+								null,
+							sublocality:
+								normalized?.sublocality ||
+								fallbackNormalized?.sublocality ||
+								null,
+							locality:
+								normalized?.locality ||
+								fallbackNormalized?.locality ||
+								null,
+							admin_area_level_1:
+								normalized?.admin_area_level_1 ||
+								fallbackNormalized?.admin_area_level_1 ||
+								null,
+							country:
+								normalized?.country ||
+								fallbackNormalized?.country ||
+								null,
+							postal_code:
+								normalized?.postal_code ||
+								fallbackNormalized?.postal_code ||
+								null,
+						};
+					} catch (fallbackError) {
+						console.warn(
+							"Não foi possível completar cidade/CEP:",
+							fallbackError?.message
+						);
+					}
+				}
+
+				const nextCep = onlyDigits(
+					normalized?.postal_code || ""
+				);
+
+				setAddressQuery(
+					place?.formattedAddress ||
+						suggestion.description ||
+						""
+				);
+
+				setCep(nextCep);
+				setLogradouro(normalized?.route || "");
+				setNumero(normalized?.street_number || "");
+				setBairro(
+					normalized?.neighborhood ||
+						normalized?.sublocality ||
+						""
+				);
+				setCidade(normalized?.locality || "");
+				setUf(normalized?.admin_area_level_1 || "");
+
+				setSelectedGeo({
+					lat:
+						place?.location?.latitude ??
+						fallbackGeo?.lat ??
+						null,
+					lng:
+						place?.location?.longitude ??
+						fallbackGeo?.lng ??
+						null,
+					placeId:
+						place?.id ||
+						fallbackGeo?.placeId ||
+						suggestion.placeId,
+					precision:
+						fallbackGeo?.precision ||
+						"place",
+					types:
+						place?.types ||
+						fallbackGeo?.raw?.types ||
+						[],
+					viewport: place?.viewport
+						? {
+								northeast: {
+									lat:
+										place.viewport.high?.latitude ??
+										null,
+									lng:
+										place.viewport.high?.longitude ??
+										null,
+								},
+								southwest: {
+									lat:
+										place.viewport.low?.latitude ??
+										null,
+									lng:
+										place.viewport.low?.longitude ??
+										null,
+								},
+							}
+						: null,
+					provider: "google_places",
+					retrievedAt: Date.now(),
+					raw: {
+						...place,
+						addressComponents:
+							placeComponents,
+						resolvedAddress:
+							normalized,
+						geocodingFallback:
+							fallbackGeo?.raw || null,
+					},
+				});
+
+				setAddressFound(true);
+				setAddressSuggestions([]);
+				setShowSuggestions(false);
+				sessionTokenRef.current = null;
+
+				if (!normalized?.street_number) {
+					setTimeout(() => {
+						numeroRef.current?.focus();
+					}, 120);
+				}
+			} catch (error) {
+				Alert.alert(
+					"Endereço",
+					error?.message ||
+						"Não foi possível carregar o endereço selecionado."
+				);
+			} finally {
+				setLoadingAddress(false);
+			}
+		},
+		[
+			normalizeGoogleAddress,
+		]
+	);
+
+	const searchAddress = useCallback(async () => {
+		const rawQuery =
+			String(addressQuery || "").trim();
+
+		if (!rawQuery) {
+			Alert.alert(
+				"Endereço",
+				"Digite um CEP ou endereço para buscar."
+			);
+
+			return;
+		}
+
+		const digits = onlyDigits(rawQuery);
+		const cepMode = isCepOnlyQuery(rawQuery);
+
+		if (cepMode && digits.length !== 8) {
+			Alert.alert(
+				"CEP",
+				"Digite os 8 dígitos do CEP."
+			);
+
+			return;
+		}
+
+		try {
+			setLoadingAddress(true);
+			setAddressFound(false);
+			setShowSuggestions(false);
+			setAddressSuggestions([]);
+			setSelectedGeo(null);
+
+			if (cepMode) {
+				const address =
+					await fetchAddressByCep(digits);
+
+				setCep(digits);
+				setLogradouro(address?.logradouro || "");
+				setBairro(address?.bairro || "");
+				setCidade(address?.cidade || "");
+				setUf(address?.uf || "");
+				setComplemento(address?.complemento || "");
+				setAddressQuery(maskCep(digits));
+
+				try {
+					const geo =
+						await geocodeAddress({
+							cep: digits,
+							logradouro:
+								address?.logradouro ||
+								null,
+							bairro:
+								address?.bairro ||
+								null,
+							cidade:
+								address?.cidade ||
+								null,
+							uf:
+								address?.uf ||
+								null,
+						});
+
+					applyGoogleAddress(geo, {
+						fallbackAddress: {
+							...address,
+							cep: digits,
+						},
+						originalQuery: maskCep(digits),
+					});
+				} catch (geoError) {
+					console.warn(
+						"CEP encontrado, mas geocoding falhou:",
+						geoError?.message
+					);
+
+					setAddressFound(true);
+
+					setTimeout(() => {
+						numeroRef.current?.focus();
+					}, 120);
+				}
+
+				return;
+			}
+
+			const geo =
+				await geocodeAddress({
+					logradouro: rawQuery,
+				});
+
+			if (
+				!geo ||
+				geo?.lat == null ||
+				geo?.lng == null
+			) {
+				throw new Error(
+					"Endereço não encontrado."
+				);
+			}
+
+			applyGoogleAddress(geo, {
+				originalQuery: rawQuery,
+			});
+		} catch (error) {
+			console.warn(
+				"Busca de endereço falhou:",
+				error?.message
+			);
+
+			Alert.alert(
+				"Endereço",
+				error?.message ||
+					"Não foi possível encontrar o endereço. Você pode preencher os campos manualmente."
+			);
+		} finally {
+			setLoadingAddress(false);
+		}
+	}, [
+		addressQuery,
+		applyGoogleAddress,
+	]);
 
 	const onSubmit = useCallback(async () => {
 		if (submitting) return;
 
-		/*
-		 * Segunda proteção:
-		 * mesmo que o formulário já estivesse aberto,
-		 * não permite salvar um novo tutor após atingir o limite.
-		 */
 		if (!isEdit && !tutorGate.canCreate) {
 			tutorGate.showLimitAlert();
 			return;
@@ -671,7 +1227,10 @@ export default function TutorForm() {
 				complemento: trimOrNull(complemento),
 			};
 
-			let geoEnriched = null;
+			let geoEnriched =
+				selectedGeo ||
+				null;
+
 			let enderecoFinal = {
 				...enderecoBase,
 			};
@@ -680,7 +1239,10 @@ export default function TutorForm() {
 				hasAnyAddressField(enderecoBase) &&
 				hasMinimumAddressForGeocode(enderecoBase);
 
-			if (shouldTryGeocode) {
+			if (
+				shouldTryGeocode &&
+				!selectedGeo
+			) {
 				try {
 					const geo =
 						await geocodeAddress(enderecoBase);
@@ -690,12 +1252,6 @@ export default function TutorForm() {
 							geo?.raw?.address_components || []
 						);
 
-					const viewport =
-						geo?.raw?.geometry?.viewport;
-
-					const navigationPoints =
-						geo?.raw?.navigation_points;
-
 					enderecoFinal = {
 						...enderecoBase,
 						formatted:
@@ -704,52 +1260,8 @@ export default function TutorForm() {
 						normalized,
 					};
 
-					geoEnriched = {
-						lat:
-							geo?.lat ??
-							null,
-						lng:
-							geo?.lng ??
-							null,
-						placeId:
-							geo?.placeId ??
-							null,
-						precision:
-							geo?.precision ||
-							geo?.raw?.geometry?.location_type ||
-							null,
-						types:
-							geo?.raw?.types ||
-							[],
-						viewport: viewport
-							? {
-									northeast: {
-										lat:
-											viewport?.northeast?.lat ??
-											null,
-										lng:
-											viewport?.northeast?.lng ??
-											null,
-									},
-									southwest: {
-										lat:
-											viewport?.southwest?.lat ??
-											null,
-										lng:
-											viewport?.southwest?.lng ??
-											null,
-									},
-								}
-							: null,
-						navigationPoints:
-							navigationPoints ||
-							null,
-						provider: "google",
-						retrievedAt: Date.now(),
-						raw:
-							geo?.raw ||
-							null,
-					};
+					geoEnriched =
+						buildGeoPayload(geo);
 				} catch (error) {
 					console.warn(
 						"Geocoding falhou:",
@@ -761,6 +1273,25 @@ export default function TutorForm() {
 						"O tutor será salvo sem coordenadas de mapa. Você pode complementar o endereço depois."
 					);
 				}
+			} else if (selectedGeo) {
+				const rawComponents =
+					selectedGeo?.raw?.addressComponents ||
+					selectedGeo?.raw?.address_components ||
+					[];
+
+				const normalized =
+					selectedGeo?.raw?.resolvedAddress ||
+					normalizeGoogleAddress(rawComponents);
+
+				enderecoFinal = {
+					...enderecoBase,
+					formatted:
+						selectedGeo?.raw?.formattedAddress ||
+						selectedGeo?.raw?.formatted_address ||
+						addressQuery ||
+						null,
+					normalized,
+				};
 			}
 
 			const payload = {
@@ -824,11 +1355,14 @@ export default function TutorForm() {
 		cidade,
 		uf,
 		complemento,
+		selectedGeo,
+		addressQuery,
 		nome,
 		phoneDigits,
 		email,
 		observacoes,
 		normalizeGoogleAddress,
+		buildGeoPayload,
 		dispatch,
 		id,
 		goBack,
@@ -951,7 +1485,7 @@ export default function TutorForm() {
 								autoCapitalize="none"
 								returnKeyType="next"
 								onSubmitEditing={() =>
-									cepRef.current?.focus()
+									addressQueryRef.current?.focus()
 								}
 								style={styles.input}
 							/>
@@ -960,60 +1494,155 @@ export default function TutorForm() {
 
 					<FormSection
 						title="Endereço"
-						helper="Digite o CEP para preencher automaticamente. Se não souber, salve agora e complete depois."
+						helper="Digite um CEP ou endereço e toque em buscar. Os campos abaixo continuam editáveis."
 					>
 						<Field
-							label="CEP"
+							label="CEP ou endereço"
 							error={
 								!validation.cepOk
 									? firstError
 									: null
 							}
 							helper={
-								cepTouched &&
-								cepDigits.length > 0 &&
-								cepDigits.length < 8
-									? "Continue digitando para buscar o endereço."
-									: cepFound
-										? "Endereço encontrado. Confira o número e complemento."
-										: "Opcional."
+								addressFound
+									? "Endereço selecionado. Confira e complete os dados abaixo."
+									: "Digite um CEP ou comece a escrever o endereço."
 							}
 						>
-							<View style={styles.inputWithIcon}>
-								<ThemedTextInput
-									placeholder="00000-000"
-									ref={cepRef}
-									value={maskCep(cep)}
-									onChangeText={onChangeCep}
-									keyboardType="number-pad"
-									maxLength={9}
-									style={[
-										styles.input,
-										{ paddingRight: 38 },
-									]}
-									returnKeyType="next"
-									onSubmitEditing={() =>
-										numeroRef.current?.focus()
-									}
-								/>
+							<View style={styles.addressSearchContainer}>
+								<View style={styles.addressSearchRow}>
+									<View style={styles.addressSearchInput}>
+										<ThemedTextInput
+											placeholder="CEP ou endereço completo"
+											ref={addressQueryRef}
+											value={addressQuery}
+											onChangeText={handleAddressQueryChange}
+											onFocus={() => {
+												if (addressSuggestions.length > 0) {
+													setShowSuggestions(true);
+												}
+											}}
+											autoCapitalize="words"
+											autoCorrect={false}
+											returnKeyType="search"
+											onSubmitEditing={searchAddress}
+											style={styles.input}
+										/>
+									</View>
 
-								<View style={styles.inputRightIcon}>
-									{loadingCep ? (
-										<ActivityIndicator size="small" />
-									) : cepFound ? (
-										<Ionicons
-											name="checkmark-circle"
-											size={20}
-											color={success}
-										/>
-									) : (
-										<Ionicons
-											name="search-outline"
-											size={19}
-											color="#9CA3AF"
-										/>
-									)}
+									<Pressable
+										onPress={searchAddress}
+										disabled={
+											loadingAddress ||
+											!addressQuery.trim()
+										}
+										accessibilityRole="button"
+										accessibilityLabel="Buscar endereço"
+										style={({ pressed }) => [
+											styles.addressSearchButton,
+											{
+												backgroundColor: tint,
+											},
+											(
+												loadingAddress ||
+												!addressQuery.trim()
+											) && {
+												opacity: 0.45,
+											},
+											pressed && {
+												opacity: 0.72,
+											},
+										]}
+									>
+										{loadingAddress ? (
+											<ActivityIndicator
+												size="small"
+												color="#FFFFFF"
+											/>
+										) : addressFound ? (
+											<Ionicons
+												name="checkmark"
+												size={20}
+												color="#FFFFFF"
+											/>
+										) : (
+											<Ionicons
+												name="search"
+												size={19}
+												color="#FFFFFF"
+											/>
+										)}
+									</Pressable>
 								</View>
+
+								{loadingSuggestions && (
+									<View style={styles.suggestionsLoading}>
+										<ActivityIndicator size="small" />
+										<Text style={styles.suggestionsLoadingText}>
+											Buscando endereços…
+										</Text>
+									</View>
+								)}
+
+								{showSuggestions &&
+									addressSuggestions.length > 0 && (
+										<View style={styles.suggestionsCard}>
+											{addressSuggestions.map(
+												(suggestion, index) => (
+													<Pressable
+														key={suggestion.placeId}
+														onPress={() =>
+															handleSelectSuggestion(
+																suggestion
+															)
+														}
+														style={({ pressed }) => [
+															styles.suggestionRow,
+															index <
+																addressSuggestions.length - 1 &&
+																styles.suggestionDivider,
+															pressed && {
+																backgroundColor:
+																	"rgba(10,132,255,0.06)",
+															},
+														]}
+													>
+														<View style={styles.suggestionIcon}>
+															<Ionicons
+																name="location-outline"
+																size={18}
+																color="#0A84FF"
+															/>
+														</View>
+
+														<View style={styles.suggestionContent}>
+															<Text
+																style={styles.suggestionMain}
+																numberOfLines={1}
+															>
+																{suggestion.mainText}
+															</Text>
+
+															{!!suggestion.secondaryText && (
+																<Text
+																	style={styles.suggestionSecondary}
+																	numberOfLines={2}
+																>
+																	{suggestion.secondaryText}
+																</Text>
+															)}
+														</View>
+
+														<Ionicons
+															name="chevron-forward"
+															size={15}
+															color="#9CA3AF"
+														/>
+													</Pressable>
+												)
+											)}
+										</View>
+									)}
 							</View>
 						</Field>
 
@@ -1023,7 +1652,10 @@ export default function TutorForm() {
 							<ThemedTextInput
 								placeholder="Rua, avenida, estrada..."
 								value={logradouro}
-								onChangeText={setLogradouro}
+								onChangeText={(value) => {
+									invalidateSelectedGeo();
+									setLogradouro(value);
+								}}
 								returnKeyType="next"
 								onSubmitEditing={() =>
 									numeroRef.current?.focus()
@@ -1041,7 +1673,10 @@ export default function TutorForm() {
 										placeholder="Nº"
 										ref={numeroRef}
 										value={numero}
-										onChangeText={setNumero}
+										onChangeText={(value) => {
+											invalidateSelectedGeo();
+											setNumero(value);
+										}}
 										keyboardType="number-pad"
 										returnKeyType="next"
 										onSubmitEditing={() =>
@@ -1058,7 +1693,10 @@ export default function TutorForm() {
 										placeholder="Bairro"
 										ref={bairroRef}
 										value={bairro}
-										onChangeText={setBairro}
+										onChangeText={(value) => {
+											invalidateSelectedGeo();
+											setBairro(value);
+										}}
 										returnKeyType="next"
 										onSubmitEditing={() =>
 											cidadeRef.current?.focus()
@@ -1078,7 +1716,10 @@ export default function TutorForm() {
 										placeholder="Cidade"
 										ref={cidadeRef}
 										value={cidade}
-										onChangeText={setCidade}
+										onChangeText={(value) => {
+											invalidateSelectedGeo();
+											setCidade(value);
+										}}
 										returnKeyType="next"
 										onSubmitEditing={() =>
 											ufRef.current?.focus()
@@ -1101,9 +1742,10 @@ export default function TutorForm() {
 										placeholder="UF"
 										ref={ufRef}
 										value={uf}
-										onChangeText={(value) =>
-											setUf(upperUf(value))
-										}
+										onChangeText={(value) => {
+											invalidateSelectedGeo();
+											setUf(upperUf(value));
+										}}
 										autoCapitalize="characters"
 										maxLength={2}
 										returnKeyType="next"
@@ -1217,9 +1859,11 @@ export default function TutorForm() {
 					</Pressable>
 
 					<Text style={styles.footerHint}>
-						{loadingCep
-							? "Buscando endereço pelo CEP…"
-							: "Você pode completar os dados do tutor depois."}
+						{loadingAddress
+							? "Buscando endereço…"
+							: addressFound
+								? "Endereço localizado. Confira os campos antes de salvar."
+								: "Você pode completar os dados do tutor depois."}
 					</Text>
 				</View>
 			</View>
@@ -1321,17 +1965,102 @@ const styles = StyleSheet.create({
 		fontSize: 15,
 	},
 
-	inputWithIcon: {
+	addressSearchRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 9,
+	},
+
+	addressSearchInput: {
+		flex: 1,
+		minWidth: 0,
+	},
+
+	addressSearchContainer: {
 		position: "relative",
 	},
 
-	inputRightIcon: {
-		position: "absolute",
-		right: 12,
-		top: 0,
-		bottom: 0,
-		justifyContent: "center",
+	addressSearchButton: {
+		width: 46,
+		height: 46,
+		borderRadius: 14,
 		alignItems: "center",
+		justifyContent: "center",
+	},
+
+	suggestionsLoading: {
+		marginTop: 8,
+		paddingHorizontal: 10,
+		minHeight: 38,
+		borderRadius: 12,
+		backgroundColor: "rgba(118,118,128,0.07)",
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+
+	suggestionsLoadingText: {
+		color: "#6B7280",
+		fontSize: 12,
+		fontWeight: "600",
+	},
+
+	suggestionsCard: {
+		marginTop: 8,
+		borderRadius: 14,
+		borderWidth: StyleSheet.hairlineWidth,
+		borderColor: "rgba(15,23,42,0.10)",
+		backgroundColor: "#FFFFFF",
+		overflow: "hidden",
+		shadowColor: "#000",
+		shadowOpacity: 0.07,
+		shadowRadius: 10,
+		shadowOffset: {
+			width: 0,
+			height: 4,
+		},
+		elevation: 3,
+	},
+
+	suggestionRow: {
+		minHeight: 58,
+		paddingHorizontal: 12,
+		paddingVertical: 10,
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 10,
+	},
+
+	suggestionDivider: {
+		borderBottomWidth: StyleSheet.hairlineWidth,
+		borderBottomColor: "rgba(15,23,42,0.08)",
+	},
+
+	suggestionIcon: {
+		width: 34,
+		height: 34,
+		borderRadius: 17,
+		backgroundColor: "rgba(10,132,255,0.09)",
+		alignItems: "center",
+		justifyContent: "center",
+	},
+
+	suggestionContent: {
+		flex: 1,
+		minWidth: 0,
+	},
+
+	suggestionMain: {
+		color: "#111827",
+		fontSize: 13,
+		fontWeight: "800",
+	},
+
+	suggestionSecondary: {
+		marginTop: 2,
+		color: "#6B7280",
+		fontSize: 11,
+		lineHeight: 15,
 	},
 
 	twoColumns: {
@@ -1424,7 +2153,6 @@ const styles = StyleSheet.create({
 			},
 		],
 	},
-
 
 	limitScreen: {
 		flex: 1,

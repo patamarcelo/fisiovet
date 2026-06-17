@@ -114,7 +114,15 @@ export default function ModalLayout() {
                 name="pets/[id]/avaliacao"
                 options={{
                     title: "Avaliações",
-                    headerShown: true,
+                    headerShown: false,
+                    presentation: "modal",
+                }}
+            />
+            <Stack.Screen
+                name="pets"
+                options={{
+                    title: "",
+                    headerShown: false,
                     presentation: "modal",
                 }}
             />
@@ -169,7 +177,7 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="pets/[id]/detail"
                 options={{
-                    headerShown: true,
+                    headerShown: false,
                     presentation: "card",
                     animation: "slide_from_right",
                     gestureEnabled: true,
@@ -178,11 +186,31 @@ export default function ModalLayout() {
             <Stack.Screen
                 name="pets/[id]/timeline"
                 options={{
-                    headerShown: true,
+                    headerShown: false,
                     title: "Timeline",
                     presentation: "card",
                     animation: "slide_from_right",
                     gestureEnabled: true,
+                }}
+            />
+            <Stack.Screen
+                name="agenda"
+                options={{
+                    headerShown: false,
+                    presentation: "fullScreenModal",
+                    animation: "slide_from_bottom",
+                    gestureEnabled: true,
+                    gestureDirection: "vertical",
+                }}
+            />
+            <Stack.Screen
+                name="anotacoes"
+                options={{
+                    headerShown: false,
+                    presentation: "fullScreenModal",
+                    animation: "slide_from_bottom",
+                    gestureEnabled: true,
+                    gestureDirection: "vertical",
                 }}
             />
 
