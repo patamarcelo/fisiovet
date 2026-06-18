@@ -819,15 +819,9 @@ export default function AgendaNewScreen() {
         router.replace("/(phone)");
     }, []);
 
-    const focusInput = useCallback((inputRef) => {
-        inputRef?.current?.focus?.();
-    }, []);
 
 
 
-    const focusAfterRecurrence = useCallback(() => {
-        focusInput(localRef);
-    }, [focusInput]);
 
 
 
@@ -1428,9 +1422,6 @@ export default function AgendaNewScreen() {
                             onChangeText={setTitle}
                             placeholder="Ex.: Consulta - Thor"
                             disabled={disabled}
-                            returnKeyType="next"
-                            blurOnSubmit={false}
-                            onSubmitEditing={() => focusInput(descricaoRef)}
                         />
 
                         <View style={styles.fieldGap} />
@@ -1640,10 +1631,6 @@ export default function AgendaNewScreen() {
                                         }
                                         placeholder="Ex.: 4"
                                         keyboardType="number-pad"
-                                        returnKeyType="next"
-                                        onSubmitEditing={
-                                            focusAfterRecurrence
-                                        }
                                         maxLength={3}
                                     />
 
@@ -1670,13 +1657,6 @@ export default function AgendaNewScreen() {
                             placeholder="Endereço ou local do atendimento"
                             disabled={disabled}
                             icon="location-outline"
-                            returnKeyType="next"
-                            blurOnSubmit={false}
-                            onSubmitEditing={() =>
-                                focusInput(
-                                    observacoesRef
-                                )
-                            }
                         />
 
                         <View

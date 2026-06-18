@@ -2,137 +2,176 @@
 // @ts-nocheck
 
 import React, {
+    useCallback,
     useEffect,
     useLayoutEffect,
+    useRef,
     useState,
-} from 'react';
+} from "react";
 
 import {
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
+    Keyboard,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     View,
-} from 'react-native';
+} from "react-native";
 
 import {
     router,
     useNavigation,
-} from 'expo-router';
+} from "expo-router";
 
 import {
     SafeAreaView,
     useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+} from "react-native-safe-area-context";
+
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 import {
     Ionicons,
-} from '@expo/vector-icons';
+} from "@expo/vector-icons";
 
 import {
     useDispatch,
     useSelector,
-} from 'react-redux';
+} from "react-redux";
 
 import {
     DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE,
     selectWhatsappConfirmationMessage,
     updateSystem,
-} from '@/src/store/slices/systemSlice';
+} from "@/src/store/slices/systemSlice";
 
 import {
     useThemeColor,
-} from '@/hooks/useThemeColor';
+} from "@/hooks/useThemeColor";
+
+const MAX_MESSAGE_LENGTH = 1200;
 
 const VARIABLES = [
     {
-        label: 'Nome do Pet',
-        value: '[Nome do Pet]',
+        label: "Nome do Pet",
+        value: "[Nome do Pet]",
     },
     {
-        label: 'Data',
-        value: '[data]',
+        label: "Data",
+        value: "[data]",
     },
     {
-        label: 'Horário',
-        value: '[horário]',
+        label: "Horário",
+        value: "[horário]",
     },
     {
-        label: 'Nome do Tutor',
-        value: '[Nome do Tutor]',
+        label: "Nome do Tutor",
+        value: "[Nome do Tutor]",
     },
 ];
 
-export default function WhatsappMessage() {
-    const navigation =
-        useNavigation();
-
-    const dispatch =
-        useDispatch();
-
-    const insets =
-        useSafeAreaInsets();
-
-    const savedMessage =
-        useSelector(
-            selectWhatsappConfirmationMessage
-        );
-
-    const background =
-        useThemeColor(
-            {
-                light: '#F2F2F7',
-                dark: '#000000',
-            },
-            'background'
-        );
-
-    const card =
-        useThemeColor(
-            {
-                light: '#FFFFFF',
-                dark: '#1C1C1E',
-            },
-            'background'
-        );
-
-    const text =
-        useThemeColor(
-            {},
-            'text'
-        );
-
-    const subtle =
-        useThemeColor(
-            {
-                light: '#6B7280',
-                dark: '#A1A1AA',
-            },
-            'text'
-        );
-
-    const tint =
-        useThemeColor(
-            {},
-            'tint'
-        );
-
-    const [
-        message,
-        setMessage,
-    ] = useState(
-        savedMessage
+function clampSelection(selection, textLength) {
+    const start = Math.max(
+        0,
+        Math.min(
+            Number(selection?.start ?? textLength),
+            textLength
+        )
     );
 
-    const [
-        saving,
-        setSaving,
-    ] = useState(false);
+    const end = Math.max(
+        start,
+        Math.min(
+            Number(selection?.end ?? start),
+            textLength
+        )
+    );
+
+    return {
+        start,
+        end,
+    };
+}
+
+function buildInsertedText({
+    before,
+    variable,
+    after,
+}) {
+    const addSpaceBefore =
+        before.length > 0 &&
+        !/[\s\n]$/.test(before);
+
+    const addSpaceAfter =
+        after.length > 0 &&
+        !/^[\s\n.,!?;:)]/.test(after);
+
+    return (
+        `${addSpaceBefore ? " " : ""}` +
+        variable +
+        `${addSpaceAfter ? " " : ""}`
+    );
+}
+
+export default function WhatsappMessage() {
+    const navigation = useNavigation();
+    const dispatch = useDispatch();
+    const insets = useSafeAreaInsets();
+
+    const inputRef = useRef(null);
+
+    const savedMessage = useSelector(
+        selectWhatsappConfirmationMessage
+    );
+
+    const background = useThemeColor(
+        {
+            light: "#F2F2F7",
+            dark: "#000000",
+        },
+        "background"
+    );
+
+    const card = useThemeColor(
+        {
+            light: "#FFFFFF",
+            dark: "#1C1C1E",
+        },
+        "background"
+    );
+
+    const text = useThemeColor({}, "text");
+
+    const subtle = useThemeColor(
+        {
+            light: "#6B7280",
+            dark: "#A1A1AA",
+        },
+        "text"
+    );
+
+    const tint = useThemeColor({}, "tint");
+
+    const initialMessage = String(
+        savedMessage || ""
+    );
+
+    const [message, setMessage] = useState(
+        initialMessage
+    );
+
+    const [selection, setSelection] = useState({
+        start: initialMessage.length,
+        end: initialMessage.length,
+    });
+
+    const [saving, setSaving] = useState(false);
 
     useLayoutEffect(() => {
         navigation.setOptions({
@@ -141,72 +180,141 @@ export default function WhatsappMessage() {
     }, [navigation]);
 
     useEffect(() => {
-        setMessage(
-            savedMessage
+        const nextMessage = String(
+            savedMessage || ""
         );
+
+        setMessage(nextMessage);
+        setSelection({
+            start: nextMessage.length,
+            end: nextMessage.length,
+        });
     }, [savedMessage]);
 
-    const insertVariable = (
-        variable
-    ) => {
-        setMessage(
-            (current) => {
-                const base =
-                    String(
-                        current || ''
-                    );
+    const focusAtSelection = useCallback(
+        (nextSelection) => {
+            requestAnimationFrame(() => {
+                inputRef.current?.focus?.();
 
-                if (!base) {
-                    return variable;
-                }
+                requestAnimationFrame(() => {
+                    inputRef.current?.setNativeProps?.({
+                        selection: nextSelection,
+                    });
+                });
+            });
+        },
+        []
+    );
 
-                const separator =
-                    base.endsWith(' ') ||
-                    base.endsWith('\n')
-                        ? ''
-                        : ' ';
+    const insertVariable = useCallback(
+        (variable) => {
+            const base = String(message || "");
+            const safeSelection = clampSelection(
+                selection,
+                base.length
+            );
 
-                return `${base}${separator}${variable}`;
-            }
-        );
-    };
+            const before = base.slice(
+                0,
+                safeSelection.start
+            );
 
-    const handleRestore = () => {
+            const after = base.slice(
+                safeSelection.end
+            );
+
+            const inserted = buildInsertedText({
+                before,
+                variable,
+                after,
+            });
+
+            const nextMessage = (
+                before + inserted + after
+            ).slice(0, MAX_MESSAGE_LENGTH);
+
+            const nextCursor = Math.min(
+                before.length + inserted.length,
+                nextMessage.length
+            );
+
+            const nextSelection = {
+                start: nextCursor,
+                end: nextCursor,
+            };
+
+            setMessage(nextMessage);
+            setSelection(nextSelection);
+            focusAtSelection(nextSelection);
+        },
+        [
+            focusAtSelection,
+            message,
+            selection,
+        ]
+    );
+
+    const handleRestore = useCallback(() => {
         Alert.alert(
-            'Restaurar mensagem',
-            'Deseja restaurar o texto padrão?',
+            "Restaurar mensagem",
+            "Deseja restaurar o texto padrão?",
             [
                 {
-                    text: 'Cancelar',
-                    style: 'cancel',
+                    text: "Cancelar",
+                    style: "cancel",
                 },
                 {
-                    text: 'Restaurar',
-                    onPress: () =>
-                        setMessage(
-                            DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE
-                        ),
+                    text: "Restaurar",
+                    onPress: () => {
+                        const restored = String(
+                            DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE ||
+                                ""
+                        ).slice(
+                            0,
+                            MAX_MESSAGE_LENGTH
+                        );
+
+                        const nextSelection = {
+                            start: restored.length,
+                            end: restored.length,
+                        };
+
+                        setMessage(restored);
+                        setSelection(nextSelection);
+                        focusAtSelection(nextSelection);
+                    },
                 },
             ]
         );
-    };
+    }, [focusAtSelection]);
 
-    const handleSave = async () => {
-        const normalized =
-            String(message || '')
-                .trim();
+    const handleBack = useCallback(() => {
+        Keyboard.dismiss();
+
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+            return;
+        }
+
+        router.replace("/configuracoes");
+    }, [navigation]);
+
+    const handleSave = useCallback(async () => {
+        const normalized = String(
+            message || ""
+        ).trim();
 
         if (!normalized) {
             Alert.alert(
-                'Mensagem vazia',
-                'Digite uma mensagem antes de salvar.'
+                "Mensagem vazia",
+                "Digite uma mensagem antes de salvar."
             );
-
             return;
         }
 
         try {
             setSaving(true);
+            Keyboard.dismiss();
 
             await dispatch(
                 updateSystem({
@@ -218,47 +326,40 @@ export default function WhatsappMessage() {
             ).unwrap();
 
             Alert.alert(
-                'Mensagem salva',
-                'O modelo de confirmação foi atualizado.',
+                "Mensagem salva",
+                "O modelo de confirmação foi atualizado.",
                 [
                     {
-                        text: 'OK',
-                        onPress: () => {
-                            if (
-                                navigation.canGoBack()
-                            ) {
-                                navigation.goBack();
-                                return;
-                            }
-
-                            router.replace(
-                                '/configuracoes'
-                            );
-                        },
+                        text: "OK",
+                        onPress: handleBack,
                     },
                 ]
             );
         } catch (error) {
             console.warn(
-                'Erro ao salvar mensagem:',
+                "Erro ao salvar mensagem:",
                 error
             );
 
             Alert.alert(
-                'Erro',
-                'Não foi possível salvar a mensagem.'
+                "Erro",
+                "Não foi possível salvar a mensagem."
             );
         } finally {
             setSaving(false);
         }
-    };
+    }, [
+        dispatch,
+        handleBack,
+        message,
+    ]);
 
     return (
         <SafeAreaView
             edges={[
-                'top',
-                'left',
-                'right',
+                "top",
+                "left",
+                "right",
             ]}
             style={[
                 styles.safeArea,
@@ -268,44 +369,24 @@ export default function WhatsappMessage() {
                 },
             ]}
         >
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={
-                    Platform.OS === 'ios'
-                        ? 'padding'
-                        : undefined
-                }
-            >
+            <View style={styles.flex}>
                 <View
                     style={[
                         styles.header,
                         {
                             borderBottomColor:
-                                Platform.OS ===
-                                'ios'
-                                    ? 'rgba(60,60,67,0.18)'
-                                    : '#E5E7EB',
+                                Platform.OS === "ios"
+                                    ? "rgba(60,60,67,0.18)"
+                                    : "#E5E7EB",
                         },
                     ]}
                 >
                     <Pressable
-                        onPress={() => {
-                            if (
-                                navigation.canGoBack()
-                            ) {
-                                navigation.goBack();
-                                return;
-                            }
-
-                            router.replace(
-                                '/configuracoes'
-                            );
-                        }}
+                        onPress={handleBack}
                         hitSlop={12}
                         style={({ pressed }) => [
                             styles.headerButton,
-                            pressed &&
-                                styles.pressed,
+                            pressed && styles.pressed,
                         ]}
                     >
                         <Ionicons
@@ -319,9 +400,7 @@ export default function WhatsappMessage() {
                         <Text
                             style={[
                                 styles.headerTitle,
-                                {
-                                    color: text,
-                                },
+                                { color: text },
                             ]}
                         >
                             Mensagem do WhatsApp
@@ -330,9 +409,7 @@ export default function WhatsappMessage() {
                         <Text
                             style={[
                                 styles.headerSubtitle,
-                                {
-                                    color: subtle,
-                                },
+                                { color: subtle },
                             ]}
                         >
                             Confirmação de atendimento
@@ -344,8 +421,7 @@ export default function WhatsappMessage() {
                         hitSlop={10}
                         style={({ pressed }) => [
                             styles.headerButton,
-                            pressed &&
-                                styles.pressed,
+                            pressed && styles.pressed,
                         ]}
                     >
                         <Ionicons
@@ -356,15 +432,17 @@ export default function WhatsappMessage() {
                     </Pressable>
                 </View>
 
-                <ScrollView
+                <KeyboardAwareScrollView
+                    bottomOffset={18}
+                    extraKeyboardSpace={48}
+                    disableScrollOnKeyboardHide
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="interactive"
                     contentContainerStyle={[
                         styles.content,
                         {
                             paddingBottom:
-                                insets.bottom +
-                                110,
+                                insets.bottom + 110,
                         },
                     ]}
                     showsVerticalScrollIndicator={false}
@@ -372,9 +450,7 @@ export default function WhatsappMessage() {
                     <Text
                         style={[
                             styles.sectionLabel,
-                            {
-                                color: subtle,
-                            },
+                            { color: subtle },
                         ]}
                     >
                         MODELO DA MENSAGEM
@@ -384,43 +460,43 @@ export default function WhatsappMessage() {
                         style={[
                             styles.editorCard,
                             {
-                                backgroundColor:
-                                    card,
+                                backgroundColor: card,
                             },
                         ]}
                     >
                         <TextInput
+                            ref={inputRef}
                             value={message}
-                            onChangeText={
-                                setMessage
-                            }
+                            onChangeText={setMessage}
+                            selection={selection}
+                            onSelectionChange={({
+                                nativeEvent,
+                            }) => {
+                                setSelection(
+                                    nativeEvent.selection
+                                );
+                            }}
                             multiline
+                            returnKeyType="default"
+                            blurOnSubmit={false}
                             textAlignVertical="top"
                             placeholder="Digite a mensagem de confirmação"
                             placeholderTextColor="#A1A1AA"
                             style={[
                                 styles.input,
-                                {
-                                    color: text,
-                                },
+                                { color: text },
                             ]}
-                            maxLength={1200}
+                            maxLength={MAX_MESSAGE_LENGTH}
                         />
 
-                        <View
-                            style={
-                                styles.characterRow
-                            }
-                        >
+                        <View style={styles.characterRow}>
                             <Text
                                 style={[
                                     styles.characterCount,
-                                    {
-                                        color: subtle,
-                                    },
+                                    { color: subtle },
                                 ]}
                             >
-                                {message.length}/1200
+                                {message.length}/{MAX_MESSAGE_LENGTH}
                             </Text>
                         </View>
                     </View>
@@ -428,117 +504,102 @@ export default function WhatsappMessage() {
                     <Text
                         style={[
                             styles.helperText,
-                            {
-                                color: subtle,
-                            },
+                            { color: subtle },
                         ]}
                     >
-                        As variáveis abaixo serão substituídas automaticamente pelos dados do atendimento.
+                        Toque em uma variável para inseri-la exatamente na posição atual do cursor. Se houver texto selecionado, ele será substituído.
                     </Text>
 
                     <Text
                         style={[
                             styles.sectionLabel,
-                            {
-                                color: subtle,
-                            },
+                            { color: subtle },
                         ]}
                     >
                         VARIÁVEIS
                     </Text>
 
-                    <View
-                        style={
-                            styles.variablesList
-                        }
-                    >
-                        {VARIABLES.map(
-                            (variable) => (
-                                <Pressable
-                                    key={
+                    <View style={styles.variablesList}>
+                        {VARIABLES.map((variable) => (
+                            <Pressable
+                                key={variable.value}
+                                onPress={() =>
+                                    insertVariable(
                                         variable.value
-                                    }
-                                    onPress={() =>
-                                        insertVariable(
-                                            variable.value
-                                        )
-                                    }
-                                    style={({
-                                        pressed,
-                                    }) => [
-                                        styles.variableButton,
-                                        {
-                                            backgroundColor:
-                                                card,
-                                        },
-                                        pressed &&
-                                            styles.pressed,
-                                    ]}
-                                >
-                                    <View
-                                        style={
-                                            styles.variableIcon
-                                        }
-                                    >
-                                        <Ionicons
-                                            name="add"
-                                            size={16}
-                                            color="#25D366"
-                                        />
-                                    </View>
-
-                                    <View
-                                        style={
-                                            styles.variableTextBox
-                                        }
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.variableLabel,
-                                                {
-                                                    color: text,
-                                                },
-                                            ]}
-                                        >
-                                            {
-                                                variable.label
-                                            }
-                                        </Text>
-
-                                        <Text
-                                            style={[
-                                                styles.variableValue,
-                                                {
-                                                    color: subtle,
-                                                },
-                                            ]}
-                                        >
-                                            {
-                                                variable.value
-                                            }
-                                        </Text>
-                                    </View>
-
+                                    )
+                                }
+                                style={({ pressed }) => [
+                                    styles.variableButton,
+                                    {
+                                        backgroundColor: card,
+                                    },
+                                    pressed && styles.pressed,
+                                ]}
+                            >
+                                <View style={styles.variableIcon}>
                                     <Ionicons
-                                        name="add-circle-outline"
-                                        size={20}
+                                        name="add"
+                                        size={16}
                                         color="#25D366"
                                     />
-                                </Pressable>
-                            )
-                        )}
+                                </View>
+
+                                <View style={styles.variableTextBox}>
+                                    <Text
+                                        style={[
+                                            styles.variableLabel,
+                                            { color: text },
+                                        ]}
+                                    >
+                                        {variable.label}
+                                    </Text>
+
+                                    <Text
+                                        style={[
+                                            styles.variableValue,
+                                            { color: subtle },
+                                        ]}
+                                    >
+                                        {variable.value}
+                                    </Text>
+                                </View>
+
+                                <Ionicons
+                                    name="add-circle-outline"
+                                    size={20}
+                                    color="#25D366"
+                                />
+                            </Pressable>
+                        ))}
                     </View>
-                </ScrollView>
+                </KeyboardAwareScrollView>
+
+                {Platform.OS === "ios" && (
+                    <KeyboardToolbar
+                        style={styles.keyboardToolbar}
+                    >
+                        <KeyboardToolbar.Content>
+                            <Text
+                                style={styles.keyboardToolbarLabel}
+                            >
+                                Modelo da mensagem
+                            </Text>
+                        </KeyboardToolbar.Content>
+
+                        <KeyboardToolbar.Done
+                            text="Fechar"
+                        />
+                    </KeyboardToolbar>
+                )}
 
                 <View
                     style={[
                         styles.footer,
                         {
-                            paddingBottom:
-                                Math.max(
-                                    insets.bottom,
-                                    14
-                                ),
+                            paddingBottom: Math.max(
+                                insets.bottom,
+                                14
+                            ),
                             backgroundColor:
                                 background,
                         },
@@ -568,18 +629,14 @@ export default function WhatsappMessage() {
                             />
                         )}
 
-                        <Text
-                            style={
-                                styles.saveButtonText
-                            }
-                        >
+                        <Text style={styles.saveButtonText}>
                             {saving
-                                ? 'Salvando...'
-                                : 'Salvar mensagem'}
+                                ? "Salvando..."
+                                : "Salvar mensagem"}
                         </Text>
                     </Pressable>
                 </View>
-            </KeyboardAvoidingView>
+            </View>
         </SafeAreaView>
     );
 }
@@ -596,8 +653,8 @@ const styles = StyleSheet.create({
     header: {
         minHeight: 64,
         paddingHorizontal: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         borderBottomWidth:
             StyleSheet.hairlineWidth,
     },
@@ -605,21 +662,21 @@ const styles = StyleSheet.create({
     headerButton: {
         width: 42,
         height: 42,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
         borderRadius: 21,
     },
 
     headerTitleBox: {
         flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
+        alignItems: "center",
+        justifyContent: "center",
     },
 
     headerTitle: {
         fontSize: 16,
         lineHeight: 21,
-        fontWeight: '800',
+        fontWeight: "800",
         letterSpacing: -0.25,
     },
 
@@ -627,7 +684,7 @@ const styles = StyleSheet.create({
         marginTop: 1,
         fontSize: 11.5,
         lineHeight: 16,
-        fontWeight: '500',
+        fontWeight: "500",
     },
 
     content: {
@@ -640,7 +697,7 @@ const styles = StyleSheet.create({
         marginBottom: 7,
         marginTop: 8,
         fontSize: 11,
-        fontWeight: '800',
+        fontWeight: "800",
         letterSpacing: 0.45,
     },
 
@@ -648,7 +705,7 @@ const styles = StyleSheet.create({
         minHeight: 260,
         borderRadius: 16,
         padding: 14,
-        shadowColor: '#000000',
+        shadowColor: "#000000",
         shadowOpacity: 0.045,
         shadowRadius: 7,
         shadowOffset: {
@@ -663,17 +720,17 @@ const styles = StyleSheet.create({
         padding: 0,
         fontSize: 15,
         lineHeight: 22,
-        fontWeight: '500',
+        fontWeight: "500",
     },
 
     characterRow: {
         marginTop: 8,
-        alignItems: 'flex-end',
+        alignItems: "flex-end",
     },
 
     characterCount: {
         fontSize: 11,
-        fontWeight: '600',
+        fontWeight: "600",
     },
 
     helperText: {
@@ -681,7 +738,7 @@ const styles = StyleSheet.create({
         marginHorizontal: 4,
         fontSize: 12,
         lineHeight: 18,
-        fontWeight: '500',
+        fontWeight: "500",
     },
 
     variablesList: {
@@ -693,10 +750,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 13,
         paddingVertical: 9,
         borderRadius: 14,
-        flexDirection: 'row',
-        alignItems: 'center',
+        flexDirection: "row",
+        alignItems: "center",
         gap: 10,
-        shadowColor: '#000000',
+        shadowColor: "#000000",
         shadowOpacity: 0.035,
         shadowRadius: 5,
         shadowOffset: {
@@ -711,9 +768,9 @@ const styles = StyleSheet.create({
         height: 28,
         borderRadius: 8,
         backgroundColor:
-            'rgba(37, 211, 102, 0.12)',
-        alignItems: 'center',
-        justifyContent: 'center',
+            "rgba(37,211,102,0.12)",
+        alignItems: "center",
+        justifyContent: "center",
     },
 
     variableTextBox: {
@@ -723,17 +780,33 @@ const styles = StyleSheet.create({
 
     variableLabel: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: "700",
     },
 
     variableValue: {
         marginTop: 2,
         fontSize: 11.5,
-        fontWeight: '500',
+        fontWeight: "500",
+    },
+
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth:
+            StyleSheet.hairlineWidth,
+        borderTopColor:
+            "rgba(60,60,67,0.20)",
+        backgroundColor:
+            "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: "#6B7280",
+        fontSize: 12,
+        fontWeight: "650",
     },
 
     footer: {
-        position: 'absolute',
+        position: "absolute",
         left: 0,
         right: 0,
         bottom: 0,
@@ -742,18 +815,18 @@ const styles = StyleSheet.create({
         borderTopWidth:
             StyleSheet.hairlineWidth,
         borderTopColor:
-            'rgba(60,60,67,0.16)',
+            "rgba(60,60,67,0.16)",
     },
 
     saveButton: {
         minHeight: 50,
         borderRadius: 14,
-        backgroundColor: '#25D366',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: "#25D366",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
         gap: 8,
-        shadowColor: '#25D366',
+        shadowColor: "#25D366",
         shadowOpacity: 0.2,
         shadowRadius: 8,
         shadowOffset: {
@@ -777,9 +850,9 @@ const styles = StyleSheet.create({
     },
 
     saveButtonText: {
-        color: '#FFFFFF',
+        color: "#FFFFFF",
         fontSize: 15,
-        fontWeight: '800',
+        fontWeight: "800",
     },
 
     pressed: {

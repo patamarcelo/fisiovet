@@ -2,7 +2,6 @@
 // @ts-nocheck
 import React, {
 	useCallback,
-	useEffect,
 	useLayoutEffect,
 	useMemo,
 	useState,
@@ -25,8 +24,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useDispatch } from "react-redux";
 import * as Haptics from "expo-haptics";
 
-import { ensureFirebase } from "@/firebase/firebase";
 import { clearDraft, createDraft } from "@/src/store/slices/avaliacaoSlice";
+import { usePetAvaliacoes } from "@/src/features/avaliacoes/usePetAvaliacoes";
 import { useThemeColor } from "@/hooks/useThemeColor";
 
 import { exportAvaliacoesPdf } from "@/src/services/avaliacaoPdf";
@@ -299,7 +298,6 @@ export default function AvaliacaoList() {
 	const dispatch = useDispatch();
 	const insets = useSafeAreaInsets();
 
-	const { firestore, auth } = ensureFirebase() || {};
 
 	const text = useThemeColor({}, "text");
 	const tint = useThemeColor({}, "tint");
@@ -310,10 +308,13 @@ export default function AvaliacaoList() {
 		"border"
 	);
 
-	const [items, setItems] = useState([]);
-	const [err, setErr] = useState(null);
-	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
+	const {
+		items,
+		loading,
+		refreshing,
+		error: err,
+		refresh,
+	} = usePetAvaliacoes(petId);
 
 	const [selecting, setSelecting] = useState(false);
 	const [selectedIds, setSelectedIds] = useState({});
@@ -559,37 +560,6 @@ export default function AvaliacaoList() {
 		selectAll,
 	]);
 
-	useEffect(() => {
-		if (!firestore) return;
-
-		const uid = auth?.currentUser?.uid;
-		if (!uid || !petId) return;
-
-		setLoading(true);
-
-		const colRef = firestore
-			.collection("users")
-			.doc(String(uid))
-			.collection("pets")
-			.doc(String(petId))
-			.collection("avaliacoes");
-
-		const unsub = colRef.orderBy("createdAt", "desc").onSnapshot(
-			(snap) => {
-				setErr(null);
-				setItems(snap?.docs?.map((d) => ({ id: d.id, ...d.data() })) ?? []);
-				setLoading(false);
-			},
-			(e) => {
-				console.warn("avaliacoes onSnapshot", e);
-				setErr(e);
-				setItems([]);
-				setLoading(false);
-			}
-		);
-
-		return unsub;
-	}, [firestore, auth, petId]);
 
 	const sections = useMemo(() => groupByDay(items), [items]);
 
@@ -610,13 +580,16 @@ export default function AvaliacaoList() {
 		[petId]
 	);
 
-	const onRefresh = useCallback(() => {
-		setRefreshing(true);
-
-		// A tela já está em realtime via onSnapshot.
-		// Esse refresh é só feedback visual para o usuário.
-		setTimeout(() => setRefreshing(false), 450);
-	}, []);
+	const onRefresh = useCallback(async () => {
+		try {
+			await refresh();
+		} catch (error) {
+			console.log(
+				"Refresh de avaliações mantido no cache local:",
+				error?.message
+			);
+		}
+	}, [refresh]);
 
 
 	if (loading) {
@@ -646,7 +619,7 @@ export default function AvaliacaoList() {
 				<View style={styles.errorBox}>
 					<Ionicons name="warning-outline" size={20} color="#DC2626" />
 					<Text style={styles.errorText}>
-						Não foi possível carregar as avaliações.
+						Não foi possível atualizar agora. Exibindo os dados salvos no aparelho.
 					</Text>
 				</View>
 			) : null}

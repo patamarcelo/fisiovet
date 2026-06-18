@@ -185,7 +185,6 @@ function TutorSearchBox({
   tint,
   openMaps,
   inputRef,
-  nextInputRef,
 }) {
   const hasSelected = !!tutor?.id;
 
@@ -209,9 +208,6 @@ function TutorSearchBox({
           style={[styles.input, styles.searchInput, { color: text }]}
           autoCapitalize="words"
           autoCorrect={false}
-          returnKeyType="next"
-          blurOnSubmit={false}
-          onSubmitEditing={() => nextInputRef?.current?.focus()}
         />
 
         {hasSelected ? (
@@ -887,7 +883,6 @@ export default function PetNewModal() {
                 tint={tint}
                 openMaps={openMaps}
                 inputRef={tutorQueryRef}
-                nextInputRef={nomeRef}
               />
             )}
 
@@ -906,9 +901,6 @@ export default function PetNewModal() {
                   placeholder="Ex.: Thor"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() => racaRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -945,9 +937,6 @@ export default function PetNewModal() {
                   placeholder="Ex.: Golden Retriever"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() => corRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -962,9 +951,6 @@ export default function PetNewModal() {
                   placeholder="Ex.: Dourado"
                   placeholderTextColor="#9CA3AF"
                   style={[styles.input, { color: text }]}
-                  returnKeyType="next"
-                  blurOnSubmit={false}
-                  onSubmitEditing={() => idadeRef.current?.focus()}
                   autoCapitalize="words"
                 />
               </Field>
@@ -1020,9 +1006,6 @@ export default function PetNewModal() {
                       keyboardType="number-pad"
                       inputMode="numeric"
                       maxLength={3}
-                      returnKeyType="next"
-                      blurOnSubmit={false}
-                      onSubmitEditing={() => pesoRef.current?.focus()}
                     />
                   </Field>
                 </View>
@@ -1042,11 +1025,6 @@ export default function PetNewModal() {
                       placeholder="Ex.: 12,4"
                       placeholderTextColor="#9CA3AF"
                       style={[styles.input, { color: text }]}
-                      returnKeyType="next"
-                      blurOnSubmit={false}
-                      onSubmitEditing={() =>
-                        observacoesRef.current?.focus()
-                      }
                     />
                   </Field>
                 </View>

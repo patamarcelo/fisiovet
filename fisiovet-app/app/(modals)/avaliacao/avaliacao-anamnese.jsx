@@ -1,14 +1,13 @@
 // app/(modals)/avaliacao/avaliacao-anamnese.jsx
 // @ts-nocheck
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
     View,
     Text,
     ScrollView,
     TouchableOpacity,
     TextInput,
-    KeyboardAvoidingView,
     Platform,
     ActivityIndicator,
     Alert,
@@ -17,6 +16,10 @@ import {
 } from "react-native";
 
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
@@ -36,9 +39,16 @@ import {
     updateDraftField,
     clearDraft,
     replaceDraft,
+    cacheAvaliacao,
+    uncacheAvaliacao,
+    selectAvaliacaoById,
 } from "@/src/store/slices/avaliacaoSlice";
 
 import { exportAvaliacoesPdf } from "@/src/services/avaliacaoPdf";
+
+import {
+    getAvaliacaoById,
+} from "@/src/services/avaliacoes";
 
 /* ---------- Firestore ---------- */
 function toDate(value) {
@@ -1044,11 +1054,44 @@ export default function AnamneseFormScreen() {
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
 
-    const draft = useSelector((s) => s.avaliacao?.draftsByPet?.[petId]);
+    const safePetId =
+        petId != null
+            ? String(petId)
+            : "";
+
+    const safeAvaliacaoId =
+        avaliacaoId != null
+            ? String(avaliacaoId)
+            : "";
+
+    const avaliacaoSelector =
+        useMemo(
+            () =>
+                selectAvaliacaoById(
+                    safePetId,
+                    safeAvaliacaoId
+                ),
+            [
+                safePetId,
+                safeAvaliacaoId,
+            ]
+        );
+
+    const cachedAvaliacao =
+        useSelector(
+            avaliacaoSelector
+        );
+
+    const draft = useSelector(
+        (state) =>
+            state.avaliacoes?.draftsByPet?.[safePetId] ||
+            state.avaliacao?.draftsByPet?.[safePetId] ||
+            null
+    );
 
     const isExisting = !!avaliacaoId;
     const [editing, setEditing] = useState(!isExisting);
-    const [loading, setLoading] = useState(isExisting);
+    const [loading, setLoading] = useState(isExisting && !cachedAvaliacao);
     const [saving, setSaving] = useState(false);
     const [original, setOriginal] = useState(null);
     const [petData, setPetData] = useState(null);
@@ -1063,34 +1106,120 @@ export default function AnamneseFormScreen() {
         }
     }, [dispatch, petId, isExisting, draft]);
 
+
     useEffect(() => {
-        (async () => {
-            if (!isExisting || !auth.currentUser?.uid) return;
+        if (
+            !isExisting ||
+            !safePetId ||
+            !safeAvaliacaoId
+        ) {
+            return;
+        }
 
-            try {
-                setLoading(true);
+        let active = true;
 
-                const uid = auth.currentUser.uid;
+        const loadAvaliacao =
+            async () => {
+                /*
+                 * Abre imediatamente com a avaliação
+                 * que já está persistida no Redux.
+                 */
+                if (cachedAvaliacao) {
+                    const localSeed =
+                        normalizeDraftAnamnese(
+                            safePetId,
+                            cachedAvaliacao
+                        );
 
-                const docData = await fetchAvaliacao({
-                    uid,
-                    petId: String(petId),
-                    avaliacaoId: String(avaliacaoId),
-                });
+                    setOriginal(localSeed);
 
-                const seed = normalizeDraftAnamnese(String(petId), docData || {});
+                    dispatch(
+                        replaceDraft({
+                            petId: safePetId,
+                            draft: localSeed,
+                        })
+                    );
 
-                setOriginal(seed);
-                dispatch(replaceDraft({ petId: String(petId), draft: seed }));
-            } catch (e) {
-                console.log("fetch anamnese error", e);
-                Alert.alert("Anamnese", "Não foi possível carregar.");
-                router.back();
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [isExisting, petId, avaliacaoId, dispatch]);
+                    setLoading(false);
+                } else {
+                    setLoading(true);
+                }
+
+                /*
+                 * O service consulta primeiro o AsyncStorage.
+                 * Se já houver cache, não depende da internet.
+                 */
+                try {
+                    const docData =
+                        await getAvaliacaoById(
+                            safePetId,
+                            safeAvaliacaoId
+                        );
+
+                    if (
+                        !active ||
+                        !docData
+                    ) {
+                        return;
+                    }
+
+                    const updatedSeed =
+                        normalizeDraftAnamnese(
+                            safePetId,
+                            docData
+                        );
+
+                    setOriginal(updatedSeed);
+
+                    dispatch(
+                        replaceDraft({
+                            petId: safePetId,
+                            draft: updatedSeed,
+                        })
+                    );
+
+                    await dispatch(
+                        cacheAvaliacao({
+                            petId: safePetId,
+                            avaliacao: docData,
+                        })
+                    ).unwrap();
+                } catch (error) {
+                    console.log(
+                        "fetch avaliação offline-first error",
+                        error
+                    );
+
+                    if (
+                        active &&
+                        !cachedAvaliacao
+                    ) {
+                        Alert.alert(
+                            "Anamnese",
+                            "Esta avaliação ainda não está disponível neste aparelho."
+                        );
+
+                        router.back();
+                    }
+                } finally {
+                    if (active) {
+                        setLoading(false);
+                    }
+                }
+            };
+
+        void loadAvaliacao();
+
+        return () => {
+            active = false;
+        };
+    }, [
+        isExisting,
+        safePetId,
+        safeAvaliacaoId,
+        cachedAvaliacao,
+        dispatch,
+    ]);
 
     useEffect(() => {
         let active = true;
@@ -1404,6 +1533,7 @@ export default function AnamneseFormScreen() {
                     );
 
                 setOriginal(normalized);
+
                 dispatch(
                     replaceDraft({
                         petId: String(petId),
@@ -1411,17 +1541,48 @@ export default function AnamneseFormScreen() {
                     })
                 );
 
+                await dispatch(
+                    cacheAvaliacao({
+                        petId: String(petId),
+                        avaliacao: {
+                            id: String(avaliacaoId),
+                            ...payload,
+                            type: "avaliacao",
+                            createdAt:
+                                original?.createdAt ??
+                                draft?.createdAt ??
+                                Date.now(),
+                            updatedAt: Date.now(),
+                        },
+                    })
+                ).unwrap();
+
                 setEditing(false);
 
                 Alert.alert("Anamnese", "Alterações salvas!");
                 return;
             }
 
-            await saveNewAvaliacao({
+            const createdId = await saveNewAvaliacao({
                 uid,
                 petId: String(petId),
                 payload,
             });
+
+            const createdAt = Date.now();
+
+            await dispatch(
+                cacheAvaliacao({
+                    petId: String(petId),
+                    avaliacao: {
+                        id: String(createdId),
+                        ...payload,
+                        type: "avaliacao",
+                        createdAt,
+                        updatedAt: createdAt,
+                    },
+                })
+            ).unwrap();
 
             Alert.alert("Anamnese", "Registro criado!");
 
@@ -1465,6 +1626,13 @@ export default function AnamneseFormScreen() {
                                 avaliacaoId: String(avaliacaoId),
                             });
 
+                            await dispatch(
+                                uncacheAvaliacao({
+                                    petId: String(petId),
+                                    avaliacaoId: String(avaliacaoId),
+                                })
+                            ).unwrap();
+
                             dispatch(clearDraft({ petId: String(petId) }));
 
                             router.replace({
@@ -1503,13 +1671,7 @@ export default function AnamneseFormScreen() {
     const disabled = !editing;
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.select({
-                ios: "padding",
-                android: undefined,
-            })}
-            style={styles.screen}
-        >
+        <View style={styles.screen}>
             <Stack.Screen
                 options={{
                     title: editing ? "Editar anamnese" : "Anamnese",
@@ -1631,11 +1793,15 @@ export default function AnamneseFormScreen() {
                     </View>
                 </View>
             ) : (
-                <ScrollView
+                <KeyboardAwareScrollView
                     contentContainerStyle={styles.formContent}
+                    bottomOffset={18}
+                    extraKeyboardSpace={48}
+                    disableScrollOnKeyboardHide
                     keyboardShouldPersistTaps="handled"
-                    onScrollBeginDrag={Keyboard.dismiss}
-                    showsVerticalScrollIndicator
+                    keyboardDismissMode="interactive"
+                    contentInsetAdjustmentBehavior="automatic"
+                    showsVerticalScrollIndicator={false}
                 >
                     <SectionTitle>Título</SectionTitle>
                     <CardHighlight filled={isFilled(draft?.title)}>
@@ -1834,7 +2000,7 @@ export default function AnamneseFormScreen() {
                         minHeight={100}
                         filled={isFilled(draft?.textos?.observacoesGerais)}
                     />
-                </ScrollView>
+                </KeyboardAwareScrollView>
             )}
 
             {editing && (
@@ -1874,7 +2040,19 @@ export default function AnamneseFormScreen() {
                     </View>
                 </View>
             )}
-        </KeyboardAvoidingView>
+
+            {editing && Platform.OS === "ios" && (
+                <KeyboardToolbar style={styles.keyboardToolbar}>
+                    <KeyboardToolbar.Content>
+                        <Text style={styles.keyboardToolbarLabel}>
+                            Preenchimento da avaliação
+                        </Text>
+                    </KeyboardToolbar.Content>
+
+                    <KeyboardToolbar.Done text="Fechar" />
+                </KeyboardToolbar>
+            )}
+        </View>
     );
 }
 
@@ -2504,5 +2682,18 @@ const styles = StyleSheet.create({
         fontSize: 9.5,
         lineHeight: 13,
         fontWeight: "550",
+    },
+
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(60,60,67,0.20)",
+        backgroundColor: "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: "#6B7280",
+        fontSize: 12,
+        fontWeight: "650",
     },
 });

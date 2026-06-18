@@ -8,7 +8,8 @@ import {
 } from "@reduxjs/toolkit";
 
 import {
-    listEventos as svcListEventos,
+    listEventosLocal as svcListEventosLocal,
+    listEventosRemote as svcListEventosRemote,
     createEvento as svcCreateEvento,
     updateEvento as svcUpdateEvento,
     removeEvento as svcRemoveEvento,
@@ -691,12 +692,12 @@ const initialState = {
 
 /* ---------------- thunks ---------------- */
 
-export const loadAgenda =
+export const hydrateAgendaLocal =
     createAsyncThunk(
-        "agenda/load",
+        "agenda/hydrateLocal",
         async () => {
             const rows =
-                await svcListEventos();
+                await svcListEventosLocal();
 
             return Array.isArray(
                 rows
@@ -709,6 +710,58 @@ export const loadAgenda =
                         )
                 )
                 : [];
+        }
+    );
+
+export const refreshAgendaRemote =
+    createAsyncThunk(
+        "agenda/refreshRemote",
+        async () => {
+            const rows =
+                await svcListEventosRemote();
+
+            return Array.isArray(
+                rows
+            )
+                ? rows.map(
+                    (evento) =>
+                        sanitizeEvento(
+                            null,
+                            evento
+                        )
+                )
+                : [];
+        }
+    );
+
+export const loadAgenda =
+    createAsyncThunk(
+        "agenda/load",
+        async (
+            _,
+            {
+                dispatch,
+            }
+        ) => {
+            /*
+             * 1. Hidrata o AsyncStorage imediatamente.
+             * 2. Dispara o Firestore em background.
+             *
+             * Redux Persist pode já ter restaurado a agenda,
+             * e a hidratação local nunca apaga um estado
+             * preenchido quando o cache vier vazio.
+             */
+            await dispatch(
+                hydrateAgendaLocal()
+            ).unwrap();
+
+            void dispatch(
+                refreshAgendaRemote()
+            );
+
+            return {
+                ok: true,
+            };
         }
     );
 
@@ -1107,6 +1160,44 @@ function sortAgendaIds(
     );
 }
 
+function replaceAgendaRows(
+    state,
+    rows
+) {
+    state.byId =
+        {};
+
+    state.allIds =
+        [];
+
+    for (
+        const event
+        of rows
+    ) {
+        const safe =
+            sanitizeEvento(
+                null,
+                event
+            );
+
+        const id =
+            String(
+                safe.id
+            );
+
+        state.byId[id] =
+            safe;
+
+        state.allIds.push(
+            id
+        );
+    }
+
+    sortAgendaIds(
+        state
+    );
+}
+
 const agendaSlice =
     createSlice({
         name: "agenda",
@@ -1122,13 +1213,15 @@ const agendaSlice =
         extraReducers:
             (builder) => {
                 builder
-                    /* ---------- LOAD ---------- */
+                    /* ---------- LOAD COORDINATOR ---------- */
 
                     .addCase(
                         loadAgenda.pending,
                         (state) => {
                             state.status =
-                                "loading";
+                                state.allIds.length > 0
+                                    ? "refreshing"
+                                    : "loading";
 
                             state.error =
                                 null;
@@ -1137,78 +1230,17 @@ const agendaSlice =
 
                     .addCase(
                         loadAgenda.fulfilled,
-                        (
-                            state,
-                            action
-                        ) => {
-                            state.status =
-                                "succeeded";
+                        (state) => {
+                            if (
+                                state.status ===
+                                "loading"
+                            ) {
+                                state.status =
+                                    "succeeded";
+                            }
 
                             state.error =
                                 null;
-
-                            const rows =
-                                Array.isArray(
-                                    action.payload
-                                )
-                                    ? action.payload
-                                    : [];
-
-                            /*
-                             * Proteção da Fase 0:
-                             * uma resposta vazia não apaga
-                             * a agenda já restaurada pelo Redux Persist.
-                             */
-                            if (
-                                rows.length ===
-                                0 &&
-                                state.allIds
-                                    .length > 0
-                            ) {
-                                state.lastLoadedAt =
-                                    new Date()
-                                        .toISOString();
-
-                                return;
-                            }
-
-                            state.byId =
-                                {};
-
-                            state.allIds =
-                                [];
-
-                            for (
-                                const event
-                                of rows
-                            ) {
-                                const safe =
-                                    sanitizeEvento(
-                                        null,
-                                        event
-                                    );
-
-                                const id =
-                                    String(
-                                        safe.id
-                                    );
-
-                                state.byId[
-                                    id
-                                ] = safe;
-
-                                state.allIds.push(
-                                    id
-                                );
-                            }
-
-                            sortAgendaIds(
-                                state
-                            );
-
-                            state.lastLoadedAt =
-                                new Date()
-                                    .toISOString();
                         }
                     )
 
@@ -1219,7 +1251,9 @@ const agendaSlice =
                             action
                         ) => {
                             state.status =
-                                "failed";
+                                state.allIds.length > 0
+                                    ? "succeeded"
+                                    : "failed";
 
                             state.error =
                                 action.error
@@ -1228,6 +1262,179 @@ const agendaSlice =
 
                             /*
                              * Não altera byId/allIds.
+                             */
+                        }
+                    )
+
+                    /* ---------- HYDRATE LOCAL ---------- */
+
+                    .addCase(
+                        hydrateAgendaLocal.pending,
+                        (state) => {
+                            if (
+                                state.allIds.length ===
+                                0
+                            ) {
+                                state.status =
+                                    "loading";
+                            }
+                        }
+                    )
+
+                    .addCase(
+                        hydrateAgendaLocal.fulfilled,
+                        (
+                            state,
+                            action
+                        ) => {
+                            const rows =
+                                Array.isArray(
+                                    action.payload
+                                )
+                                    ? action.payload
+                                    : [];
+
+                            /*
+                             * Redux Persist pode já ter restaurado
+                             * dados válidos. Cache local vazio não
+                             * deve apagar esse estado.
+                             */
+                            if (
+                                rows.length ===
+                                0 &&
+                                state.allIds.length >
+                                0
+                            ) {
+                                state.status =
+                                    "succeeded";
+
+                                return;
+                            }
+
+                            replaceAgendaRows(
+                                state,
+                                rows
+                            );
+
+                            state.status =
+                                "succeeded";
+
+                            state.error =
+                                null;
+                        }
+                    )
+
+                    .addCase(
+                        hydrateAgendaLocal.rejected,
+                        (
+                            state,
+                            action
+                        ) => {
+                            state.status =
+                                state.allIds.length > 0
+                                    ? "succeeded"
+                                    : "failed";
+
+                            state.error =
+                                action.error
+                                    ?.message ||
+                                "Erro ao carregar cache local da agenda";
+
+                            /*
+                             * Mantém byId/allIds restaurados
+                             * pelo Redux Persist.
+                             */
+                        }
+                    )
+
+                    /* ---------- REFRESH REMOTE ---------- */
+
+                    .addCase(
+                        refreshAgendaRemote.pending,
+                        (state) => {
+                            state.status =
+                                state.allIds.length > 0
+                                    ? "refreshing"
+                                    : "loading";
+
+                            state.error =
+                                null;
+                        }
+                    )
+
+                    .addCase(
+                        refreshAgendaRemote.fulfilled,
+                        (
+                            state,
+                            action
+                        ) => {
+                            const rows =
+                                Array.isArray(
+                                    action.payload
+                                )
+                                    ? action.payload
+                                    : [];
+
+                            /*
+                             * Proteção da Fase 0:
+                             * resposta remota vazia não apaga
+                             * uma agenda local já preenchida.
+                             */
+                            if (
+                                rows.length ===
+                                0 &&
+                                state.allIds.length >
+                                0
+                            ) {
+                                state.status =
+                                    "succeeded";
+
+                                state.error =
+                                    null;
+
+                                state.lastLoadedAt =
+                                    new Date()
+                                        .toISOString();
+
+                                return;
+                            }
+
+                            replaceAgendaRows(
+                                state,
+                                rows
+                            );
+
+                            state.status =
+                                "succeeded";
+
+                            state.error =
+                                null;
+
+                            state.lastLoadedAt =
+                                new Date()
+                                    .toISOString();
+                        }
+                    )
+
+                    .addCase(
+                        refreshAgendaRemote.rejected,
+                        (
+                            state,
+                            action
+                        ) => {
+                            state.status =
+                                state.allIds.length > 0
+                                    ? "succeeded"
+                                    : "failed";
+
+                            state.error =
+                                action.error
+                                    ?.message ||
+                                "Não foi possível atualizar a agenda";
+
+                            /*
+                             * A falha remota nunca altera
+                             * os dados locais já exibidos.
                              */
                         }
                     )

@@ -1,7 +1,7 @@
 // app/(modals)/avaliacao/avaliacao-neurologica.jsx
 // @ts-nocheck
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
     View,
     Text,
@@ -10,13 +10,16 @@ import {
     TextInput,
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
     Platform,
     Keyboard,
     StyleSheet,
 } from "react-native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 import { useDispatch, useSelector } from "react-redux";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -25,9 +28,16 @@ import {
     updateDraftField,
     clearDraft,
     replaceDraft,
+    cacheAvaliacao,
+    uncacheAvaliacao,
+    selectAvaliacaoById,
 } from "@/src/store/slices/avaliacaoSlice";
 
 import { exportAvaliacoesPdf } from "@/src/services/avaliacaoPdf";
+
+import {
+    getAvaliacaoById,
+} from "@/src/services/avaliacoes";
 
 /* ---------- Firestore ---------- */
 function toDate(value) {
@@ -986,13 +996,46 @@ export default function AvaliacaoNeurologicaScreen() {
     const dispatch = useDispatch();
     const insets = useSafeAreaInsets();
 
+    const safePetId =
+        petId != null
+            ? String(petId)
+            : "";
+
+    const safeAvaliacaoId =
+        avaliacaoId != null
+            ? String(avaliacaoId)
+            : "";
+
+    const avaliacaoSelector =
+        useMemo(
+            () =>
+                selectAvaliacaoById(
+                    safePetId,
+                    safeAvaliacaoId
+                ),
+            [
+                safePetId,
+                safeAvaliacaoId,
+            ]
+        );
+
+    const cachedAvaliacao =
+        useSelector(
+            avaliacaoSelector
+        );
+
     const { auth, firestore, firestoreModule } = ensureFirebase() || {};
 
     const isExisting = !!avaliacaoId;
-    const draft = useSelector((s) => s.avaliacao?.draftsByPet?.[petId]);
+    const draft = useSelector(
+        (state) =>
+            state.avaliacoes?.draftsByPet?.[safePetId] ||
+            state.avaliacao?.draftsByPet?.[safePetId] ||
+            null
+    );
 
     const [editing, setEditing] = useState(!isExisting);
-    const [loading, setLoading] = useState(isExisting);
+    const [loading, setLoading] = useState(isExisting && !cachedAvaliacao);
     const [saving, setSaving] = useState(false);
     const [original, setOriginal] = useState(null);
     const [petData, setPetData] = useState(null);
@@ -1012,44 +1055,120 @@ export default function AvaliacaoNeurologicaScreen() {
         }
     }, [dispatch, petId, isExisting, draft]);
 
+
     useEffect(() => {
-        (async () => {
-            if (!isExisting || !firestore || !auth?.currentUser?.uid) return;
+        if (
+            !isExisting ||
+            !safePetId ||
+            !safeAvaliacaoId
+        ) {
+            return;
+        }
 
-            try {
-                setLoading(true);
+        let active = true;
 
-                const uid = auth.currentUser.uid;
+        const loadAvaliacao =
+            async () => {
+                /*
+                 * Abre imediatamente com a avaliação
+                 * que já está persistida no Redux.
+                 */
+                if (cachedAvaliacao) {
+                    const localSeed =
+                        normalizeNeurologicaDraft(
+                            safePetId,
+                            cachedAvaliacao
+                        );
 
-                const doc = await fetchAvaliacaoNeurologica({
-                    firestore,
-                    uid,
-                    petId: String(petId),
-                    avaliacaoId: String(avaliacaoId),
-                });
+                    setOriginal(localSeed);
 
-                const seed = normalizeNeurologicaDraft(String(petId), doc || {});
+                    dispatch(
+                        replaceDraft({
+                            petId: safePetId,
+                            draft: localSeed,
+                        })
+                    );
 
-                setOriginal(seed);
+                    setLoading(false);
+                } else {
+                    setLoading(true);
+                }
 
-                dispatch(
-                    replaceDraft({
-                        petId: String(petId),
-                        draft: seed,
-                    })
-                );
-            } catch (e) {
-                console.log("fetch neurologica error", e);
-                Alert.alert(
-                    "Avaliação neurológica",
-                    "Não foi possível carregar."
-                );
-                router.back();
-            } finally {
-                setLoading(false);
-            }
-        })();
-    }, [isExisting, firestore, auth, petId, avaliacaoId, dispatch]);
+                /*
+                 * O service consulta primeiro o AsyncStorage.
+                 * Se já houver cache, não depende da internet.
+                 */
+                try {
+                    const docData =
+                        await getAvaliacaoById(
+                            safePetId,
+                            safeAvaliacaoId
+                        );
+
+                    if (
+                        !active ||
+                        !docData
+                    ) {
+                        return;
+                    }
+
+                    const updatedSeed =
+                        normalizeNeurologicaDraft(
+                            safePetId,
+                            docData
+                        );
+
+                    setOriginal(updatedSeed);
+
+                    dispatch(
+                        replaceDraft({
+                            petId: safePetId,
+                            draft: updatedSeed,
+                        })
+                    );
+
+                    await dispatch(
+                        cacheAvaliacao({
+                            petId: safePetId,
+                            avaliacao: docData,
+                        })
+                    ).unwrap();
+                } catch (error) {
+                    console.log(
+                        "fetch avaliação offline-first error",
+                        error
+                    );
+
+                    if (
+                        active &&
+                        !cachedAvaliacao
+                    ) {
+                        Alert.alert(
+                            "Avaliação neurológica",
+                            "Esta avaliação ainda não está disponível neste aparelho."
+                        );
+
+                        router.back();
+                    }
+                } finally {
+                    if (active) {
+                        setLoading(false);
+                    }
+                }
+            };
+
+        void loadAvaliacao();
+
+        return () => {
+            active = false;
+        };
+    }, [
+        isExisting,
+        safePetId,
+        safeAvaliacaoId,
+        cachedAvaliacao,
+        dispatch,
+    ]);
 
     useEffect(() => {
         let active = true;
@@ -1383,6 +1502,21 @@ export default function AvaliacaoNeurologicaScreen() {
                     })
                 );
 
+                await dispatch(
+                    cacheAvaliacao({
+                        petId: String(petId),
+                        avaliacao: {
+                            id: String(avaliacaoId),
+                            ...payload,
+                            createdAt:
+                                original?.createdAt ||
+                                draft?.createdAt ||
+                                Date.now(),
+                            updatedAt: Date.now(),
+                        },
+                    })
+                ).unwrap();
+
                 setEditing(false);
 
                 Alert.alert(
@@ -1393,13 +1527,27 @@ export default function AvaliacaoNeurologicaScreen() {
                 return;
             }
 
-            await saveNewNeurologica({
+            const createdId = await saveNewNeurologica({
                 firestore,
                 firestoreModule,
                 uid,
                 petId: String(petId),
                 payload,
             });
+
+            const createdAt = Date.now();
+
+            await dispatch(
+                cacheAvaliacao({
+                    petId: String(petId),
+                    avaliacao: {
+                        id: String(createdId),
+                        ...payload,
+                        createdAt,
+                        updatedAt: createdAt,
+                    },
+                })
+            ).unwrap();
 
             Alert.alert(
                 "Avaliação neurológica",
@@ -1464,6 +1612,13 @@ export default function AvaliacaoNeurologicaScreen() {
                                 petId: String(petId),
                                 avaliacaoId: String(avaliacaoId),
                             });
+
+                            await dispatch(
+                                uncacheAvaliacao({
+                                    petId: String(petId),
+                                    avaliacaoId: String(avaliacaoId),
+                                })
+                            ).unwrap();
 
                             dispatch(clearDraft({ petId: String(petId) }));
 
@@ -1530,13 +1685,7 @@ export default function AvaliacaoNeurologicaScreen() {
         );
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.select({
-                ios: "padding",
-                android: undefined,
-            })}
-            style={styles.screen}
-        >
+        <View style={styles.screen}>
             <Stack.Screen
                 options={{
                     title: editing ? "Editar avaliação" : "Avaliação neurológica",
@@ -1666,13 +1815,15 @@ export default function AvaliacaoNeurologicaScreen() {
                     </View>
                 </View>
             ) : (
-                <ScrollView
+                <KeyboardAwareScrollView
                     contentContainerStyle={styles.formContent}
+                    bottomOffset={18}
+                    extraKeyboardSpace={48}
+                    disableScrollOnKeyboardHide
                     keyboardShouldPersistTaps="handled"
-                    onScrollBeginDrag={Keyboard.dismiss}
-                    showsVerticalScrollIndicator
-                    indicatorStyle="black"
-                    scrollEventThrottle={16}
+                    keyboardDismissMode="interactive"
+                    contentInsetAdjustmentBehavior="automatic"
+                    showsVerticalScrollIndicator={false}
                 >
                     <SectionTitle>Título</SectionTitle>
 
@@ -1818,7 +1969,7 @@ export default function AvaliacaoNeurologicaScreen() {
                             minHeight={110}
                         />
                     </View>
-                </ScrollView>
+                </KeyboardAwareScrollView>
             )}
 
             {editing && (
@@ -1862,7 +2013,19 @@ export default function AvaliacaoNeurologicaScreen() {
                     </View>
                 </View>
             )}
-        </KeyboardAvoidingView>
+
+            {editing && Platform.OS === "ios" && (
+                <KeyboardToolbar style={styles.keyboardToolbar}>
+                    <KeyboardToolbar.Content>
+                        <Text style={styles.keyboardToolbarLabel}>
+                            Preenchimento da avaliação
+                        </Text>
+                    </KeyboardToolbar.Content>
+
+                    <KeyboardToolbar.Done text="Fechar" />
+                </KeyboardToolbar>
+            )}
+        </View>
     );
 }
 
@@ -2455,5 +2618,18 @@ const styles = StyleSheet.create({
         fontSize: 9.5,
         lineHeight: 13,
         fontWeight: "550",
+    },
+
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(60,60,67,0.20)",
+        backgroundColor: "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: "#6B7280",
+        fontSize: 12,
+        fontWeight: "650",
     },
 });

@@ -2,163 +2,141 @@
 // @ts-nocheck
 
 import {
-    useCallback,
-    useEffect,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
 } from "react";
 
 import {
-    ensureFirebase,
-} from "@/firebase/firebase";
+  useDispatch,
+  useSelector,
+} from "react-redux";
+
+import {
+  loadAvaliacoes,
+  refreshAvaliacoesRemote,
+  selectAvaliacoesByPetId,
+  selectAvaliacoesErrorByPetId,
+  selectAvaliacoesRefreshingByPetId,
+  selectAvaliacoesStatusByPetId,
+} from "@/src/store/slices/avaliacaoSlice";
 
 export function usePetAvaliacoes(
-    petId
+  petId
 ) {
-    const [
-        items,
-        setItems,
-    ] = useState([]);
+  const dispatch =
+    useDispatch();
 
-    const [
-        loading,
-        setLoading,
-    ] = useState(true);
+  const safePetId =
+    petId != null
+      ? String(petId)
+      : "";
 
-    const [
-        error,
-        setError,
-    ] = useState(null);
+  const itemsSelector =
+    useMemo(
+      () =>
+        selectAvaliacoesByPetId(
+          safePetId
+        ),
+      [safePetId]
+    );
 
-    const [
-        refreshKey,
-        setRefreshKey,
-    ] = useState(0);
+  const statusSelector =
+    useMemo(
+      () =>
+        selectAvaliacoesStatusByPetId(
+          safePetId
+        ),
+      [safePetId]
+    );
 
-    useEffect(() => {
-        const firebase =
-            ensureFirebase();
+  const refreshingSelector =
+    useMemo(
+      () =>
+        selectAvaliacoesRefreshingByPetId(
+          safePetId
+        ),
+      [safePetId]
+    );
 
-        const firestore =
-            firebase?.firestore;
+  const errorSelector =
+    useMemo(
+      () =>
+        selectAvaliacoesErrorByPetId(
+          safePetId
+        ),
+      [safePetId]
+    );
 
-        const auth =
-            firebase?.auth;
+  const items =
+    useSelector(
+      itemsSelector
+    );
 
-        const uid =
-            auth?.currentUser?.uid;
+  const status =
+    useSelector(
+      statusSelector
+    );
 
-        if (
-            !firestore ||
-            !uid ||
-            !petId
-        ) {
-            setItems([]);
-            setLoading(false);
+  const refreshing =
+    useSelector(
+      refreshingSelector
+    );
 
-            return;
+  const error =
+    useSelector(
+      errorSelector
+    );
+
+  useEffect(() => {
+    if (!safePetId) {
+      return;
+    }
+
+    void dispatch(
+      loadAvaliacoes({
+        petId:
+          safePetId,
+      })
+    );
+  }, [
+    dispatch,
+    safePetId,
+  ]);
+
+  const refresh =
+    useCallback(
+      async () => {
+        if (!safePetId) {
+          return;
         }
 
-        setLoading(true);
-        setError(null);
+        await dispatch(
+          refreshAvaliacoesRemote({
+            petId:
+              safePetId,
+          })
+        ).unwrap();
+      },
+      [
+        dispatch,
+        safePetId,
+      ]
+    );
 
-        const collectionRef =
-            firestore
-                .collection(
-                    "users"
-                )
-                .doc(
-                    String(uid)
-                )
-                .collection(
-                    "pets"
-                )
-                .doc(
-                    String(petId)
-                )
-                .collection(
-                    "avaliacoes"
-                );
+  const isInitialLoading =
+    items.length === 0 &&
+    (
+      status === "idle" ||
+      status === "loading"
+    );
 
-        const unsubscribe =
-            collectionRef
-                .orderBy(
-                    "createdAt",
-                    "desc"
-                )
-                .onSnapshot(
-                    (
-                        snapshot
-                    ) => {
-                        const rows =
-                            snapshot?.docs?.map(
-                                (
-                                    document
-                                ) => ({
-                                    id:
-                                        document.id,
-
-                                    ...document.data(),
-                                })
-                            ) || [];
-
-                        setItems(
-                            rows
-                        );
-
-                        setError(
-                            null
-                        );
-
-                        setLoading(
-                            false
-                        );
-                    },
-
-                    (
-                        snapshotError
-                    ) => {
-                        console.warn(
-                            "usePetAvaliacoes onSnapshot:",
-                            snapshotError
-                        );
-
-                        setItems(
-                            []
-                        );
-
-                        setError(
-                            snapshotError
-                        );
-
-                        setLoading(
-                            false
-                        );
-                    }
-                );
-
-        return () => {
-            unsubscribe?.();
-        };
-    }, [
-        petId,
-        refreshKey,
-    ]);
-
-    const refresh =
-        useCallback(() => {
-            setRefreshKey(
-                (
-                    current
-                ) =>
-                    current +
-                    1
-            );
-        }, []);
-
-    return {
-        items,
-        loading,
-        error,
-        refresh,
-    };
+  return {
+    items,
+    loading:
+      isInitialLoading,
+    refreshing,
+    error,
+    refresh,
+  };
 }

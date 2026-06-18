@@ -393,11 +393,6 @@ const petsSlice =
                   ? action.payload
                   : [];
 
-              /*
-               * Proteção da Fase 0:
-               * resposta vazia não apaga um estado
-               * persistido que já contém pets.
-               */
               if (
                 rows.length ===
                   0 &&
@@ -407,10 +402,6 @@ const petsSlice =
                 return;
               }
 
-              /*
-               * Mantém o atalho anterior quando
-               * os mesmos IDs já estão carregados.
-               */
               if (
                 rows.length ===
                   state.allIds
@@ -461,10 +452,6 @@ const petsSlice =
                 action.error
                   ?.message ??
                 "Erro ao carregar pets";
-
-              /*
-               * Não altera byId/allIds.
-               */
             }
           )
 
@@ -505,11 +492,6 @@ const petsSlice =
                   tutorId
                 ] || [];
 
-              /*
-               * Mesma proteção para consulta por tutor:
-               * não apaga o índice persistido em uma
-               * resposta vazia inesperada.
-               */
               if (
                 rows.length ===
                   0 &&
@@ -833,8 +815,12 @@ export const selectPetByIdJoined =
             ? {
                 id:
                   tutorId,
+
                 nome:
-                  tutor?.nome,
+                  tutor?.nome ||
+                  pet?.tutor?.nome ||
+                  pet?.tutor?.name ||
+                  null,
               }
             : null,
         };
@@ -883,8 +869,12 @@ export const selectAllPetsJoined =
                 ? {
                     id:
                       tutorId,
+
                     nome:
-                      tutor?.nome,
+                      tutor?.nome ||
+                      pet?.tutor?.nome ||
+                      pet?.tutor?.name ||
+                      null,
                   }
                 : null,
             };
@@ -927,3 +917,104 @@ export const selectPetsByActiveTutor =
       );
     }
   );
+
+/* ---------- Seletores para mensagens ---------- */
+
+/**
+ * Resolve os nomes dos pets vinculados a uma lista de IDs.
+ *
+ * Útil para eventos, mensagens de WhatsApp, PDFs e
+ * qualquer ponto que receba apenas `petIds`.
+ */
+export const makeSelectPetNamesByIds =
+  () =>
+    createSelector(
+      [
+        selectPetsState,
+
+        (
+          _state,
+          petIds
+        ) =>
+          Array.isArray(
+            petIds
+          )
+            ? petIds
+            : [],
+      ],
+
+      (
+        pets,
+        petIds
+      ) =>
+        petIds
+          .map(
+            (petId) =>
+              pets.byId?.[
+                String(
+                  petId
+                )
+              ]
+          )
+          .filter(Boolean)
+          .map(
+            (pet) =>
+              String(
+                pet?.nome ||
+                pet?.name ||
+                ""
+              ).trim()
+          )
+          .filter(Boolean)
+    );
+
+/**
+ * Retorna uma string pronta para uso:
+ *
+ * Um pet:
+ * "Thor"
+ *
+ * Dois pets:
+ * "Thor e Mel"
+ *
+ * Três pets:
+ * "Thor, Mel e Nina"
+ */
+export const makeSelectPetNamesLabelByIds =
+  () =>
+    createSelector(
+      [
+        makeSelectPetNamesByIds(),
+      ],
+
+      (
+        names
+      ) => {
+        if (
+          names.length === 0
+        ) {
+          return "";
+        }
+
+        if (
+          names.length === 1
+        ) {
+          return names[0];
+        }
+
+        const firstNames =
+          names
+            .slice(
+              0,
+              -1
+            )
+            .join(", ");
+
+        const lastName =
+          names[
+            names.length - 1
+          ];
+
+        return `${firstNames} e ${lastName}`;
+      }
+    );

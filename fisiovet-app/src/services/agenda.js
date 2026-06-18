@@ -2,10 +2,11 @@
 // @ts-nocheck
 //
 // Fase 0:
-// - Firestore continua sendo tentado primeiro;
-// - leituras remotas possuem fallback local;
+// - cache local é carregado primeiro;
+// - Firestore atualiza a agenda em segundo plano;
 // - caminhos online mantêm o AsyncStorage atualizado;
-// - resposta remota vazia não apaga um cache local preenchido.
+// - falha remota nunca apaga uma agenda local já preenchida;
+// - resposta remota vazia não sobrescreve um cache local preenchido.
 //
 // Coleção: users/{uid}/agenda
 
@@ -401,58 +402,88 @@ function docToEvento(
    API pública
 ======================= */
 
-export async function listEventos() {
+export async function listEventosLocal() {
+  return loadAllLocal();
+}
+
+export async function listEventosRemote() {
   const fb =
     ensureFirebase();
 
   const uid =
     fb?.auth?.currentUser?.uid;
 
-  if (fb && uid) {
-    try {
-      const snapshot =
-        await getCol(
-          fb.firestore,
-          uid
-        )
-          .orderBy(
-            "start",
-            "asc"
-          )
-          .get();
-
-      const rows =
-        snapshot.docs.map(
-          docToEvento
-        );
-
-      if (rows.length > 0) {
-        await saveAllLocal(
-          rows
-        );
-      }
-
-      return sortEventos(
-        rows
-      );
-    } catch (error) {
-      console.warn(
-        "⚠️ Firestore indisponível ao listar agenda. Usando cache local.",
-        error
-      );
-
-      const local =
-        await loadAllLocal();
-
-      if (local.length > 0) {
-        return local;
-      }
-
-      throw error;
-    }
+  if (!fb || !uid) {
+    throw new Error(
+      "Usuário não autenticado para atualizar a agenda."
+    );
   }
 
-  return loadAllLocal();
+  const snapshot =
+    await getCol(
+      fb.firestore,
+      uid
+    )
+      .orderBy(
+        "start",
+        "asc"
+      )
+      .get();
+
+  const rows =
+    snapshot.docs.map(
+      docToEvento
+    );
+
+  /*
+   * Proteção da Fase 0:
+   * uma resposta remota vazia não substitui
+   * um cache local já preenchido.
+   */
+  if (rows.length > 0) {
+    await saveAllLocal(
+      rows
+    );
+  }
+
+  return sortEventos(
+    rows
+  );
+}
+
+/**
+ * Compatibilidade com chamadas antigas:
+ * retorna o cache local imediatamente quando houver,
+ * mas ainda tenta o remoto antes de encerrar quando
+ * essa função for chamada diretamente.
+ *
+ * O carregamento principal do app deve usar:
+ * - listEventosLocal();
+ * - listEventosRemote();
+ */
+export async function listEventos() {
+  const local =
+    await listEventosLocal();
+
+  try {
+    const remote =
+      await listEventosRemote();
+
+    if (
+      remote.length === 0 &&
+      local.length > 0
+    ) {
+      return local;
+    }
+
+    return remote;
+  } catch (error) {
+    if (local.length > 0) {
+      return local;
+    }
+
+    throw error;
+  }
 }
 
 export async function getEventoById(

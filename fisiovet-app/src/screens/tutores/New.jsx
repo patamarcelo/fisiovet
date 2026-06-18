@@ -1433,10 +1433,6 @@ export default function TutorForm() {
 								placeholder="Ex.: Maria Souza"
 								value={nome}
 								onChangeText={setNome}
-								returnKeyType="next"
-								onSubmitEditing={() =>
-									telefoneRef.current?.focus()
-								}
 								style={styles.input}
 							/>
 						</Field>
@@ -1462,10 +1458,6 @@ export default function TutorForm() {
 									)
 								}
 								keyboardType="phone-pad"
-								returnKeyType="next"
-								onSubmitEditing={() =>
-									emailRef.current?.focus()
-								}
 								style={styles.input}
 							/>
 						</Field>
@@ -1488,10 +1480,6 @@ export default function TutorForm() {
 								onChangeText={setEmail}
 								keyboardType="email-address"
 								autoCapitalize="none"
-								returnKeyType="next"
-								onSubmitEditing={() =>
-									addressQueryRef.current?.focus()
-								}
 								style={styles.input}
 							/>
 						</Field>
@@ -1662,10 +1650,6 @@ export default function TutorForm() {
 									invalidateSelectedGeo();
 									setLogradouro(value);
 								}}
-								returnKeyType="next"
-								onSubmitEditing={() =>
-									numeroRef.current?.focus()
-								}
 								style={styles.input}
 							/>
 						</Field>
@@ -1684,10 +1668,6 @@ export default function TutorForm() {
 											setNumero(value);
 										}}
 										keyboardType="number-pad"
-										returnKeyType="next"
-										onSubmitEditing={() =>
-											bairroRef.current?.focus()
-										}
 										style={styles.input}
 									/>
 								</Field>
@@ -1703,10 +1683,6 @@ export default function TutorForm() {
 											invalidateSelectedGeo();
 											setBairro(value);
 										}}
-										returnKeyType="next"
-										onSubmitEditing={() =>
-											cidadeRef.current?.focus()
-										}
 										style={styles.input}
 									/>
 								</Field>
@@ -1726,10 +1702,6 @@ export default function TutorForm() {
 											invalidateSelectedGeo();
 											setCidade(value);
 										}}
-										returnKeyType="next"
-										onSubmitEditing={() =>
-											ufRef.current?.focus()
-										}
 										style={styles.input}
 									/>
 								</Field>
@@ -1754,10 +1726,6 @@ export default function TutorForm() {
 										}}
 										autoCapitalize="characters"
 										maxLength={2}
-										returnKeyType="next"
-										onSubmitEditing={() =>
-											complementoRef.current?.focus()
-										}
 										style={styles.input}
 									/>
 								</Field>
@@ -1772,10 +1740,6 @@ export default function TutorForm() {
 								ref={complementoRef}
 								value={complemento}
 								onChangeText={setComplemento}
-								returnKeyType="next"
-								onSubmitEditing={() =>
-									observacoesRef.current?.focus()
-								}
 								style={styles.input}
 							/>
 						</Field>
