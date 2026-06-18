@@ -1,4 +1,5 @@
 // store/index.js
+//@ts-nocheck
 import { configureStore, combineReducers } from "@reduxjs/toolkit";
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from "redux-persist";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -22,21 +23,20 @@ const appReducer = combineReducers({
 	tutores: tutoresReduce,
 	pets: petsReducer,
 	agenda: agendaReducer,
-	financeiro:financeiroReducer,
+	financeiro: financeiroReducer,
 	system: systemReducer,
 	avaliacao: avaliacaoReducer,
-	bootstrap: bootstrapReducer, // ⬅️ novo
+	bootstrap: bootstrapReducer,
 	subscription: subscriptionReducer,
 	syncQueue: syncQueueReducer,
-	 anotacoes: anotacoesReducer,
-
+	anotacoes: anotacoesReducer,
 });
 
 const persistConfig = {
 	key: "root",
 	storage: AsyncStorage,
-	version: 3,
-	whitelist: ["user", "tutores", "pets", "agenda", "financeiro", "system", "avaliacao", "subscription"],
+	version: 4,
+	whitelist: ["user", "tutores", "pets", "agenda", "financeiro", "system", "avaliacao", "subscription", "syncQueue", "anotacoes"],
 };
 
 // ⬇️ rootReducer que zera tudo quando receber session/clear

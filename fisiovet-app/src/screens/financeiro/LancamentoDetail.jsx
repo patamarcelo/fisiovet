@@ -11,7 +11,7 @@ import React, {
 import {
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
+    Keyboard,
     Modal,
     Platform,
     Pressable,
@@ -38,6 +38,11 @@ import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 import {
     useDispatch,
@@ -344,6 +349,9 @@ export default function LancamentoDetail() {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
 
+    const paymentValueRef = React.useRef(null);
+    const paymentObservationRef = React.useRef(null);
+
     const background =
         useThemeColor(
             {},
@@ -590,6 +598,12 @@ export default function LancamentoDetail() {
 
             setPaymentObservation("");
             setPaymentModalVisible(true);
+
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    paymentValueRef.current?.focus?.();
+                }, 120);
+            });
         }, [
             lancamento?.valores?.saldo,
         ]);
@@ -1406,28 +1420,23 @@ export default function LancamentoDetail() {
                 }
                 transparent
                 animationType="fade"
-                onRequestClose={() =>
-                    setPaymentModalVisible(
-                        false
-                    )
-                }
+                onRequestClose={() => {
+                    Keyboard.dismiss();
+                    setPaymentModalVisible(false);
+                }}
             >
-                <KeyboardAvoidingView
-                    style={
-                        styles.modalOverlay
-                    }
-                    behavior={
-                        Platform.OS ===
-                            "ios"
-                            ? "padding"
-                            : undefined
-                    }
-                >
-                    <View
-                        style={
-                            styles.modalBox
-                        }
+                <View style={styles.modalOverlay}>
+                    <KeyboardAwareScrollView
+                        style={styles.modalScroll}
+                        contentContainerStyle={styles.modalScrollContent}
+                        bottomOffset={16}
+                        extraKeyboardSpace={46}
+                        disableScrollOnKeyboardHide
+                        keyboardShouldPersistTaps="handled"
+                        keyboardDismissMode="interactive"
+                        showsVerticalScrollIndicator={false}
                     >
+                        <View style={styles.modalBox}>
                         <View
                             style={
                                 styles.modalHeader
@@ -1457,11 +1466,10 @@ export default function LancamentoDetail() {
                             </View>
 
                             <Pressable
-                                onPress={() =>
-                                    setPaymentModalVisible(
-                                        false
-                                    )
-                                }
+                                onPress={() => {
+                                    Keyboard.dismiss();
+                                    setPaymentModalVisible(false);
+                                }}
                             >
                                 <Ionicons
                                     name="close-circle"
@@ -1495,6 +1503,7 @@ export default function LancamentoDetail() {
                             </Text>
 
                             <TextInput
+                                ref={paymentValueRef}
                                 value={
                                     paymentValue
                                 }
@@ -1508,6 +1517,11 @@ export default function LancamentoDetail() {
                                     )
                                 }
                                 keyboardType="decimal-pad"
+                                returnKeyType="next"
+                                blurOnSubmit={false}
+                                onSubmitEditing={() =>
+                                    paymentObservationRef.current?.focus()
+                                }
                                 placeholder="0,00"
                                 placeholderTextColor="#9CA3AF"
                                 style={
@@ -1548,6 +1562,7 @@ export default function LancamentoDetail() {
                         </Text>
 
                         <TextInput
+                            ref={paymentObservationRef}
                             value={
                                 paymentObservation
                             }
@@ -1557,21 +1572,22 @@ export default function LancamentoDetail() {
                             placeholder="Opcional"
                             placeholderTextColor="#9CA3AF"
                             multiline
+                            returnKeyType="default"
+                            blurOnSubmit={false}
+                            textAlignVertical="top"
                             style={
                                 styles.observationInput
                             }
                         />
 
                         <Pressable
-                            disabled={
-                                actionLoading
-                            }
-                            onPress={
-                                handleRegisterPayment
-                            }
-                            style={
-                                styles.modalSaveButton
-                            }
+                            disabled={actionLoading}
+                            onPress={handleRegisterPayment}
+                            style={({ pressed }) => [
+                                styles.modalSaveButton,
+                                actionLoading && { opacity: 0.65 },
+                                pressed && !actionLoading && { opacity: 0.88 },
+                            ]}
                         >
                             {actionLoading ? (
                                 <ActivityIndicator
@@ -1588,8 +1604,21 @@ export default function LancamentoDetail() {
                                 </Text>
                             )}
                         </Pressable>
-                    </View>
-                </KeyboardAvoidingView>
+                        </View>
+                    </KeyboardAwareScrollView>
+
+                    {Platform.OS === "ios" && (
+                        <KeyboardToolbar style={styles.keyboardToolbar}>
+                            <KeyboardToolbar.Content>
+                                <Text style={styles.keyboardToolbarLabel}>
+                                    Recebimento
+                                </Text>
+                            </KeyboardToolbar.Content>
+
+                            <KeyboardToolbar.Done text="Fechar" />
+                        </KeyboardToolbar>
+                    )}
+                </View>
             </Modal>
         </SafeAreaView >
     );
@@ -2044,4 +2073,28 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "750",
     },
+    modalScroll: {
+        width: "100%",
+        maxHeight: "88%",
+    },
+
+    modalScrollContent: {
+        flexGrow: 1,
+        justifyContent: "center",
+        paddingVertical: 20,
+    },
+
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(60,60,67,0.20)",
+        backgroundColor: "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: COLORS.subtle,
+        fontSize: 12,
+        fontWeight: "650",
+    },
+
 });

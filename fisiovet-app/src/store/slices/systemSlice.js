@@ -1,50 +1,104 @@
 // src/store/slices/systemSlice.js
-import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
+
+import {
+    createSlice,
+    createAsyncThunk,
+    createSelector,
+} from '@reduxjs/toolkit';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const STORAGE_KEY = 'FV_SYSTEM_V1';
 
-const pad2 = (n) => String(n).padStart(2, '0');
-const isHHMM = (v) => /^(\d{1,2}):([0-5]\d)$/.test(String(v || ''));
-const clampHHMM = (v, fallback = '01:00') => (isHHMM(v) ? v : fallback);
+export const DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE = `Olá! 😊
 
-// 🔹 helper pra garantir valor válido
-const sanitizeNavPreference = (v, fallback = 'ask') => {
-    const allowed = ['google', 'waze', 'ask'];
-    if (!v) return fallback;
-    return allowed.includes(v) ? v : fallback;
+Passando para confirmar a sessão do(a) [Nome do Pet] no dia [data], às [horário].
+
+Caso haja necessidade de alteração ou cancelamento, peço a gentileza de avisar com antecedência.
+
+Qualquer dúvida, estou à disposição. 🐾`;
+
+const isHHMM = (value) =>
+    /^(\d{1,2}):([0-5]\d)$/.test(
+        String(value || '')
+    );
+
+const clampHHMM = (
+    value,
+    fallback = '01:00'
+) => {
+    return isHHMM(value)
+        ? value
+        : fallback;
+};
+
+const sanitizeNavPreference = (
+    value,
+    fallback = 'ask'
+) => {
+    const allowed = [
+        'google',
+        'waze',
+        'ask',
+    ];
+
+    if (!value) {
+        return fallback;
+    }
+
+    return allowed.includes(value)
+        ? value
+        : fallback;
+};
+
+const sanitizeWhatsappMessage = (
+    value,
+    fallback = DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE
+) => {
+    if (
+        typeof value !== 'string'
+    ) {
+        return fallback;
+    }
+
+    const normalized =
+        value.trim();
+
+    return normalized ||
+        fallback;
 };
 
 const defaultState = {
-    // Configurações de agenda
-    defaultDuracao: '01:00',  // HH:MM
-    startOfDay: '08:00',      // HH:MM
+    defaultDuracao: '01:00',
+    startOfDay: '08:00',
 
-    // Navegação (Google / Waze / Perguntar sempre)
-    navPreference: 'ask',     // 'google' | 'waze' | 'ask'
+    navPreference: 'ask',
 
-    // Integrações (exemplos; expanda depois)
+    whatsapp: {
+        confirmationMessage:
+            DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE,
+    },
+
     integrations: {
-        google: { connected: false, token: null },
+        google: {
+            connected: false,
+            token: null,
+        },
 
         googleCalendar: {
             enabled: false,
             connected: false,
 
-            mode: "ics_feed",
+            mode: 'ics_feed',
 
-            // link secreto do calendário
             feedToken: null,
             feedUrl: null,
             webcalUrl: null,
 
-            // opcional: pode manter email se quiser identificar/mostrar,
-            // mas não é necessário para ICS
-            email: "",
-            inviteEmail: "",
+            email: '',
+            inviteEmail: '',
 
-            status: "disabled",
-            // disabled | ready | error
+            status: 'disabled',
 
             pendingCount: 0,
             failedCount: 0,
@@ -56,151 +110,378 @@ const defaultState = {
             updatedAt: null,
         },
 
-        asaas: { enabled: false, apiKey: null },
-    },
-    financeiro: {
-        showValues: false,
+        asaas: {
+            enabled: false,
+            apiKey: null,
+        },
     },
 
-    // Metadados
+    financeiro: {
+        showValues: false,
+        includePendingEvents: true,
+    },
+
     updatedAt: null,
 };
 
 async function readFromDevice() {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    try { return JSON.parse(raw); } catch { return null; }
-}
-async function writeToDevice(obj) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-}
+    const raw =
+        await AsyncStorage.getItem(
+            STORAGE_KEY
+        );
 
-export const loadSystem = createAsyncThunk('system/load', async () => {
-    const v = await readFromDevice();
-    if (v && typeof v === 'object') {
-        return {
-            ...defaultState,
-            ...v,
-            integrations: {
-                ...defaultState.integrations,
-                ...(v.integrations || {}),
-                googleCalendar: {
-                    ...defaultState.integrations.googleCalendar,
-                    ...(v.integrations?.googleCalendar || {}),
-                },
-                google: {
-                    ...defaultState.integrations.google,
-                    ...(v.integrations?.google || {}),
-                },
-                asaas: {
-                    ...defaultState.integrations.asaas,
-                    ...(v.integrations?.asaas || {}),
-                },
-            },
-            financeiro: {
-                ...defaultState.financeiro,
-                ...(v.financeiro || {}),
-            },
-            navPreference: sanitizeNavPreference(v.navPreference, defaultState.navPreference),
-        };
+    if (!raw) {
+        return null;
     }
-    // primeira vez: grava defaults
-    await writeToDevice(defaultState);
-    return defaultState;
-});
 
-// patch parcial e persistência
-export const updateSystem = createAsyncThunk('system/update', async (patch, { getState }) => {
-    const state = getState()?.system ?? defaultState;
-    // saneamento mínimo
-    const next = {
-        ...state,
-        ...patch,
-        defaultDuracao: clampHHMM(patch?.defaultDuracao ?? state.defaultDuracao, '01:00'),
-        startOfDay: clampHHMM(patch?.startOfDay ?? state.startOfDay, '08:00'),
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return null;
+    }
+}
+
+async function writeToDevice(
+    object
+) {
+    await AsyncStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify(object)
+    );
+}
+
+function mergeWithDefaults(
+    value
+) {
+    if (
+        !value ||
+        typeof value !== 'object'
+    ) {
+        return defaultState;
+    }
+
+    return {
+        ...defaultState,
+        ...value,
+
         integrations: {
-            ...state.integrations,
-            ...(patch?.integrations || {}),
+            ...defaultState.integrations,
+            ...(value.integrations || {}),
 
             google: {
-                ...(state.integrations?.google || defaultState.integrations.google),
-                ...(patch?.integrations?.google || {}),
+                ...defaultState.integrations.google,
+                ...(value.integrations
+                    ?.google || {}),
             },
 
             googleCalendar: {
-                ...(state.integrations?.googleCalendar || defaultState.integrations.googleCalendar),
-                ...(patch?.integrations?.googleCalendar || {}),
+                ...defaultState.integrations
+                    .googleCalendar,
+                ...(value.integrations
+                    ?.googleCalendar || {}),
             },
 
             asaas: {
-                ...(state.integrations?.asaas || defaultState.integrations.asaas),
-                ...(patch?.integrations?.asaas || {}),
+                ...defaultState.integrations.asaas,
+                ...(value.integrations
+                    ?.asaas || {}),
             },
         },
+
         financeiro: {
-            ...state.financeiro,
-            ...(patch?.financeiro || {}),
+            ...defaultState.financeiro,
+            ...(value.financeiro || {}),
         },
-        navPreference: sanitizeNavPreference(
-            patch?.navPreference ?? state.navPreference ?? defaultState.navPreference
-        ),
-        updatedAt: new Date().toISOString(),
+
+        whatsapp: {
+            ...defaultState.whatsapp,
+            ...(value.whatsapp || {}),
+
+            confirmationMessage:
+                sanitizeWhatsappMessage(
+                    value.whatsapp
+                        ?.confirmationMessage,
+                    defaultState.whatsapp
+                        .confirmationMessage
+                ),
+        },
+
+        navPreference:
+            sanitizeNavPreference(
+                value.navPreference,
+                defaultState.navPreference
+            ),
     };
-    await writeToDevice(next);
-    return next;
-});
+}
 
-const systemSlice = createSlice({
-    name: 'system',
-    initialState: defaultState,
-    reducers: {
-        resetSystem: () => defaultState,
-    },
-    extraReducers: (builder) => {
-        builder
-            .addCase(loadSystem.fulfilled, (state, action) => {
-                return { ...state, ...(action.payload || {}) };
-            })
-            .addCase(updateSystem.fulfilled, (state, action) => {
-                return { ...state, ...(action.payload || {}) };
-            });
-    },
-});
+export const loadSystem =
+    createAsyncThunk(
+        'system/load',
+        async () => {
+            const value =
+                await readFromDevice();
 
-export const { resetSystem } = systemSlice.actions;
+            if (
+                value &&
+                typeof value === 'object'
+            ) {
+                return mergeWithDefaults(
+                    value
+                );
+            }
+
+            await writeToDevice(
+                defaultState
+            );
+
+            return defaultState;
+        }
+    );
+
+export const updateSystem =
+    createAsyncThunk(
+        'system/update',
+        async (
+            patch,
+            {
+                getState,
+            }
+        ) => {
+            const currentState =
+                getState()?.system ??
+                defaultState;
+
+            const next = {
+                ...currentState,
+                ...patch,
+
+                defaultDuracao:
+                    clampHHMM(
+                        patch?.defaultDuracao ??
+                            currentState.defaultDuracao,
+                        '01:00'
+                    ),
+
+                startOfDay:
+                    clampHHMM(
+                        patch?.startOfDay ??
+                            currentState.startOfDay,
+                        '08:00'
+                    ),
+
+                integrations: {
+                    ...defaultState.integrations,
+                    ...(currentState.integrations ||
+                        {}),
+                    ...(patch?.integrations ||
+                        {}),
+
+                    google: {
+                        ...defaultState
+                            .integrations.google,
+                        ...(currentState
+                            .integrations
+                            ?.google || {}),
+                        ...(patch?.integrations
+                            ?.google || {}),
+                    },
+
+                    googleCalendar: {
+                        ...defaultState
+                            .integrations
+                            .googleCalendar,
+                        ...(currentState
+                            .integrations
+                            ?.googleCalendar ||
+                            {}),
+                        ...(patch?.integrations
+                            ?.googleCalendar ||
+                            {}),
+                    },
+
+                    asaas: {
+                        ...defaultState
+                            .integrations.asaas,
+                        ...(currentState
+                            .integrations
+                            ?.asaas || {}),
+                        ...(patch?.integrations
+                            ?.asaas || {}),
+                    },
+                },
+
+                financeiro: {
+                    ...defaultState.financeiro,
+                    ...(currentState.financeiro ||
+                        {}),
+                    ...(patch?.financeiro ||
+                        {}),
+                },
+
+                whatsapp: {
+                    ...defaultState.whatsapp,
+                    ...(currentState.whatsapp ||
+                        {}),
+                    ...(patch?.whatsapp || {}),
+
+                    confirmationMessage:
+                        sanitizeWhatsappMessage(
+                            patch?.whatsapp
+                                ?.confirmationMessage ??
+                                currentState
+                                    ?.whatsapp
+                                    ?.confirmationMessage,
+                            defaultState.whatsapp
+                                .confirmationMessage
+                        ),
+                },
+
+                navPreference:
+                    sanitizeNavPreference(
+                        patch?.navPreference ??
+                            currentState.navPreference ??
+                            defaultState.navPreference
+                    ),
+
+                updatedAt:
+                    new Date().toISOString(),
+            };
+
+            await writeToDevice(next);
+
+            return next;
+        }
+    );
+
+const systemSlice =
+    createSlice({
+        name: 'system',
+
+        initialState:
+            defaultState,
+
+        reducers: {
+            resetSystem: () =>
+                defaultState,
+        },
+
+        extraReducers:
+            (builder) => {
+                builder
+                    .addCase(
+                        loadSystem.fulfilled,
+                        (
+                            state,
+                            action
+                        ) => {
+                            return mergeWithDefaults(
+                                action.payload
+                            );
+                        }
+                    )
+
+                    .addCase(
+                        updateSystem.fulfilled,
+                        (
+                            state,
+                            action
+                        ) => {
+                            return mergeWithDefaults(
+                                action.payload
+                            );
+                        }
+                    );
+            },
+    });
+
+export const {
+    resetSystem,
+} = systemSlice.actions;
+
 export default systemSlice.reducer;
 
-/* --------- selectors --------- */
-export const selectSystem = (s) => s.system || defaultState;
-export const selectDefaultDuracao = createSelector(selectSystem, (sys) => sys.defaultDuracao);
-export const selectStartOfDay = createSelector(selectSystem, (sys) => sys.startOfDay);
+/* ---------- Selectors ---------- */
 
-export const selectIntegrations = createSelector(
-    selectSystem,
-    (sys) => sys.integrations || defaultState.integrations
-);
+export const selectSystem =
+    (state) =>
+        state.system ||
+        defaultState;
 
-export const selectGoogleCalendarIntegration = createSelector(
-    selectIntegrations,
-    (integrations) => ({
-        ...defaultState.integrations.googleCalendar,
-        ...(integrations?.googleCalendar || {}),
-    })
-);
+export const selectDefaultDuracao =
+    createSelector(
+        selectSystem,
+        (system) =>
+            system.defaultDuracao
+    );
 
-export const selectIsGoogleCalendarEnabled = createSelector(
-    selectGoogleCalendarIntegration,
-    (googleCalendar) => Boolean(googleCalendar.enabled)
-);
+export const selectStartOfDay =
+    createSelector(
+        selectSystem,
+        (system) =>
+            system.startOfDay
+    );
 
-export const selectGoogleCalendarStatus = createSelector(
-    selectGoogleCalendarIntegration,
-    (googleCalendar) => googleCalendar.status || "disabled"
-);
+export const selectIntegrations =
+    createSelector(
+        selectSystem,
+        (system) =>
+            system.integrations ||
+            defaultState.integrations
+    );
 
+export const selectGoogleCalendarIntegration =
+    createSelector(
+        selectIntegrations,
+        (integrations) => ({
+            ...defaultState
+                .integrations
+                .googleCalendar,
 
-// 🔹 NOVO selector
-export const selectNavPreference = createSelector(
-    selectSystem,
-    (sys) => sys.navPreference ?? 'ask'
-);
+            ...(integrations
+                ?.googleCalendar ||
+                {}),
+        })
+    );
+
+export const selectIsGoogleCalendarEnabled =
+    createSelector(
+        selectGoogleCalendarIntegration,
+        (googleCalendar) =>
+            Boolean(
+                googleCalendar.enabled
+            )
+    );
+
+export const selectGoogleCalendarStatus =
+    createSelector(
+        selectGoogleCalendarIntegration,
+        (googleCalendar) =>
+            googleCalendar.status ||
+            'disabled'
+    );
+
+export const selectNavPreference =
+    createSelector(
+        selectSystem,
+        (system) =>
+            system.navPreference ??
+            'ask'
+    );
+
+export const selectWhatsappSettings =
+    createSelector(
+        selectSystem,
+        (system) => ({
+            ...defaultState.whatsapp,
+            ...(system.whatsapp ||
+                {}),
+        })
+    );
+
+export const selectWhatsappConfirmationMessage =
+    createSelector(
+        selectWhatsappSettings,
+        (whatsapp) =>
+            whatsapp.confirmationMessage ||
+            DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE
+    );

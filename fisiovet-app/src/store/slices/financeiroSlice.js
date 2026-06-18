@@ -434,13 +434,33 @@ const financeiroSlice = createSlice({
           state.status = "succeeded";
           state.error = null;
 
-          state.byId = {};
-          state.allIds = [];
-
           const rows =
-            Array.isArray(action.payload)
+            Array.isArray(
+              action.payload
+            )
               ? action.payload
               : [];
+
+          /*
+           * Proteção da Fase 0:
+           *
+           * Se já existem lançamentos restaurados pelo
+           * Redux Persist, uma resposta vazia inesperada
+           * não deve apagar o estado local.
+           */
+          if (
+            rows.length === 0 &&
+            state.allIds.length > 0
+          ) {
+            state.lastLoadedAt =
+              new Date()
+                .toISOString();
+
+            return;
+          }
+
+          state.byId = {};
+          state.allIds = [];
 
           rows.forEach((item) => {
             upsertLancamentoState(
@@ -450,7 +470,8 @@ const financeiroSlice = createSlice({
           });
 
           state.lastLoadedAt =
-            new Date().toISOString();
+            new Date()
+              .toISOString();
         }
       )
 

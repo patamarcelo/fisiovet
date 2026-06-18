@@ -12,24 +12,28 @@ import {
     ActivityIndicator,
     Alert,
     Keyboard,
-    KeyboardAvoidingView,
     Linking,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Switch,
     Text,
     TextInput,
     View,
+    TouchableWithoutFeedback
 } from "react-native";
 
 import { useLocalSearchParams, useNavigation, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { shallowEqual, useDispatch, useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 import { useThemeColor } from "@/hooks/useThemeColor";
 import EnderecoCard from "@/src/screens/tutores/EnderecoCard";
@@ -44,7 +48,6 @@ import {
     selectPetsByTutorId,
     selectLoadingPetsByTutor,
     fetchPetsByTutor,
-    selectPetsState,
 } from "@/src/store/slices/petsSlice";
 
 import {
@@ -110,6 +113,7 @@ const STATUS_STYLES = {
 };
 
 const EVENT_STATUSES = ["pendente", "confirmado", "cancelado"];
+
 
 /* ---------------- Helpers ---------------- */
 
@@ -252,7 +256,11 @@ function FieldLabel({ children, helper }) {
     );
 }
 
-function InputShell({ children, disabled, multiline }) {
+function InputShell({
+    children,
+    disabled,
+    multiline,
+}) {
     return (
         <View
             style={[
@@ -275,12 +283,21 @@ const AppTextInput = React.forwardRef(function AppTextInput({
     keyboardType,
     icon,
     onFocus,
+    onBlur,
     returnKeyType,
     blurOnSubmit,
+    submitBehavior,
     onSubmitEditing,
+    autoCapitalize = "sentences",
+    autoCorrect = true,
+    spellCheck = true,
+    maxLength,
 }, ref) {
     return (
-        <InputShell disabled={disabled} multiline={multiline}>
+        <InputShell
+            disabled={disabled}
+            multiline={multiline}
+        >
             {!!icon && (
                 <Ionicons
                     name={icon}
@@ -293,7 +310,6 @@ const AppTextInput = React.forwardRef(function AppTextInput({
             <TextInput
                 ref={ref}
                 value={value}
-                onFocus={onFocus}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
                 placeholderTextColor="#9CA3AF"
@@ -302,8 +318,17 @@ const AppTextInput = React.forwardRef(function AppTextInput({
                 keyboardType={keyboardType}
                 returnKeyType={returnKeyType}
                 blurOnSubmit={blurOnSubmit}
+                submitBehavior={submitBehavior}
                 onSubmitEditing={onSubmitEditing}
-                textAlignVertical={multiline ? "top" : "center"}
+                autoCapitalize={autoCapitalize}
+                autoCorrect={autoCorrect}
+                spellCheck={spellCheck}
+                maxLength={maxLength}
+                onFocus={onFocus}
+                onBlur={onBlur}
+                textAlignVertical={
+                    multiline ? "top" : "center"
+                }
                 style={[
                     styles.input,
                     multiline && styles.inputMultiline,
@@ -388,7 +413,14 @@ function StatusField({ disabled, status, setStatus }) {
     );
 }
 
-function PriceField({ disabled, precoText, setPrecoText, eventoExistente }) {
+const PriceField = React.forwardRef(function PriceField({
+    disabled,
+    precoText,
+    setPrecoText,
+    eventoExistente,
+    onFocus,
+    onBlur,
+}, ref) {
     const precoNumber = useMemo(() => {
         const nFromText = parseBRLToNumber(precoText);
 
@@ -402,8 +434,15 @@ function PriceField({ disabled, precoText, setPrecoText, eventoExistente }) {
     if (disabled) {
         return (
             <View style={styles.readValueRow}>
-                <Ionicons name="cash-outline" size={18} color={COLORS.green} />
-                <Text style={styles.readValueText}>{formatNumberToBRL(precoNumber)}</Text>
+                <Ionicons
+                    name="cash-outline"
+                    size={18}
+                    color={COLORS.green}
+                />
+
+                <Text style={styles.readValueText}>
+                    {formatNumberToBRL(precoNumber)}
+                </Text>
             </View>
         );
     }
@@ -413,16 +452,23 @@ function PriceField({ disabled, precoText, setPrecoText, eventoExistente }) {
             <Text style={styles.moneyPrefix}>R$</Text>
 
             <TextInput
+                ref={ref}
                 placeholderTextColor="#9CA3AF"
                 placeholder="0,00"
                 value={precoText}
-                onChangeText={(v) => setPrecoText(normalizeMoneyInput(v))}
+                onChangeText={(value) =>
+                    setPrecoText(
+                        normalizeMoneyInput(value)
+                    )
+                }
                 keyboardType="decimal-pad"
+                onFocus={onFocus}
+                onBlur={onBlur}
                 style={styles.moneyInput}
             />
         </InputShell>
     );
-}
+});
 
 function TutorSuggestionList({ items, onSelect }) {
     return (
@@ -575,75 +621,82 @@ function EventLimitScreen({
             ]}
             edges={["left", "right", "bottom"]}
         >
-            <View style={styles.limitContent}>
-                <View style={styles.limitIcon}>
-                    <Ionicons
-                        name="calendar-outline"
-                        size={34}
-                        color={COLORS.blue}
-                    />
-                </View>
+            <TouchableWithoutFeedback
+                onPress={Keyboard.dismiss}
+                accessible={false}
+            >
 
-                <Text style={styles.limitTitle}>
-                    Limite de eventos atingido
-                </Text>
 
-                <Text style={styles.limitDescription}>
-                    Seu plano Free permite até {gate.limit} eventos.{" "}
-                    Você já possui {gate.current} cadastrados.
-                </Text>
-
-                <View style={styles.limitUsageCard}>
-                    <View style={styles.limitUsageTop}>
-                        <Text style={styles.limitUsageLabel}>
-                            Eventos cadastrados
-                        </Text>
-
-                        <Text style={styles.limitUsageCount}>
-                            {gate.current}/{gate.limit}
-                        </Text>
+                <View style={styles.limitContent}>
+                    <View style={styles.limitIcon}>
+                        <Ionicons
+                            name="calendar-outline"
+                            size={34}
+                            color={COLORS.blue}
+                        />
                     </View>
 
-                    <View style={styles.limitProgressTrack}>
-                        <View style={styles.limitProgressFill} />
-                    </View>
-                </View>
-
-                <Pressable
-                    onPress={gate.openPlans}
-                    style={({ pressed }) => [
-                        styles.limitPrimaryButton,
-                        pressed && { opacity: 0.86 },
-                    ]}
-                >
-                    <Ionicons
-                        name="star-outline"
-                        size={18}
-                        color="#FFFFFF"
-                    />
-
-                    <Text style={styles.limitPrimaryButtonText}>
-                        Ver planos
+                    <Text style={styles.limitTitle}>
+                        Limite de eventos atingido
                     </Text>
-                </Pressable>
 
-                <Pressable
-                    onPress={onBack}
-                    style={({ pressed }) => [
-                        styles.limitSecondaryButton,
-                        pressed && { opacity: 0.6 },
-                    ]}
-                >
-                    <Text
-                        style={[
-                            styles.limitSecondaryButtonText,
-                            { color: tint },
+                    <Text style={styles.limitDescription}>
+                        Seu plano Free permite até {gate.limit} eventos.{" "}
+                        Você já possui {gate.current} cadastrados.
+                    </Text>
+
+                    <View style={styles.limitUsageCard}>
+                        <View style={styles.limitUsageTop}>
+                            <Text style={styles.limitUsageLabel}>
+                                Eventos cadastrados
+                            </Text>
+
+                            <Text style={styles.limitUsageCount}>
+                                {gate.current}/{gate.limit}
+                            </Text>
+                        </View>
+
+                        <View style={styles.limitProgressTrack}>
+                            <View style={styles.limitProgressFill} />
+                        </View>
+                    </View>
+
+                    <Pressable
+                        onPress={gate.openPlans}
+                        style={({ pressed }) => [
+                            styles.limitPrimaryButton,
+                            pressed && { opacity: 0.86 },
                         ]}
                     >
-                        Voltar
-                    </Text>
-                </Pressable>
-            </View>
+                        <Ionicons
+                            name="star-outline"
+                            size={18}
+                            color="#FFFFFF"
+                        />
+
+                        <Text style={styles.limitPrimaryButtonText}>
+                            Ver planos
+                        </Text>
+                    </Pressable>
+
+                    <Pressable
+                        onPress={onBack}
+                        style={({ pressed }) => [
+                            styles.limitSecondaryButton,
+                            pressed && { opacity: 0.6 },
+                        ]}
+                    >
+                        <Text
+                            style={[
+                                styles.limitSecondaryButtonText,
+                                { color: tint },
+                            ]}
+                        >
+                            Voltar
+                        </Text>
+                    </Pressable>
+                </View>
+            </TouchableWithoutFeedback>
         </SafeAreaView>
     );
 }
@@ -694,7 +747,6 @@ export default function AgendaNewScreen() {
     const defaultStartDay = useSelector(selectStartOfDay);
     const defaultDur = useSelector(selectDefaultDuracao);
     const navPreference = useSelector(selectNavPreference);
-    const petsState = useSelector(selectPetsState, shallowEqual);
 
     const tutoresByQuerySelectorRef = useRef(makeSelectTutoresByQuery());
     const onSubmitRef = useRef(null);
@@ -733,25 +785,13 @@ export default function AgendaNewScreen() {
     const scrollRef = useRef(null);
     const titleRef = useRef(null);
     const descricaoRef = useRef(null);
+    const tutorQueryRef = useRef(null);
+    const precoRef = useRef(null);
+    const recorrenciasRef = useRef(null);
     const localRef = useRef(null);
     const observacoesRef = useRef(null);
 
-    const revealObservacoes = useCallback(() => {
-        setTimeout(() => {
-            const input = observacoesRef.current;
-            const responder = scrollRef.current?.getScrollResponder?.();
 
-            if (!input || !responder?.scrollResponderScrollNativeHandleToKeyboard) {
-                return;
-            }
-
-            responder.scrollResponderScrollNativeHandleToKeyboard(
-                input,
-                92,
-                true
-            );
-        }, 220);
-    }, []);
     const [precoText, setPrecoText] = useState("");
     const [status, setStatus] = useState("pendente");
     const [recorrente, setRecorrente] = useState(false);
@@ -763,20 +803,14 @@ export default function AgendaNewScreen() {
     const petsDoTutor = useSelector(selectPetsByTutorId(tutor?.id || ""));
     const loadingPets = useSelector(selectLoadingPetsByTutor(tutor?.id || ""));
 
-    const petNames = useMemo(() => {
-        const byId = petsState?.byId || {};
-
-        return (selectedPetIds || [])
-            .map((pid) => byId[String(pid)])
-            .filter(Boolean)
-            .map((p) => p?.nome || p?.name);
-    }, [selectedPetIds, petsState?.byId]);
 
     const tutoresBuscados = useSelector((state) =>
         tutoresByQuerySelectorRef.current(state, tutorQuery)
     );
 
     const goBack = useCallback(() => {
+        Keyboard.dismiss();
+
         if (router.canGoBack()) {
             router.back();
             return;
@@ -784,6 +818,19 @@ export default function AgendaNewScreen() {
 
         router.replace("/(phone)");
     }, []);
+
+    const focusInput = useCallback((inputRef) => {
+        inputRef?.current?.focus?.();
+    }, []);
+
+
+
+    const focusAfterRecurrence = useCallback(() => {
+        focusInput(localRef);
+    }, [focusInput]);
+
+
+
 
     /* ---------- Effects ---------- */
 
@@ -1341,23 +1388,23 @@ export default function AgendaNewScreen() {
 
     return (
         <SafeAreaView style={[styles.safe, { backgroundColor: bg }]} edges={[]}>
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={Platform.OS === "ios" ? "padding" : undefined}
-                keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-            >
-                <ScrollView
+            <View style={styles.flex}>
+                <KeyboardAwareScrollView
                     ref={scrollRef}
                     style={styles.flex}
                     contentContainerStyle={[
                         styles.content,
                         {
                             paddingBottom:
-                                (isEditing ? 108 : 28) + Math.max(insets.bottom, 0),
+                                (isEditing ? 108 : 28) +
+                                Math.max(insets.bottom, 0),
                         },
                     ]}
-                    keyboardShouldPersistTaps="always"
-                    keyboardDismissMode="none"
+                    bottomOffset={18}
+                    extraKeyboardSpace={48}
+                    disableScrollOnKeyboardHide
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="interactive"
                     showsVerticalScrollIndicator={false}
                 >
                     <SectionCard
@@ -1383,7 +1430,7 @@ export default function AgendaNewScreen() {
                             disabled={disabled}
                             returnKeyType="next"
                             blurOnSubmit={false}
-                            onSubmitEditing={() => descricaoRef.current?.focus()}
+                            onSubmitEditing={() => focusInput(descricaoRef)}
                         />
 
                         <View style={styles.fieldGap} />
@@ -1397,9 +1444,8 @@ export default function AgendaNewScreen() {
                             placeholder="Ex.: primeira sessão, retorno, pós-cirúrgico..."
                             disabled={disabled}
                             multiline
-                            returnKeyType="done"
-                            blurOnSubmit
-                            onSubmitEditing={Keyboard.dismiss}
+                            returnKeyType="default"
+                            blurOnSubmit={false}
                         />
                     </SectionCard>
 
@@ -1411,6 +1457,7 @@ export default function AgendaNewScreen() {
                         {!tutor?.id ? (
                             <>
                                 <AppTextInput
+                                    ref={tutorQueryRef}
                                     value={tutorQuery}
                                     onChangeText={(t) => {
                                         if (disabled) return;
@@ -1420,12 +1467,17 @@ export default function AgendaNewScreen() {
                                     placeholder="Buscar por nome, telefone ou e-mail"
                                     disabled={disabled}
                                     icon="search-outline"
+                                    returnKeyType="done"
+                                    blurOnSubmit
+                                    autoCapitalize="words"
+                                    onSubmitEditing={Keyboard.dismiss}
                                 />
 
                                 {!disabled && !!tutorQuery && (
                                     <TutorSuggestionList
                                         items={tutoresBuscados}
                                         onSelect={(item) => {
+                                            Keyboard.dismiss();
                                             setTutor(item);
                                             setTutorQuery("");
                                         }}
@@ -1542,10 +1594,12 @@ export default function AgendaNewScreen() {
                         <FieldLabel>Preço</FieldLabel>
 
                         <PriceField
+                            ref={precoRef}
                             disabled={disabled}
                             precoText={precoText}
                             setPrecoText={setPrecoText}
                             eventoExistente={eventoExistente}
+
                         />
                     </SectionCard>
 
@@ -1577,10 +1631,20 @@ export default function AgendaNewScreen() {
                                     <FieldLabel>Ocorrências</FieldLabel>
 
                                     <AppTextInput
+                                        ref={recorrenciasRef}
                                         value={recorrencias}
-                                        onChangeText={setRecorrencias}
+                                        onChangeText={(value) =>
+                                            setRecorrencias(
+                                                value.replace(/\D/g, "")
+                                            )
+                                        }
                                         placeholder="Ex.: 4"
                                         keyboardType="number-pad"
+                                        returnKeyType="next"
+                                        onSubmitEditing={
+                                            focusAfterRecurrence
+                                        }
+                                        maxLength={3}
                                     />
 
                                     <Text style={styles.helper}>
@@ -1591,8 +1655,13 @@ export default function AgendaNewScreen() {
                         </SectionCard>
                     )}
 
-                    <SectionCard title="Observações e local" icon="location-outline">
-                        <FieldLabel>Local</FieldLabel>
+                    <SectionCard
+                        title="Observações e local"
+                        icon="location-outline"
+                    >
+                        <FieldLabel>
+                            Local
+                        </FieldLabel>
 
                         <AppTextInput
                             ref={localRef}
@@ -1603,33 +1672,41 @@ export default function AgendaNewScreen() {
                             icon="location-outline"
                             returnKeyType="next"
                             blurOnSubmit={false}
-                            onSubmitEditing={() => observacoesRef.current?.focus()}
+                            onSubmitEditing={() =>
+                                focusInput(
+                                    observacoesRef
+                                )
+                            }
                         />
 
-                        <View style={styles.fieldGap} />
+                        <View
+                            style={
+                                styles.fieldGap
+                            }
+                        />
 
-                        <FieldLabel>Observações</FieldLabel>
+                        <FieldLabel>
+                            Observações
+                        </FieldLabel>
 
                         <AppTextInput
                             ref={observacoesRef}
                             value={observacoes}
-                            onFocus={revealObservacoes}
                             onChangeText={setObservacoes}
                             placeholder="Alguma observação sobre a consulta"
                             disabled={disabled}
                             multiline
-                            returnKeyType="done"
-                            blurOnSubmit
-                            onSubmitEditing={Keyboard.dismiss}
+                            returnKeyType="default"
+                            blurOnSubmit={false}
                         />
                     </SectionCard>
-
                     {!!tutor?.id && (
                         <View style={styles.enderecoWrap}>
                             <EnderecoCard tutor={tutor} />
                         </View>
                     )}
-                </ScrollView>
+                </KeyboardAwareScrollView>
+
 
                 {isEditing && (
                     <View
@@ -1653,16 +1730,34 @@ export default function AgendaNewScreen() {
                                 <ActivityIndicator size="small" color="#FFFFFF" />
                             ) : (
                                 <>
-                                    <Ionicons name="checkmark-circle-outline" size={18} color="#FFFFFF" />
+                                    <Ionicons
+                                        name="checkmark-circle-outline"
+                                        size={18}
+                                        color="#FFFFFF"
+                                    />
                                     <Text style={styles.saveButtonText}>
-                                        {eventIdParam ? "Salvar alterações" : "Salvar evento"}
+                                        {eventIdParam
+                                            ? "Salvar alterações"
+                                            : "Salvar evento"}
                                     </Text>
                                 </>
                             )}
                         </Pressable>
                     </View>
                 )}
-            </KeyboardAvoidingView>
+
+                {Platform.OS === "ios" && (
+                    <KeyboardToolbar style={styles.keyboardToolbar}>
+                        <KeyboardToolbar.Content>
+                            <Text style={styles.keyboardToolbarLabel}>
+                                Preenchimento do evento
+                            </Text>
+                        </KeyboardToolbar.Content>
+
+                        <KeyboardToolbar.Done text="Fechar" />
+                    </KeyboardToolbar>
+                )}
+            </View>
         </SafeAreaView>
     );
 }
@@ -2362,4 +2457,24 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: "750",
     },
+
+
+
+
+
+
+
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(60,60,67,0.20)",
+        backgroundColor: "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: COLORS.subtle,
+        fontSize: 12,
+        fontWeight: "650",
+    },
+
 });

@@ -54,10 +54,10 @@ export default function PhoneTabsLayout() {
 				<Label>Financeiro</Label>
 			</NativeTabs.Trigger>
 
-			<NativeTabs.Trigger name="biblioteca">
+			{/* <NativeTabs.Trigger name="biblioteca">
 				<Icon sf="book.fill" />
 				<Label>Biblioteca</Label>
-			</NativeTabs.Trigger>
+			</NativeTabs.Trigger> */}
 		</NativeTabs>
 	);
 }

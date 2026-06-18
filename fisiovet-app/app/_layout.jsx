@@ -45,6 +45,10 @@ import {
 } from "react-native-gesture-handler";
 
 import {
+	KeyboardProvider,
+} from "react-native-keyboard-controller";
+
+import {
 	Provider,
 	useDispatch,
 	useSelector,
@@ -113,6 +117,10 @@ import {
 	setSubscriptionStatus,
 } from "@/src/store/slices/subscriptionSlice";
 
+import {
+	postLoginBootstrap,
+} from "@/src/store/bootstrapSlice";
+
 const SPLASH_BG =
 	"#F7F8FA";
 
@@ -123,7 +131,7 @@ const SPLASH_IMAGE =
 
 SplashScreen
 	.preventAutoHideAsync()
-	.catch(() => {});
+	.catch(() => { });
 
 function StaticSplash({
 	showSpinner = false,
@@ -228,7 +236,7 @@ function useAuthBinding() {
 								customerInfo
 									?.entitlements
 									?.active ||
-									{}
+								{}
 							),
 
 						subscription,
@@ -267,7 +275,7 @@ function useAuthBinding() {
 		} = {}) => {
 			if (
 				Platform.OS !==
-					"ios" ||
+				"ios" ||
 				!userId ||
 				!alive
 			) {
@@ -291,21 +299,21 @@ function useAuthBinding() {
 					const customerInfo =
 						configure
 							? await configureAppleSubscriptions(
-									userId,
-									{
-										forceRefresh,
-									}
-								)
+								userId,
+								{
+									forceRefresh,
+								}
+							)
 							: await getAppleCustomerInfo(
-									{
-										forceRefresh,
-									}
-								);
+								{
+									forceRefresh,
+								}
+							);
 
 					if (
 						alive &&
 						currentUserId ===
-							userId
+						userId
 					) {
 						syncRevenueCatCustomerInfo(
 							customerInfo
@@ -326,96 +334,125 @@ function useAuthBinding() {
 		const unsubscribeAuth =
 			onAuthStateChanged(
 				auth,
-				async (firebaseUser) => {
-					/*
-					 * Remove o listener pertencente ao
-					 * usuário anterior antes de processar
-					 * uma nova mudança de autenticação.
-					 */
-					unsubscribeRevenueCat?.();
-
-					unsubscribeRevenueCat =
-						null;
-
-					try {
-						const dto =
-							mapFirebaseUserToDTO(
-								firebaseUser
-							);
-
-						currentUserId =
-							dto?.uid ||
-							null;
-
-						dispatch(
-							setUser(dto)
+				(firebaseUser) => {
+					const dto =
+						mapFirebaseUserToDTO(
+							firebaseUser
 						);
 
-						if (!dto?.uid) {
-							/*
-							 * Evita que o Premium persistido
-							 * do usuário anterior apareça para
-							 * um usuário deslogado ou para a
-							 * próxima conta.
-							 */
-							dispatch(
-								resetSubscription()
-							);
+					currentUserId =
+						dto?.uid || null;
 
-							if (
-								Platform.OS ===
-								"ios"
-							) {
-								try {
-									await logOutAppleSubscriptions();
-								} catch (
-									error
-								) {
-									console.log(
-										"Falha ao desconectar RevenueCat:",
-										error
-									);
-								}
-							}
+					dispatch(
+						setUser(dto)
+					);
 
-							return;
+					/*
+					 * Libera imediatamente a aplicação.
+					 *
+					 * A partir daqui, nenhuma chamada de rede
+					 * participa mais do boot visual.
+					 */
+					if (alive) {
+						setAuthReady(true);
+					}
+
+					unsubscribeRevenueCat?.();
+					unsubscribeRevenueCat = null;
+
+					if (!dto?.uid) {
+						dispatch(
+							resetSubscription()
+						);
+
+						if (
+							Platform.OS === "ios"
+						) {
+							void logOutAppleSubscriptions()
+								.catch((error) => {
+									const message =
+										String(
+											error?.message || ""
+										);
+
+									const alreadyAnonymous =
+										message
+											.toLowerCase()
+											.includes(
+												"current user is anonymous"
+											);
+
+									if (
+										!alreadyAnonymous
+									) {
+										console.log(
+											"Falha ao desconectar RevenueCat:",
+											error
+										);
+									}
+								});
 						}
 
-						try {
-							await dispatch(
-								syncUserProfile(
-									dto
-								)
-							).unwrap();
-						} catch (error) {
+						return;
+					}
+
+					/*
+					 * Atualiza tutores, pets e agenda em background.
+					 *
+					 * O Redux Persist já liberou os dados locais;
+					 * este bootstrap funciona somente como refresh.
+					 */
+					void dispatch(
+						postLoginBootstrap({
+							uid: dto.uid,
+							clinicId: null,
+						})
+					)
+						.unwrap()
+						.catch((error) => {
+							console.log(
+								"Falha no refresh inicial:",
+								error
+							);
+						});
+
+					/*
+					 * Atualização de perfil em background.
+					 * Não bloqueia a entrada.
+					 */
+					void dispatch(
+						syncUserProfile(dto)
+					)
+						.unwrap()
+						.catch((error) => {
 							console.log(
 								"Falha ao sincronizar profile:",
 								error
 							);
-						}
+						});
 
-						if (
-							Platform.OS ===
-							"ios"
-						) {
-							try {
-								await syncRevenueCat({
-									userId:
-										dto.uid,
+					/*
+					 * RevenueCat em background.
+					 * O subscriptionSlice persistido continua
+					 * sendo usado até chegar uma resposta nova.
+					 */
+					if (
+						Platform.OS === "ios"
+					) {
+						void syncRevenueCat({
+							userId: dto.uid,
+							forceRefresh: true,
+							configure: true,
+						})
+							.then(() => {
+								if (
+									!alive ||
+									currentUserId !==
+									dto.uid
+								) {
+									return;
+								}
 
-									forceRefresh:
-										true,
-
-									configure:
-										true,
-								});
-
-								/*
-								 * O listener cuida de compras,
-								 * restaurações e mudanças que o
-								 * SDK publicar enquanto o app
-								 * estiver em execução.
-								 */
 								unsubscribeRevenueCat =
 									subscribeToAppleCustomerInfo(
 										(
@@ -431,24 +468,13 @@ function useAuthBinding() {
 											}
 										}
 									);
-							} catch (error) {
+							})
+							.catch((error) => {
 								console.log(
 									"Falha ao configurar RevenueCat:",
 									error
 								);
-							}
-						}
-					} catch (error) {
-						console.log(
-							"Falha no auth binding:",
-							error
-						);
-					} finally {
-						if (alive) {
-							setAuthReady(
-								true
-							);
-						}
+							});
 					}
 				}
 			);
@@ -461,9 +487,9 @@ function useAuthBinding() {
 				) => {
 					if (
 						nextState !==
-							"active" ||
+						"active" ||
 						Platform.OS !==
-							"ios" ||
+						"ios" ||
 						!currentUserId
 					) {
 						return;
@@ -511,11 +537,6 @@ function AuthGate({
 				state.user.user
 		);
 
-	const boot =
-		useSelector(
-			(state) =>
-				state.bootstrap
-		);
 
 	const router =
 		useRouter();
@@ -536,7 +557,7 @@ function AuthGate({
 		const inAuth =
 			group === "(auth)" ||
 			group ===
-				"firebaseCheck";
+			"firebaseCheck";
 
 		const ALLOWED_TOP = [
 			"configuracoes",
@@ -562,12 +583,6 @@ function AuthGate({
 			return;
 		}
 
-		if (
-			boot?.loading ||
-			boot?.done === false
-		) {
-			return;
-		}
 
 		const shouldBeTablet =
 			variant ===
@@ -609,8 +624,6 @@ function AuthGate({
 		segments,
 		router,
 		variant,
-		boot?.loading,
-		boot?.done,
 	]);
 
 	return children;
@@ -743,7 +756,7 @@ function AppBoot({
 
 				SplashScreen
 					.hideAsync()
-					.catch(() => {});
+					.catch(() => { });
 			}, 80);
 
 		return () =>
@@ -766,7 +779,9 @@ function AppBoot({
 							SPLASH_BG,
 					}}
 				>
-					<RootNavigator />
+					<KeyboardProvider>
+						<RootNavigator />
+					</KeyboardProvider>
 				</GestureHandlerRootView>
 			</LayoutProvider>
 		</ColorSchemeProvider>

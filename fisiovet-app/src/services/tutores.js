@@ -1,11 +1,27 @@
 // src/services/tutores.js
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ensureFirebase } from '@/firebase/firebase';
+// @ts-nocheck
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureFirebase } from "@/firebase/firebase";
 
 /* =======================
    Constantes / helpers
 ======================= */
-const STORAGE_KEY = 'fisiovet:tutores_v1';
+
+const STORAGE_KEY = "fisiovet:tutores_v1";
+
+const POA = {
+  lat: -30.0346,
+  lng: -51.2177,
+};
+
+export const SEED_TUTORES = [];
+
+function genId() {
+  return `${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
+}
 
 function findUndefinedPaths(value, path = "") {
   const hits = [];
@@ -14,114 +30,227 @@ function findUndefinedPaths(value, path = "") {
     hits.push(path || "(root)");
     return hits;
   }
-  if (value === null) return hits;
+
+  if (value === null) {
+    return hits;
+  }
 
   if (Array.isArray(value)) {
-    value.forEach((v, i) => hits.push(...findUndefinedPaths(v, `${path}[${i}]`)));
+    value.forEach((item, index) => {
+      hits.push(
+        ...findUndefinedPaths(
+          item,
+          `${path}[${index}]`
+        )
+      );
+    });
+
     return hits;
   }
 
   if (typeof value === "object") {
-    for (const [k, v] of Object.entries(value)) {
-      const p = path ? `${path}.${k}` : k;
-      hits.push(...findUndefinedPaths(v, p));
+    for (const [key, item] of Object.entries(value)) {
+      const nextPath = path
+        ? `${path}.${key}`
+        : key;
+
+      hits.push(
+        ...findUndefinedPaths(
+          item,
+          nextPath
+        )
+      );
     }
   }
+
   return hits;
 }
 
-// POA mock (geocode)
-const POA = { lat: -30.0346, lng: -51.2177 };
-const jitter = (v) => v + (Math.random() - 0.5) * 0.02;
-
-export const SEED_TUTORES = []
-// export const SEED_TUTORES = [
-//   {
-//     id: 't1',
-//     nome: 'Ana Souza',
-//     telefone: '11999990001',
-//     email: 'ana@example.com',
-//     endereco: {
-//       cep: '90010-000',
-//       logradouro: 'Av. Borges de Medeiros',
-//       numero: '1000',
-//       bairro: 'Centro Histórico',
-//       cidade: 'Porto Alegre',
-//       uf: 'RS',
-//       formatted:
-//         'Av. Borges de Medeiros, 1000 - Centro Histórico, Porto Alegre - RS, 90010-000, Brasil',
-//     },
-//     geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t1' },
-//     createdAt: Date.now(),
-//     updatedAt: Date.now(),
-//   },
-//   {
-//     id: 't2',
-//     nome: 'Carlos Lima',
-//     telefone: '51988882222',
-//     email: 'carlos@example.com',
-//     endereco: {
-//       cep: '90020-004',
-//       logradouro: 'Rua dos Andradas',
-//       numero: '55',
-//       bairro: 'Centro',
-//       cidade: 'Porto Alegre',
-//       uf: 'RS',
-//       formatted: 'Rua dos Andradas, 55 - Centro, Porto Alegre - RS, 90020-004, Brasil',
-//     },
-//     geo: { lat: jitter(POA.lat), lng: jitter(POA.lng), precision: 'approx', placeId: 'mock-t2' },
-//     createdAt: Date.now(),
-//     updatedAt: Date.now(),
-//   },
-// ];
-
-// ids locais para fallback
-function genId() {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+function compareTutorNames(a, b) {
+  return String(a?.nome || "").localeCompare(
+    String(b?.nome || ""),
+    "pt-BR",
+    {
+      sensitivity: "base",
+    }
+  );
 }
 
-// geocode mock
-export async function geocodeCepMock(_cep, _enderecoParcial) {
-  return { ...POA };
+function sortTutores(list) {
+  return [...(Array.isArray(list) ? list : [])]
+    .sort(compareTutorNames);
+}
+
+function mergeTutor(previous = {}, incoming = {}) {
+  return {
+    ...previous,
+    ...incoming,
+
+    endereco: incoming?.endereco
+      ? {
+          ...(previous?.endereco || {}),
+          ...incoming.endereco,
+        }
+      : previous?.endereco,
+
+    geo: incoming?.geo
+      ? {
+          ...(previous?.geo || {}),
+          ...incoming.geo,
+        }
+      : previous?.geo,
+  };
 }
 
 /* =======================
-   AsyncStorage (fallback)
+   Geocode temporário
 ======================= */
+
+export async function geocodeCepMock(
+  _cep,
+  _enderecoParcial
+) {
+  return {
+    ...POA,
+  };
+}
+
+/* =======================
+   AsyncStorage
+======================= */
+
 async function loadAllLocal() {
-  const raw = await AsyncStorage.getItem(STORAGE_KEY);
+  const raw =
+    await AsyncStorage.getItem(
+      STORAGE_KEY
+    );
+
   if (!raw) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_TUTORES));
-    return SEED_TUTORES;
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        SEED_TUTORES
+      )
+    );
+
+    return [...SEED_TUTORES];
   }
+
   try {
-    const arr = JSON.parse(raw);
-    return Array.isArray(arr) ? arr : [];
-  } catch {
+    const parsed =
+      JSON.parse(raw);
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch (error) {
+    console.warn(
+      "⚠️ Falha ao ler cache local de tutores:",
+      error
+    );
+
     return [];
   }
 }
 
 async function saveAllLocal(tutores) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(tutores) ? tutores : []));
+  const safeList =
+    Array.isArray(tutores)
+      ? tutores
+      : [];
+
+  await AsyncStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(safeList)
+  );
+
+  return safeList;
+}
+
+async function upsertLocalTutor(
+  tutor
+) {
+  if (!tutor?.id) {
+    return null;
+  }
+
+  const tutores =
+    await loadAllLocal();
+
+  const id =
+    String(tutor.id);
+
+  const index =
+    tutores.findIndex(
+      (item) =>
+        String(item?.id) === id
+    );
+
+  if (index === -1) {
+    tutores.push(tutor);
+  } else {
+    tutores[index] =
+      mergeTutor(
+        tutores[index],
+        tutor
+      );
+  }
+
+  await saveAllLocal(
+    tutores
+  );
+
+  return (
+    tutores.find(
+      (item) =>
+        String(item?.id) === id
+    ) || tutor
+  );
+}
+
+async function removeLocalTutor(
+  id
+) {
+  const tutores =
+    await loadAllLocal();
+
+  const next =
+    tutores.filter(
+      (item) =>
+        String(item?.id) !==
+        String(id)
+    );
+
+  await saveAllLocal(next);
+
+  return String(id);
 }
 
 /* =======================
-   Firestore helpers
+   Firestore
 ======================= */
-function getCol(firestore, uid) {
-  return firestore.collection('users').doc(String(uid)).collection('tutores');
+
+function getCol(
+  firestore,
+  uid
+) {
+  return firestore
+    .collection("users")
+    .doc(String(uid))
+    .collection("tutores");
 }
 
 function docToTutor(doc) {
-  const data = doc.data() || {};
-  // normaliza timestamps (serverTimestamp pode vir como FieldValue até resolver)
+  const data =
+    doc.data() || {};
+
   const createdAt =
-    (data.createdAt && data.createdAt.toMillis?.()) ??
+    data.createdAt?.toMillis?.() ??
     data.createdAtMs ??
     Date.now();
+
   const updatedAt =
-    (data.updatedAt && data.updatedAt.toMillis?.()) ??
+    data.updatedAt?.toMillis?.() ??
     data.updatedAtMs ??
     createdAt;
 
@@ -134,160 +263,450 @@ function docToTutor(doc) {
 }
 
 /* =======================
-   API pública (cloud-first)
+   API pública
 ======================= */
 
-/** Lista todos (cloud se logado, senão local) */
 export async function listTutores() {
-  const fb = ensureFirebase();
-  const uid = fb?.auth?.currentUser?.uid;
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
   if (fb && uid) {
-    const snap = await getCol(fb.firestore, uid).orderBy('nome').get();
-    return snap.docs.map(docToTutor);
+    try {
+      const snapshot =
+        await getCol(
+          fb.firestore,
+          uid
+        )
+          .orderBy("nome")
+          .get();
+
+      const rows =
+        snapshot.docs.map(
+          docToTutor
+        );
+
+      /*
+       * Na Fase 0 não apagamos um cache local preenchido
+       * somente porque a consulta remota retornou [].
+       *
+       * O reducer também possui a mesma proteção.
+       */
+      if (rows.length > 0) {
+        await saveAllLocal(
+          rows
+        );
+      }
+
+      return sortTutores(
+        rows
+      );
+    } catch (error) {
+      console.warn(
+        "⚠️ Firestore indisponível ao listar tutores. Usando cache local.",
+        error
+      );
+
+      const local =
+        await loadAllLocal();
+
+      if (local.length > 0) {
+        return sortTutores(
+          local
+        );
+      }
+
+      /*
+       * Rejeita o thunk para preservar o Redux Persist
+       * já hidratado, em vez de entregar [].
+       */
+      throw error;
+    }
   }
 
-  // fallback local
-  const list = await loadAllLocal();
-  const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
-  return list.slice().sort((a, b) => collator.compare(a.nome || '', b.nome || ''));
+  return sortTutores(
+    await loadAllLocal()
+  );
 }
 
-/** Busca um */
-export async function getTutorById(id) {
-  const fb = ensureFirebase();
-  const uid = fb?.auth?.currentUser?.uid;
+export async function getTutorById(
+  id
+) {
+  const safeId =
+    String(id);
+
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
   if (fb && uid) {
-    const ref = getCol(fb.firestore, uid).doc(String(id));
-    const snap = await ref.get();
-    if (!snap.exists) throw new Error('Tutor não encontrado');
-    return docToTutor(snap);
+    try {
+      const snapshot =
+        await getCol(
+          fb.firestore,
+          uid
+        )
+          .doc(safeId)
+          .get();
+
+      if (!snapshot.exists) {
+        throw new Error(
+          "Tutor não encontrado."
+        );
+      }
+
+      const tutor =
+        docToTutor(snapshot);
+
+      await upsertLocalTutor(
+        tutor
+      );
+
+      return tutor;
+    } catch (error) {
+      const local =
+        (
+          await loadAllLocal()
+        ).find(
+          (item) =>
+            String(item?.id) ===
+            safeId
+        );
+
+      if (local) {
+        return {
+          ...local,
+        };
+      }
+
+      throw error;
+    }
   }
 
-  // fallback local
-  const tutores = await loadAllLocal();
-  const t = tutores.find((x) => x.id === id);
-  if (!t) throw new Error('Tutor não encontrado');
-  return { ...t };
+  const local =
+    (
+      await loadAllLocal()
+    ).find(
+      (item) =>
+        String(item?.id) ===
+        safeId
+    );
+
+  if (!local) {
+    throw new Error(
+      "Tutor não encontrado."
+    );
+  }
+
+  return {
+    ...local,
+  };
 }
 
-/** Cria */
-export async function createTutor(payload) {
-  const fb = ensureFirebase();
-  const uid = fb?.auth?.currentUser?.uid;
+export async function createTutor(
+  payload
+) {
+  const fb =
+    ensureFirebase();
 
-  const geo = payload.geo ?? (await geocodeCepMock(payload?.endereco?.cep, payload?.endereco));
+  const uid =
+    fb?.auth?.currentUser?.uid;
+
+  const geo =
+    payload?.geo ??
+    (
+      await geocodeCepMock(
+        payload?.endereco?.cep,
+        payload?.endereco
+      )
+    );
 
   if (fb && uid) {
-    const col = getCol(fb.firestore, uid);
-    const ref = col.doc();
-    const nowSrv = fb.firestoreModule.FieldValue.serverTimestamp();
-    const nowMs = Date.now();
+    const collectionRef =
+      getCol(
+        fb.firestore,
+        uid
+      );
+
+    const documentRef =
+      collectionRef.doc();
+
+    const nowMs =
+      Date.now();
+
+    const serverTimestamp =
+      fb.firestoreModule
+        .FieldValue
+        .serverTimestamp();
 
     const data = {
       ...payload,
       geo,
-      createdAt: nowSrv,
-      updatedAt: nowSrv,
-      createdAtMs: nowMs,
-      updatedAtMs: nowMs,
+      createdAt:
+        serverTimestamp,
+      updatedAt:
+        serverTimestamp,
+      createdAtMs:
+        nowMs,
+      updatedAtMs:
+        nowMs,
     };
 
-    const undefinedPaths = findUndefinedPaths(data);
-    if (undefinedPaths.length) {
-      console.log("🔥 Firestore SET: undefinedPaths =", undefinedPaths);
-      console.log("🔥 Firestore SET: data =", JSON.stringify(data, null, 2));
-      throw new Error("Payload contém undefined: " + undefinedPaths.join(", "));
+    const undefinedPaths =
+      findUndefinedPaths(data);
+
+    if (
+      undefinedPaths.length > 0
+    ) {
+      console.log(
+        "🔥 Firestore SET: undefinedPaths =",
+        undefinedPaths
+      );
+
+      throw new Error(
+        `Payload contém undefined: ${undefinedPaths.join(", ")}`
+      );
     }
 
-    await ref.set(data);
-    // retorna payload+id com ms locais (útil pra UI)
-    return { id: ref.id, ...payload, geo, createdAt: nowMs, updatedAt: nowMs };
+    await documentRef.set(
+      data
+    );
+
+    const saved = {
+      id: documentRef.id,
+      ...payload,
+      geo,
+      createdAt: nowMs,
+      updatedAt: nowMs,
+    };
+
+    await upsertLocalTutor(
+      saved
+    );
+
+    return saved;
   }
 
-  // fallback local
-  const tutores = await loadAllLocal();
-  const now = Date.now();
-  const item = { id: genId(), ...payload, geo, createdAt: now, updatedAt: now };
-  tutores.push(item);
-  await saveAllLocal(tutores);
-  return { ...item };
+  const now =
+    Date.now();
+
+  const saved = {
+    id: genId(),
+    ...payload,
+    geo,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await upsertLocalTutor(
+    saved
+  );
+
+  return saved;
 }
 
-/** Atualiza */
-export async function updateTutor(id, patch) {
-  const fb = ensureFirebase();
-  const uid = fb?.auth?.currentUser?.uid;
+export async function updateTutor(
+  id,
+  patch
+) {
+  const safeId =
+    String(id);
+
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
   if (fb && uid) {
-    // se veio patch.geo, usa; senão, checa se endereço/cep mudou para recalcular (mock)
-    let geo = patch.geo;
-    if (!geo && patch?.endereco) {
-      // pega doc atual para comparar
-      const current = await getTutorById(id);
-      const cepOriginal = current?.endereco?.cep;
-      const cepNovo = patch?.endereco?.cep;
-      const cepMudou = cepNovo && cepNovo !== cepOriginal;
-      if (cepMudou || patch?.endereco) {
-        geo = await geocodeCepMock(cepNovo ?? cepOriginal, patch?.endereco ?? current?.endereco);
-      }
+    let geo =
+      patch?.geo;
+
+    if (
+      !geo &&
+      patch?.endereco
+    ) {
+      const current =
+        await getTutorById(
+          safeId
+        );
+
+      const originalCep =
+        current?.endereco?.cep;
+
+      const nextCep =
+        patch?.endereco?.cep;
+
+      geo =
+        await geocodeCepMock(
+          nextCep ??
+            originalCep,
+          patch?.endereco ??
+            current?.endereco
+        );
     }
 
-    const ref = getCol(fb.firestore, uid).doc(String(id));
-    const nowSrv = fb.firestoreModule.FieldValue.serverTimestamp();
-    const nowMs = Date.now();
+    const documentRef =
+      getCol(
+        fb.firestore,
+        uid
+      ).doc(safeId);
 
-    await ref.update({
+    const nowMs =
+      Date.now();
+
+    const serverTimestamp =
+      fb.firestoreModule
+        .FieldValue
+        .serverTimestamp();
+
+    await documentRef.update({
       ...patch,
-      ...(geo ? { geo } : {}),
-      updatedAt: nowSrv,
-      updatedAtMs: nowMs,
+      ...(geo
+        ? {
+            geo,
+          }
+        : {}),
+      updatedAt:
+        serverTimestamp,
+      updatedAtMs:
+        nowMs,
     });
-    
 
-    // retorna merge local para atualizar store
-    return { id, ...patch, ...(geo ? { geo } : {}), updatedAt: nowMs };
+    const previousLocal =
+      (
+        await loadAllLocal()
+      ).find(
+        (item) =>
+          String(item?.id) ===
+          safeId
+      ) || {
+        id: safeId,
+      };
+
+    const saved =
+      mergeTutor(
+        previousLocal,
+        {
+          ...patch,
+          ...(geo
+            ? {
+                geo,
+              }
+            : {}),
+          id: safeId,
+          updatedAt:
+            nowMs,
+        }
+      );
+
+    await upsertLocalTutor(
+      saved
+    );
+
+    return saved;
   }
 
-  // fallback local
-  const tutores = await loadAllLocal();
-  const idx = tutores.findIndex((x) => x.id === id);
-  if (idx === -1) throw new Error('Tutor não encontrado');
+  const tutores =
+    await loadAllLocal();
 
-  let geo = patch.geo ?? tutores[idx].geo;
-  const cepOriginal = tutores[idx]?.endereco?.cep;
-  const cepNovo = patch?.endereco?.cep;
-  const cepMudou = cepNovo && cepNovo !== cepOriginal;
-  if (!patch.geo && (cepMudou || patch?.endereco)) {
-    geo = await geocodeCepMock(cepNovo ?? cepOriginal, patch?.endereco ?? tutores[idx]?.endereco);
+  const index =
+    tutores.findIndex(
+      (item) =>
+        String(item?.id) ===
+        safeId
+    );
+
+  if (index === -1) {
+    throw new Error(
+      "Tutor não encontrado."
+    );
   }
 
-  tutores[idx] = { ...tutores[idx], ...patch, geo, updatedAt: Date.now() };
-  await saveAllLocal(tutores);
-  return { ...tutores[idx] };
+  let geo =
+    patch?.geo ??
+    tutores[index]?.geo;
+
+  if (
+    !patch?.geo &&
+    patch?.endereco
+  ) {
+    geo =
+      await geocodeCepMock(
+        patch?.endereco?.cep ??
+          tutores[index]
+            ?.endereco?.cep,
+        patch?.endereco ??
+          tutores[index]
+            ?.endereco
+      );
+  }
+
+  const saved =
+    mergeTutor(
+      tutores[index],
+      {
+        ...patch,
+        geo,
+        id: safeId,
+        updatedAt:
+          Date.now(),
+      }
+    );
+
+  tutores[index] =
+    saved;
+
+  await saveAllLocal(
+    tutores
+  );
+
+  return saved;
 }
 
-/** Remove */
-export async function removeTutor(id) {
-  const fb = ensureFirebase();
-  const uid = fb?.auth?.currentUser?.uid;
+export async function removeTutor(
+  id
+) {
+  const safeId =
+    String(id);
+
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
   if (fb && uid) {
-    const ref = getCol(fb.firestore, uid).doc(String(id));
-    await ref.delete();
-    return { ok: true };
+    await getCol(
+      fb.firestore,
+      uid
+    )
+      .doc(safeId)
+      .delete();
   }
 
-  // fallback local
-  const tutores = await loadAllLocal();
-  const next = tutores.filter((x) => x.id !== id);
-  await saveAllLocal(next);
-  return { ok: true };
+  await removeLocalTutor(
+    safeId
+  );
+
+  return {
+    ok: true,
+  };
 }
 
-/** (Opcional DEV) reset local */
 export async function resetTutoresToSeed() {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(SEED_TUTORES));
-  return { ok: true };
+  await AsyncStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(
+      SEED_TUTORES
+    )
+  );
+
+  return {
+    ok: true,
+  };
 }

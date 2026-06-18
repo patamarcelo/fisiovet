@@ -12,10 +12,9 @@ import React, {
 import {
 	ActivityIndicator,
 	Alert,
-	KeyboardAvoidingView,
+	Keyboard,
 	Platform,
 	Pressable,
-	ScrollView,
 	StyleSheet,
 	Text,
 	View,
@@ -25,6 +24,11 @@ import {
 	SafeAreaView,
 	useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
+import {
+	KeyboardAwareScrollView,
+	KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 import {
 	router,
@@ -310,14 +314,17 @@ export default function TutorForm() {
 		!isEdit &&
 		!tutorGate.canCreate;
 
+	const nomeRef = useRef(null);
 	const emailRef = useRef(null);
 	const addressQueryRef = useRef(null);
 	const numeroRef = useRef(null);
 	const telefoneRef = useRef(null);
+	const logradouroRef = useRef(null);
 	const bairroRef = useRef(null);
 	const cidadeRef = useRef(null);
 	const ufRef = useRef(null);
 	const complementoRef = useRef(null);
+	const observacoesRef = useRef(null);
 	const autocompleteTimerRef = useRef(null);
 	const sessionTokenRef = useRef(null);
 
@@ -400,6 +407,8 @@ export default function TutorForm() {
 	}, []);
 
 	const goBack = useCallback(() => {
+		Keyboard.dismiss();
+
 		if (router.canGoBack()) {
 			router.back();
 			return;
@@ -1382,24 +1391,15 @@ export default function TutorForm() {
 	}
 
 	return (
-		<KeyboardAvoidingView
+		<SafeAreaView
 			style={[
 				styles.root,
 				{ backgroundColor: background },
 			]}
-			behavior={
-				Platform.OS === "ios"
-					? "padding"
-					: undefined
-			}
-			keyboardVerticalOffset={
-				Platform.OS === "ios"
-					? 64
-					: 0
-			}
+			edges={[]}
 		>
 			<View style={styles.shell}>
-				<ScrollView
+				<KeyboardAwareScrollView
 					style={styles.scroll}
 					contentContainerStyle={[
 						styles.content,
@@ -1409,7 +1409,11 @@ export default function TutorForm() {
 								insets.bottom,
 						},
 					]}
+					bottomOffset={18}
+					extraKeyboardSpace={48}
+					disableScrollOnKeyboardHide
 					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="interactive"
 					showsVerticalScrollIndicator={false}
 				>
 					<FormSection
@@ -1425,6 +1429,7 @@ export default function TutorForm() {
 							}
 						>
 							<ThemedTextInput
+								ref={nomeRef}
 								placeholder="Ex.: Maria Souza"
 								value={nome}
 								onChangeText={setNome}
@@ -1587,7 +1592,7 @@ export default function TutorForm() {
 								{showSuggestions &&
 									addressSuggestions.length > 0 && (
 										<View style={styles.suggestionsCard}>
-											{addressSuggestions.map(
+											{addressSuggestions.slice(0, 6).map(
 												(suggestion, index) => (
 													<Pressable
 														key={suggestion.placeId}
@@ -1650,6 +1655,7 @@ export default function TutorForm() {
 
 						<Field label="Logradouro">
 							<ThemedTextInput
+								ref={logradouroRef}
 								placeholder="Rua, avenida, estrada..."
 								value={logradouro}
 								onChangeText={(value) => {
@@ -1766,7 +1772,10 @@ export default function TutorForm() {
 								ref={complementoRef}
 								value={complemento}
 								onChangeText={setComplemento}
-								returnKeyType="done"
+								returnKeyType="next"
+								onSubmitEditing={() =>
+									observacoesRef.current?.focus()
+								}
 								style={styles.input}
 							/>
 						</Field>
@@ -1777,11 +1786,14 @@ export default function TutorForm() {
 						helper="Campo livre para preferências, restrições, comportamento do tutor ou anotações úteis."
 					>
 						<ThemedTextInput
+							ref={observacoesRef}
 							placeholder="Anotações gerais sobre o tutor..."
 							value={observacoes}
 							onChangeText={setObservacoes}
 							multiline
 							numberOfLines={4}
+							returnKeyType="default"
+							blurOnSubmit={false}
 							style={[
 								styles.input,
 								styles.textArea,
@@ -1803,7 +1815,7 @@ export default function TutorForm() {
 							{firstError}
 						</Text>
 					)}
-				</ScrollView>
+				</KeyboardAwareScrollView>
 
 				<View
 					style={[
@@ -1866,8 +1878,20 @@ export default function TutorForm() {
 								: "Você pode completar os dados do tutor depois."}
 					</Text>
 				</View>
+
+				{Platform.OS === "ios" && (
+					<KeyboardToolbar style={styles.keyboardToolbar}>
+						<KeyboardToolbar.Content>
+							<Text style={styles.keyboardToolbarLabel}>
+								Preenchimento do tutor
+							</Text>
+						</KeyboardToolbar.Content>
+
+						<KeyboardToolbar.Done text="Fechar" />
+					</KeyboardToolbar>
+				)}
 			</View>
-		</KeyboardAvoidingView>
+		</SafeAreaView>
 	);
 }
 
@@ -2262,4 +2286,17 @@ const styles = StyleSheet.create({
 		fontSize: 14,
 		fontWeight: "750",
 	},
+	keyboardToolbar: {
+		minHeight: 46,
+		borderTopWidth: StyleSheet.hairlineWidth,
+		borderTopColor: "rgba(60,60,67,0.20)",
+		backgroundColor: "rgba(248,248,248,0.98)",
+	},
+
+	keyboardToolbarLabel: {
+		color: "#6B7280",
+		fontSize: 12,
+		fontWeight: "650",
+	},
+
 });

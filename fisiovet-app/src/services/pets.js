@@ -1,287 +1,838 @@
 // src/services/pets.js
-// JS puro
+// @ts-nocheck
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { ensureFirebase } from '@/firebase/firebase';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { ensureFirebase } from "@/firebase/firebase";
 
 /* =====================================
-   Constantes / helpers (AsyncStorage)
+   Constantes / helpers
 ===================================== */
-const STORAGE_KEY = 'fisiovet:pets_v1';
 
-// (opcional) SEED inicial — deixe [] para começar do zero
+const STORAGE_KEY =
+  "fisiovet:pets_v1";
+
 export let _pets = [];
 
-// IDs locais para fallback
 function genId() {
-    return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 9)}`;
+  return `${Date.now().toString(36)}-${Math.random()
+    .toString(36)
+    .slice(2, 9)}`;
 }
 
-// --------- Local store ----------
+function comparePetNames(a, b) {
+  return String(a?.nome || "").localeCompare(
+    String(b?.nome || ""),
+    "pt-BR",
+    {
+      sensitivity: "base",
+    }
+  );
+}
+
+function sortPets(list) {
+  return [...(Array.isArray(list) ? list : [])]
+    .sort(comparePetNames);
+}
+
+function mergePet(
+  previous = {},
+  incoming = {}
+) {
+  return {
+    ...previous,
+    ...incoming,
+
+    tutor: incoming?.tutor
+      ? {
+          ...(previous?.tutor || {}),
+          ...incoming.tutor,
+        }
+      : previous?.tutor,
+  };
+}
+
+/* =====================================
+   AsyncStorage
+===================================== */
+
 async function loadAllLocal() {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-        return [];
-    }
-    try {
-        const arr = JSON.parse(raw);
-        return Array.isArray(arr) ? arr : [];
-    } catch {
-        return [];
-    }
+  const raw =
+    await AsyncStorage.getItem(
+      STORAGE_KEY
+    );
+
+  if (!raw) {
+    return [];
+  }
+
+  try {
+    const parsed =
+      JSON.parse(raw);
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch (error) {
+    console.warn(
+      "⚠️ Falha ao ler cache local de pets:",
+      error
+    );
+
+    return [];
+  }
 }
 
-async function saveAllLocal(pets) {
-    await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(Array.isArray(pets) ? pets : []));
+async function saveAllLocal(
+  pets
+) {
+  const safeList =
+    Array.isArray(pets)
+      ? pets
+      : [];
+
+  await AsyncStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify(safeList)
+  );
+
+  return safeList;
+}
+
+async function upsertLocalPet(
+  pet
+) {
+  if (!pet?.id) {
+    return null;
+  }
+
+  const pets =
+    await loadAllLocal();
+
+  const id =
+    String(pet.id);
+
+  const index =
+    pets.findIndex(
+      (item) =>
+        String(item?.id) === id
+    );
+
+  if (index === -1) {
+    pets.push(pet);
+  } else {
+    pets[index] =
+      mergePet(
+        pets[index],
+        pet
+      );
+  }
+
+  await saveAllLocal(
+    pets
+  );
+
+  return (
+    pets.find(
+      (item) =>
+        String(item?.id) === id
+    ) || pet
+  );
+}
+
+async function upsertManyLocalPets(
+  rows
+) {
+  const current =
+    await loadAllLocal();
+
+  const byId =
+    new Map(
+      current
+        .filter(
+          (item) =>
+            item?.id != null
+        )
+        .map(
+          (item) => [
+            String(item.id),
+            item,
+          ]
+        )
+    );
+
+  for (const pet of rows || []) {
+    if (!pet?.id) {
+      continue;
+    }
+
+    const id =
+      String(pet.id);
+
+    byId.set(
+      id,
+      mergePet(
+        byId.get(id) || {},
+        pet
+      )
+    );
+  }
+
+  const next =
+    Array.from(
+      byId.values()
+    );
+
+  await saveAllLocal(
+    next
+  );
+
+  return next;
+}
+
+async function removeLocalPet(
+  id
+) {
+  const pets =
+    await loadAllLocal();
+
+  const next =
+    pets.filter(
+      (item) =>
+        String(item?.id) !==
+        String(id)
+    );
+
+  await saveAllLocal(next);
+
+  return String(id);
 }
 
 /* =====================================
-   Firestore helpers
-   Coleção: users/{uid}/pets
+   Firestore
 ===================================== */
-function getCol(firestore, uid) {
-    return firestore.collection('users').doc(String(uid)).collection('pets');
+
+function getCol(
+  firestore,
+  uid
+) {
+  return firestore
+    .collection("users")
+    .doc(String(uid))
+    .collection("pets");
 }
 
-// normaliza timestamps que podem estar como FieldValue ou Timestamp
 function docToPet(doc) {
-    const data = doc.data() || {};
-    const createdAt =
-        (data.createdAt && data.createdAt.toMillis?.()) ??
-        data.createdAtMs ??
-        Date.now();
-    const updatedAt =
-        (data.updatedAt && data.updatedAt.toMillis?.()) ??
-        data.updatedAtMs ??
-        createdAt;
-    return {
-        id: doc.id,
-        ...data,
-        createdAt,
-        updatedAt,
-    };
+  const data =
+    doc.data() || {};
+
+  const createdAt =
+    data.createdAt?.toMillis?.() ??
+    data.createdAtMs ??
+    Date.now();
+
+  const updatedAt =
+    data.updatedAt?.toMillis?.() ??
+    data.updatedAtMs ??
+    createdAt;
+
+  return {
+    id: doc.id,
+    ...data,
+    createdAt,
+    updatedAt,
+  };
 }
 
 /* =====================================
-   API pública (cloud-first com fallback)
+   API pública
 ===================================== */
 
-/** Lista todos os pets (cloud se logado; senão local) */
 export async function listPets() {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
+  const fb =
+    ensureFirebase();
 
-    console.log('listPets → usando', (fb && uid) ? 'FIRESTORE' : 'LOCAL');
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
-    if (fb && uid) {
-        const snap = await getCol(fb.firestore, uid).orderBy('nome').get();
-        console.log('Firestore count:', snap.size);
-        return snap.docs.map(docToPet);
+  console.log(
+    "listPets → usando",
+    fb && uid
+      ? "FIRESTORE"
+      : "LOCAL"
+  );
+
+  if (fb && uid) {
+    try {
+      const snapshot =
+        await getCol(
+          fb.firestore,
+          uid
+        )
+          .orderBy("nome")
+          .get();
+
+      const rows =
+        snapshot.docs.map(
+          docToPet
+        );
+
+      console.log(
+        "Firestore count:",
+        snapshot.size
+      );
+
+      if (rows.length > 0) {
+        await saveAllLocal(
+          rows
+        );
+      }
+
+      return sortPets(
+        rows
+      );
+    } catch (error) {
+      console.warn(
+        "⚠️ Firestore indisponível ao listar pets. Usando cache local.",
+        error
+      );
+
+      const local =
+        await loadAllLocal();
+
+      if (local.length > 0) {
+        return sortPets(
+          local
+        );
+      }
+
+      throw error;
     }
+  }
 
-    const pets = await loadAllLocal();
-    console.log('Local count:', pets.length);
-    return pets.slice().sort((a, b) => a.nome.localeCompare(b.nome));
+  const local =
+    await loadAllLocal();
+
+  console.log(
+    "Local count:",
+    local.length
+  );
+
+  return sortPets(local);
 }
-/** Lista pets de um tutor específico */
-export async function listPetsByTutor(tutorId) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
 
-    if (fb && uid) {
-        const snap = await getCol(fb.firestore, uid)
-            .where('tutor.id', '==', String(tutorId))
-            .orderBy('nome')
-            .get();
-        return snap.docs.map(docToPet);
+export async function listPetsByTutor(
+  tutorId
+) {
+  const safeTutorId =
+    String(tutorId);
+
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
+
+  if (fb && uid) {
+    try {
+      const snapshot =
+        await getCol(
+          fb.firestore,
+          uid
+        )
+          .where(
+            "tutor.id",
+            "==",
+            safeTutorId
+          )
+          .orderBy("nome")
+          .get();
+
+      const rows =
+        snapshot.docs.map(
+          docToPet
+        );
+
+      /*
+       * Como a consulta contém somente os pets deste tutor,
+       * fazemos upsert e não substituímos todo o cache.
+       */
+      if (rows.length > 0) {
+        await upsertManyLocalPets(
+          rows
+        );
+      }
+
+      return sortPets(
+        rows
+      );
+    } catch (error) {
+      console.warn(
+        "⚠️ Firestore indisponível ao listar pets do tutor. Usando cache local.",
+        error
+      );
+
+      const local =
+        (
+          await loadAllLocal()
+        ).filter(
+          (pet) =>
+            String(
+              pet?.tutor?.id
+            ) ===
+            safeTutorId
+        );
+
+      if (local.length > 0) {
+        return sortPets(
+          local
+        );
+      }
+
+      throw error;
     }
+  }
 
-    // fallback local
-    const pets = await loadAllLocal();
-    const filtered = pets.filter((p) => p.tutor?.id === tutorId);
-    const collator = new Intl.Collator('pt-BR', { sensitivity: 'base' });
-    return filtered.slice().sort((a, b) => collator.compare(a.nome || '', b.nome || ''));
+  return sortPets(
+    (
+      await loadAllLocal()
+    ).filter(
+      (pet) =>
+        String(
+          pet?.tutor?.id
+        ) ===
+        safeTutorId
+    )
+  );
 }
 
-/** Busca um pet por id */
-export async function getPetById(id) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
+export async function getPetById(
+  id
+) {
+  const safeId =
+    String(id);
 
-    if (fb && uid) {
-        const snap = await getCol(fb.firestore, uid).doc(String(id)).get();
-        if (!snap.exists) throw new Error('Pet não encontrado');
-        return docToPet(snap);
-    }
+  const fb =
+    ensureFirebase();
 
-    // fallback local
-    const pets = await loadAllLocal();
-    const p = pets.find((x) => x.id === id);
-    if (!p) throw new Error('Pet não encontrado');
-    return { ...p };
-}
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
-/** Cria pet */
-export async function createPet(payload) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
+  if (fb && uid) {
+    try {
+      const snapshot =
+        await getCol(
+          fb.firestore,
+          uid
+        )
+          .doc(safeId)
+          .get();
 
-    // payload esperado (exemplo):
-    // { tutor: { id }, nome, especie, raca, cor, sexo, castrado, nasc, pesoKg, ... }
+      if (!snapshot.exists) {
+        throw new Error(
+          "Pet não encontrado."
+        );
+      }
 
-    if (fb && uid) {
-        const col = getCol(fb.firestore, uid);
-        const ref = col.doc();
-        const nowMs = Date.now();
-        const nowSrv = fb.firestoreModule.FieldValue.serverTimestamp();
+      const pet =
+        docToPet(snapshot);
 
-        const data = {
-            ...payload,
-            createdAt: nowSrv,
-            updatedAt: nowSrv,
-            createdAtMs: nowMs,
-            updatedAtMs: nowMs,
+      await upsertLocalPet(
+        pet
+      );
+
+      return pet;
+    } catch (error) {
+      const local =
+        (
+          await loadAllLocal()
+        ).find(
+          (item) =>
+            String(item?.id) ===
+            safeId
+        );
+
+      if (local) {
+        return {
+          ...local,
         };
+      }
 
-        await ref.set(data);
-        return { id: ref.id, ...payload, createdAt: nowMs, updatedAt: nowMs };
+      throw error;
     }
+  }
 
-    // fallback local
-    const now = Date.now();
-    const item = { id: genId(), ...payload, createdAt: now, updatedAt: now };
-    const pets = await loadAllLocal();
-    pets.push(item);
-    await saveAllLocal(pets);
-    return { ...item };
+  const local =
+    (
+      await loadAllLocal()
+    ).find(
+      (item) =>
+        String(item?.id) ===
+        safeId
+    );
+
+  if (!local) {
+    throw new Error(
+      "Pet não encontrado."
+    );
+  }
+
+  return {
+    ...local,
+  };
 }
 
-/** Atualiza pet */
-export async function updatePet(id, patch) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
+export async function createPet(
+  payload
+) {
+  const fb =
+    ensureFirebase();
 
-    // patch pode conter: { nome, tutor, ... } — manteremos tutor aninhado
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
-    if (fb && uid) {
-        const ref = getCol(fb.firestore, uid).doc(String(id));
-        const nowMs = Date.now();
-        const nowSrv = fb.firestoreModule.FieldValue.serverTimestamp();
+  const nowMs =
+    Date.now();
 
-        await ref.update({
-            ...patch,
-            updatedAt: nowSrv,
-            updatedAtMs: nowMs,
-        });
+  if (fb && uid) {
+    const collectionRef =
+      getCol(
+        fb.firestore,
+        uid
+      );
 
-        // retorno para atualizar a store local rapidamente (merge no slice)
-        return { id, ...patch, updatedAt: nowMs };
-    }
+    const documentRef =
+      collectionRef.doc();
 
-    // fallback local
-    const pets = await loadAllLocal();
-    const idx = pets.findIndex((x) => x.id === id);
-    if (idx === -1) throw new Error('Pet não encontrado');
+    const serverTimestamp =
+      fb.firestoreModule
+        .FieldValue
+        .serverTimestamp();
 
-    pets[idx] = {
-        ...pets[idx],
-        ...patch,
-        tutor: patch?.tutor ?? pets[idx].tutor, // preserva objeto tutor
-        updatedAt: Date.now(),
+    const data = {
+      ...payload,
+      createdAt:
+        serverTimestamp,
+      updatedAt:
+        serverTimestamp,
+      createdAtMs:
+        nowMs,
+      updatedAtMs:
+        nowMs,
     };
 
-    await saveAllLocal(pets);
-    return { ...pets[idx] };
+    await documentRef.set(
+      data
+    );
+
+    const saved = {
+      id: documentRef.id,
+      ...payload,
+      createdAt:
+        nowMs,
+      updatedAt:
+        nowMs,
+    };
+
+    await upsertLocalPet(
+      saved
+    );
+
+    return saved;
+  }
+
+  const saved = {
+    id: genId(),
+    ...payload,
+    createdAt:
+      nowMs,
+    updatedAt:
+      nowMs,
+  };
+
+  await upsertLocalPet(
+    saved
+  );
+
+  return saved;
 }
 
-/** Remove pet */
-export async function removePet(id) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
+export async function updatePet(
+  id,
+  patch
+) {
+  const safeId =
+    String(id);
 
-    if (fb && uid) {
-        await getCol(fb.firestore, uid).doc(String(id)).delete();
-        return { ok: true };
-    }
+  const fb =
+    ensureFirebase();
 
-    // fallback local
-    const pets = await loadAllLocal();
-    const next = pets.filter((x) => x.id !== id);
-    await saveAllLocal(next);
-    return { ok: true };
+  const uid =
+    fb?.auth?.currentUser?.uid;
+
+  const nowMs =
+    Date.now();
+
+  if (fb && uid) {
+    const documentRef =
+      getCol(
+        fb.firestore,
+        uid
+      ).doc(safeId);
+
+    const serverTimestamp =
+      fb.firestoreModule
+        .FieldValue
+        .serverTimestamp();
+
+    await documentRef.update({
+      ...patch,
+      updatedAt:
+        serverTimestamp,
+      updatedAtMs:
+        nowMs,
+    });
+
+    const previousLocal =
+      (
+        await loadAllLocal()
+      ).find(
+        (item) =>
+          String(item?.id) ===
+          safeId
+      ) || {
+        id: safeId,
+      };
+
+    const saved =
+      mergePet(
+        previousLocal,
+        {
+          ...patch,
+          id: safeId,
+          updatedAt:
+            nowMs,
+        }
+      );
+
+    await upsertLocalPet(
+      saved
+    );
+
+    return saved;
+  }
+
+  const pets =
+    await loadAllLocal();
+
+  const index =
+    pets.findIndex(
+      (item) =>
+        String(item?.id) ===
+        safeId
+    );
+
+  if (index === -1) {
+    throw new Error(
+      "Pet não encontrado."
+    );
+  }
+
+  const saved =
+    mergePet(
+      pets[index],
+      {
+        ...patch,
+        id: safeId,
+        updatedAt:
+          nowMs,
+      }
+    );
+
+  pets[index] =
+    saved;
+
+  await saveAllLocal(
+    pets
+  );
+
+  return saved;
+}
+
+export async function removePet(
+  id
+) {
+  const safeId =
+    String(id);
+
+  const fb =
+    ensureFirebase();
+
+  const uid =
+    fb?.auth?.currentUser?.uid;
+
+  if (fb && uid) {
+    await getCol(
+      fb.firestore,
+      uid
+    )
+      .doc(safeId)
+      .delete();
+  }
+
+  await removeLocalPet(
+    safeId
+  );
+
+  return {
+    ok: true,
+  };
 }
 
 /* =====================================
    Utilidades dev / migração
 ===================================== */
 
-/** Limpa todos os pets locais (use uma vez se quiser começar do zero) */
 export async function clearAllPetsLocal() {
-    await AsyncStorage.removeItem(STORAGE_KEY);
-    return { ok: true };
+  await AsyncStorage.removeItem(
+    STORAGE_KEY
+  );
+
+  return {
+    ok: true,
+  };
 }
 
-/** Migra pets do AsyncStorage -> Firestore (use uma única vez) */
-export async function migrateLegacyPetsOnce({ clearLocal = true, overwrite = false } = {}) {
-    const fb = ensureFirebase();
-    const uid = fb?.auth?.currentUser?.uid;
-    if (!fb || !uid) throw new Error('Usuário não autenticado / Firebase indisponível');
+export async function migrateLegacyPetsOnce({
+  clearLocal = true,
+  overwrite = false,
+} = {}) {
+  const fb =
+    ensureFirebase();
 
-    // lê dados locais legados
-    let legacy = [];
-    try {
-        const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw) legacy = JSON.parse(raw) || [];
-    } catch { /* ignore */ }
+  const uid =
+    fb?.auth?.currentUser?.uid;
 
-    if (!Array.isArray(legacy) || legacy.length === 0) {
-        return { migrated: 0, skipped: 0 };
+  if (!fb || !uid) {
+    throw new Error(
+      "Usuário não autenticado / Firebase indisponível."
+    );
+  }
+
+  let legacy = [];
+
+  try {
+    const raw =
+      await AsyncStorage.getItem(
+        STORAGE_KEY
+      );
+
+    if (raw) {
+      legacy =
+        JSON.parse(raw) || [];
     }
+  } catch {
+    legacy = [];
+  }
 
-    const col = getCol(fb.firestore, uid);
-    const fv = fb.firestoreModule.FieldValue;
+  if (
+    !Array.isArray(legacy) ||
+    legacy.length === 0
+  ) {
+    return {
+      migrated: 0,
+      skipped: 0,
+    };
+  }
 
-    let migrated = 0;
-    let skipped = 0;
+  const collectionRef =
+    getCol(
+      fb.firestore,
+      uid
+    );
 
-    // processa em lotes (batch max ~500 writes)
-    const chunkSize = 400;
-    for (let i = 0; i < legacy.length; i += chunkSize) {
-        const batch = fb.firestore.batch();
-        const slice = legacy.slice(i, i + chunkSize);
+  const fieldValue =
+    fb.firestoreModule
+      .FieldValue;
 
-        // atenção: é write-after-read se overwrite=false (faz get por doc)
-        for (const p of slice) {
-            const id = String(p.id || '');
-            if (!id) continue;
+  let migrated = 0;
+  let skipped = 0;
 
-            const ref = col.doc(id);
+  const chunkSize = 400;
 
-            if (!overwrite) {
-                const exists = await ref.get();
-                if (exists.exists) { skipped++; continue; }
-            }
+  for (
+    let index = 0;
+    index < legacy.length;
+    index += chunkSize
+  ) {
+    const batch =
+      fb.firestore.batch();
 
-            const createdAtMs = Number(p.createdAt ?? Date.now());
-            const updatedAtMs = Number(p.updatedAt ?? createdAtMs);
+    const chunk =
+      legacy.slice(
+        index,
+        index + chunkSize
+      );
 
-            batch.set(ref, {
-                ...p,
-                createdAt: fv.serverTimestamp(),
-                updatedAt: fv.serverTimestamp(),
-                createdAtMs,
-                updatedAtMs,
-            });
+    for (const pet of chunk) {
+      const id =
+        String(pet?.id || "");
 
-            migrated++;
+      if (!id) {
+        continue;
+      }
+
+      const documentRef =
+        collectionRef.doc(id);
+
+      if (!overwrite) {
+        const existing =
+          await documentRef.get();
+
+        if (existing.exists) {
+          skipped += 1;
+          continue;
         }
+      }
 
-        await batch.commit();
+      const createdAtMs =
+        Number(
+          pet?.createdAt ??
+            Date.now()
+        );
+
+      const updatedAtMs =
+        Number(
+          pet?.updatedAt ??
+            createdAtMs
+        );
+
+      batch.set(
+        documentRef,
+        {
+          ...pet,
+          createdAt:
+            fieldValue.serverTimestamp(),
+          updatedAt:
+            fieldValue.serverTimestamp(),
+          createdAtMs,
+          updatedAtMs,
+        }
+      );
+
+      migrated += 1;
     }
 
-    if (clearLocal) {
-        await AsyncStorage.removeItem(STORAGE_KEY);
-    }
+    await batch.commit();
+  }
 
-    return { migrated, skipped };
+  if (clearLocal) {
+    await AsyncStorage.removeItem(
+      STORAGE_KEY
+    );
+  }
+
+  return {
+    migrated,
+    skipped,
+  };
 }

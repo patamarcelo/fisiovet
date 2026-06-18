@@ -229,9 +229,9 @@ export async function getAppleOfferings() {
 		availablePackages.find(
 			(item) =>
 				item?.identifier ===
-					REVENUECAT_PACKAGE_IDS.MONTHLY ||
+				REVENUECAT_PACKAGE_IDS.MONTHLY ||
 				item?.product?.identifier ===
-					APPLE_PRODUCT_IDS.MONTHLY
+				APPLE_PRODUCT_IDS.MONTHLY
 		) ||
 		null;
 
@@ -240,9 +240,9 @@ export async function getAppleOfferings() {
 		availablePackages.find(
 			(item) =>
 				item?.identifier ===
-					REVENUECAT_PACKAGE_IDS.ANNUAL ||
+				REVENUECAT_PACKAGE_IDS.ANNUAL ||
 				item?.product?.identifier ===
-					APPLE_PRODUCT_IDS.ANNUAL
+				APPLE_PRODUCT_IDS.ANNUAL
 		) ||
 		null;
 
@@ -314,10 +314,10 @@ export function getPremiumEntitlement(
 		customerInfo
 			?.entitlements
 			?.active
-			?.[
-				REVENUECAT_ENTITLEMENTS
-					.PREMIUM
-			] ||
+		?.[
+		REVENUECAT_ENTITLEMENTS
+			.PREMIUM
+		] ||
 		null
 	);
 }
@@ -464,25 +464,65 @@ export async function logOutAppleSubscriptions() {
 		return null;
 	}
 
-	const isConfigured =
-		await Purchases.isConfigured();
+	try {
+		const isConfigured =
+			await Purchases.isConfigured();
 
-	if (!isConfigured) {
+		if (!isConfigured) {
+			return null;
+		}
+
+		const currentAppUserId =
+			await Purchases.getAppUserID();
+
+		/*
+		 * Depois de um logout, o RevenueCat cria um
+		 * usuário anônimo automaticamente.
+		 *
+		 * Não devemos chamar logOut novamente enquanto
+		 * o usuário atual já for anônimo.
+		 */
+		const isAnonymous =
+			String(
+				currentAppUserId || ""
+			).startsWith(
+				"$RCAnonymousID:"
+			);
+
+		if (isAnonymous) {
+			return null;
+		}
+
+		return await Purchases.logOut();
+	} catch (error) {
+		const message =
+			String(
+				error?.message || ""
+			).toLowerCase();
+
+		/*
+		 * Proteção adicional para versões do SDK que
+		 * retornem erro ao tentar desconectar um usuário
+		 * que já está anônimo.
+		 */
+		const alreadyAnonymous =
+			message.includes(
+				"current user is anonymous"
+			) ||
+			message.includes(
+				"user is anonymous"
+			);
+
+		if (alreadyAnonymous) {
+			return null;
+		}
+
+		throw error;
+	} finally {
 		configuredUserId = null;
 		configurePromise = null;
-
-		return null;
 	}
-
-	const customerInfo =
-		await Purchases.logOut();
-
-	configuredUserId = null;
-	configurePromise = null;
-
-	return customerInfo;
 }
-
 export function normalizeApplePurchaseError(
 	error
 ) {

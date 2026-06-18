@@ -45,6 +45,15 @@ import {
     updateEvento,
 } from "@/src/store/slices/agendaSlice";
 
+import {
+    DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE,
+} from "@/src/store/slices/systemSlice";
+
+import {
+    buildEventWhatsappMessage,
+    normalizeWhatsappPhone,
+} from "@/src/utils/eventWhatsapp";
+
 /* -------------------------------------------------------------------------- */
 /*                                   Tokens                                   */
 /* -------------------------------------------------------------------------- */
@@ -57,11 +66,15 @@ const COLORS = {
     tertiaryText: "#9CA3AF",
 
     separator: "rgba(60,60,67,0.12)",
+    strongSeparator: "rgba(60,60,67,0.22)",
     pressed: "rgba(118,118,128,0.08)",
 
     primary: "#6FAE86",
     primaryStrong: "#578F6D",
     primarySoft: "rgba(111,174,134,0.12)",
+
+    whatsapp: "#25D366",
+    whatsappPressed: "#1FAF55",
 
     disabledBackground:
         "rgba(118,118,128,0.07)",
@@ -71,6 +84,7 @@ const COLORS = {
 
     confirmed: "#16A34A",
     pending: "#F59E0B",
+    partial: "#F97316",
     cancelled: "#EF4444",
     neutral: "#8E8E93",
 };
@@ -98,6 +112,38 @@ const STATUS_CONFIG = {
         color: COLORS.neutral,
         label: "Evento",
         icon: "ellipse",
+    },
+};
+
+const FINANCE_STATUS_CONFIG = {
+    rascunho: {
+        label: "Rascunho",
+        color: COLORS.neutral,
+    },
+
+    pendente: {
+        label: "Pendente",
+        color: COLORS.pending,
+    },
+
+    parcial: {
+        label: "Parcial",
+        color: COLORS.partial,
+    },
+
+    pago: {
+        label: "Pago",
+        color: COLORS.confirmed,
+    },
+
+    vencido: {
+        label: "Vencido",
+        color: COLORS.cancelled,
+    },
+
+    cancelado: {
+        label: "Cancelado",
+        color: COLORS.neutral,
     },
 };
 
@@ -156,7 +202,9 @@ function formatTimeRange(
         return "Horário não informado";
     }
 
-    if (endText === "—") {
+    if (
+        endText === "—"
+    ) {
         return startText;
     }
 
@@ -179,7 +227,9 @@ async function openUrl(
 ) {
     try {
         const supported =
-            await canOpenUrl(url);
+            await canOpenUrl(
+                url
+            );
 
         if (supported) {
             await Linking.openURL(
@@ -312,11 +362,12 @@ function SwipeAction({
             }
 
             try {
-                await Haptics.impactAsync(
-                    Haptics
-                        .ImpactFeedbackStyle
-                        .Light
-                );
+                await Haptics
+                    .impactAsync(
+                        Haptics
+                            .ImpactFeedbackStyle
+                            .Light
+                    );
             } catch { }
 
             onPress?.();
@@ -403,14 +454,14 @@ function SwipeAction({
 /*                              Action components                             */
 /* -------------------------------------------------------------------------- */
 
-function SecondaryAction({
+function EventAction({
     icon,
     textIcon,
     label,
+    sublabel,
+    sublabelColor,
     onPress,
     disabled = false,
-    compact = false,
-    value = false,
 }) {
     return (
         <Pressable
@@ -420,7 +471,8 @@ function SecondaryAction({
                     return;
                 }
 
-                Haptics.selectionAsync()
+                Haptics
+                    .selectionAsync()
                     .catch(() => { });
 
                 onPress?.();
@@ -436,60 +488,137 @@ function SecondaryAction({
             style={({
                 pressed,
             }) => [
-                    styles.secondaryAction,
-
-                    compact &&
-                    styles.secondaryActionCompact,
-
-                    value &&
-                    styles.secondaryActionValue,
+                    styles.eventAction,
 
                     pressed &&
                     !disabled &&
-                    styles.secondaryActionPressed,
+                    styles.eventActionPressed,
+
+                    disabled &&
+                    styles.eventActionDisabled,
                 ]}
         >
-            {textIcon ? (
-                <Text
-                    style={[
-                        styles.secondaryActionEmoji,
+            <View
+                style={
+                    styles.eventActionMain
+                }
+            >
+                {textIcon ? (
+                    <Text
+                        style={[
+                            styles.eventActionEmoji,
 
-                        disabled &&
-                        styles.secondaryActionEmojiDisabled,
-                    ]}
-                >
-                    {textIcon}
-                </Text>
-            ) : (
-                <Ionicons
-                    name={icon}
-                    size={18}
-                    color={
-                        disabled
-                            ? COLORS.disabledText
-                            : value
-                                ? COLORS.primaryStrong
+                            disabled &&
+                            styles.eventActionEmojiDisabled,
+                        ]}
+                    >
+                        {textIcon}
+                    </Text>
+                ) : (
+                    <Ionicons
+                        name={icon}
+                        size={18}
+                        color={
+                            disabled
+                                ? COLORS.disabledText
                                 : COLORS.secondaryText
-                    }
-                />
-            )}
+                        }
+                    />
+                )}
 
-            {!!label && (
+                {!!label && (
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            styles.eventActionLabel,
+
+                            disabled &&
+                            styles.eventActionLabelDisabled,
+                        ]}
+                    >
+                        {label}
+                    </Text>
+                )}
+            </View>
+
+            {!!sublabel && (
                 <Text
                     numberOfLines={1}
+                    ellipsizeMode="tail"
                     style={[
-                        styles.secondaryActionText,
+                        styles.eventActionSublabel,
 
-                        value &&
-                        styles.secondaryActionValueText,
+                        {
+                            color:
+                                sublabelColor ||
+                                COLORS.tertiaryText,
+                        },
 
                         disabled &&
-                        styles.secondaryActionTextDisabled,
+                        styles.eventActionSublabelDisabled,
                     ]}
                 >
-                    {label}
+                    {sublabel}
                 </Text>
             )}
+        </Pressable>
+    );
+}
+
+function WhatsappAction({
+    onPress,
+    disabled = false,
+}) {
+    return (
+        <Pressable
+            disabled={disabled}
+            onPress={() => {
+                if (disabled) {
+                    return;
+                }
+
+                Haptics
+                    .impactAsync(
+                        Haptics
+                            .ImpactFeedbackStyle
+                            .Light
+                    )
+                    .catch(() => { });
+
+                onPress?.();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+                disabled
+                    ? "WhatsApp indisponível"
+                    : "Confirmar atendimento pelo WhatsApp"
+            }
+            accessibilityState={{
+                disabled,
+            }}
+            hitSlop={4}
+            style={({
+                pressed,
+            }) => [
+                    styles.whatsappAction,
+
+                    disabled &&
+                    styles.whatsappActionDisabled,
+
+                    pressed &&
+                    !disabled &&
+                    styles.whatsappActionPressed,
+                ]}
+        >
+            <Ionicons
+                name="logo-whatsapp"
+                size={20}
+                color={
+                    disabled
+                        ? COLORS.disabledText
+                        : "#FFFFFF"
+                }
+            />
         </Pressable>
     );
 }
@@ -506,11 +635,13 @@ function PrimaryRouteAction({
                     return;
                 }
 
-                Haptics.impactAsync(
-                    Haptics
-                        .ImpactFeedbackStyle
-                        .Light
-                ).catch(() => { });
+                Haptics
+                    .impactAsync(
+                        Haptics
+                            .ImpactFeedbackStyle
+                            .Light
+                    )
+                    .catch(() => { });
 
                 onPress?.();
             }}
@@ -569,6 +700,8 @@ export default function MiniEventRow({
     tutor,
     navPreference = "ask",
     showFinanceValues = false,
+    whatsappConfirmationMessage =
+    DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE,
     isLast = false,
 }) {
     const dispatch =
@@ -597,20 +730,23 @@ export default function MiniEventRow({
             : null;
 
     const eventoAtual =
-        useSelector((state) =>
-            eventId
-                ? selectEventoById(
-                    eventId
-                )(state)
-                : null
+        useSelector(
+            (state) =>
+                eventId
+                    ? selectEventoById(
+                        eventId
+                    )(state)
+                    : null
         );
 
     /*
-     * Usa primeiro o evento atualizado no Redux.
-     * Caso ainda não esteja no slice, utiliza a prop.
+     * Utiliza primeiro a versão atualizada
+     * do evento armazenada no Redux.
      */
     const evento =
-        eventoAtual || item || {};
+        eventoAtual ||
+        item ||
+        {};
 
     const {
         title,
@@ -625,7 +761,9 @@ export default function MiniEventRow({
         "pendente";
 
     const statusConfig =
-        STATUS_CONFIG[status] ||
+        STATUS_CONFIG[
+        status
+        ] ||
         STATUS_CONFIG.default;
 
     const lat =
@@ -646,6 +784,61 @@ export default function MiniEventRow({
         title?.trim() ||
         "Evento";
 
+    const tutorName =
+        useMemo(() => {
+            return (
+                tutor?.nome ||
+                evento?.tutorNome ||
+                evento?.cliente ||
+                ""
+            );
+        }, [
+            tutor?.nome,
+            evento?.tutorNome,
+            evento?.cliente,
+        ]);
+
+    const navigationLabel =
+        useMemo(() => {
+            return (
+                tutorName ||
+                eventTitle
+            );
+        }, [
+            tutorName,
+            eventTitle,
+        ]);
+
+    const tutorPhone =
+        useMemo(() => {
+            return (
+                tutor?.telefone ||
+                tutor?.celular ||
+                tutor?.whatsapp ||
+                evento?.tutorTelefone ||
+                ""
+            );
+        }, [
+            tutor?.telefone,
+            tutor?.celular,
+            tutor?.whatsapp,
+            evento?.tutorTelefone,
+        ]);
+
+    const normalizedWhatsappPhone =
+        useMemo(() => {
+            return normalizeWhatsappPhone(
+                tutorPhone
+            );
+        }, [
+            tutorPhone,
+        ]);
+
+    const hasWhatsappPhone =
+        Boolean(
+            normalizedWhatsappPhone
+        );
+
     const financeiro =
         evento?.financeiro &&
             typeof evento.financeiro ===
@@ -662,47 +855,15 @@ export default function MiniEventRow({
 
     const financeiroValue =
         Number(
-            financeiro?.preco ?? 0
+            financeiro?.preco ??
+            financeiro?.valor ??
+            0
         );
 
     const hasFinanceiro =
-        Boolean(lancamentoId);
-
-    const financeiroLabel =
-        showFinanceValues
-            ? formatCurrency(
-                financeiroValue
-            )
-            : "";
-
-    const navigationLabel =
-        useMemo(() => {
-            return (
-                tutor?.nome ||
-                evento?.tutorNome ||
-                evento?.cliente ||
-                eventTitle
-            );
-        }, [
-            tutor?.nome,
-            evento?.tutorNome,
-            evento?.cliente,
-            eventTitle,
-        ]);
-
-    const tutorName =
-        useMemo(() => {
-            return (
-                tutor?.nome ||
-                evento?.tutorNome ||
-                evento?.cliente ||
-                ""
-            );
-        }, [
-            tutor?.nome,
-            evento?.tutorNome,
-            evento?.cliente,
-        ]);
+        Boolean(
+            lancamentoId
+        );
 
     const financeiroStatus =
         financeiro?.status ||
@@ -712,53 +873,122 @@ export default function MiniEventRow({
                 : "pendente"
         );
 
-    const isFinanceiroPago =
-        financeiroStatus ===
-        "pago";
+    const financeConfig =
+        FINANCE_STATUS_CONFIG[
+        financeiroStatus
+        ] ||
+        FINANCE_STATUS_CONFIG.pendente;
 
-    const financeiroStatusLabel =
-        {
-            rascunho:
-                "Financeiro em rascunho",
+    const financeiroValueLabel =
+        showFinanceValues &&
+            hasFinanceiro
+            ? formatCurrency(
+                financeiroValue
+            )
+            : "";
 
-            pendente:
-                "Pagamento pendente",
+    const financeiroSublabel =
+        useMemo(() => {
+            if (
+                !hasFinanceiro
+            ) {
+                return "";
+            }
 
-            parcial:
-                "Pagamento parcial",
+            if (
+                financeiroValueLabel
+            ) {
+                return `${financeConfig.label} • ${financeiroValueLabel}`;
+            }
 
-            pago:
-                "Pagamento concluído",
+            return financeConfig.label;
+        }, [
+            hasFinanceiro,
+            financeiroValueLabel,
+            financeConfig.label,
+        ]);
 
-            vencido:
-                "Pagamento vencido",
+    /* ------------------------------- WhatsApp ------------------------------ */
 
-            cancelado:
-                "Lançamento cancelado",
-        }[financeiroStatus] ||
-        "Pagamento pendente";
+    const handleOpenWhatsapp =
+        useCallback(async () => {
+            if (
+                !normalizedWhatsappPhone
+            ) {
+                Alert.alert(
+                    "Telefone não cadastrado",
+                    "Adicione um telefone ao cadastro do tutor para enviar a confirmação."
+                );
 
-    const financeiroStatusColor =
-        {
-            rascunho: COLORS.neutral,
-            pendente: COLORS.pending,
-            parcial: "#F97316",
-            pago: COLORS.confirmed,
-            vencido: COLORS.cancelled,
-            cancelado: COLORS.neutral,
-        }[financeiroStatus] ||
-        COLORS.pending;
+                return;
+            }
 
-    const financeiroStatusBackground =
-        {
-            rascunho: "rgba(142,142,147,0.08)",
-            pendente: "rgba(245,158,11,0.08)",
-            parcial: "rgba(249,115,22,0.08)",
-            pago: "rgba(22,163,74,0.08)",
-            vencido: "rgba(239,68,68,0.08)",
-            cancelado: "rgba(142,142,147,0.08)",
-        }[financeiroStatus] ||
-        "rgba(245,158,11,0.08)";
+            const message =
+                buildEventWhatsappMessage({
+                    template:
+                        whatsappConfirmationMessage ||
+                        DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE,
+
+                    event:
+                        evento,
+
+                    tutor,
+                });
+
+            if (!message) {
+                Alert.alert(
+                    "Mensagem indisponível",
+                    "Não foi possível montar a mensagem de confirmação."
+                );
+
+                return;
+            }
+
+            const url =
+                `https://wa.me/${normalizedWhatsappPhone}` +
+                `?text=${encodeURIComponent(message)}`;
+
+            try {
+                await Haptics
+                    .impactAsync(
+                        Haptics
+                            .ImpactFeedbackStyle
+                            .Light
+                    )
+                    .catch(() => { });
+
+                const supported =
+                    await Linking.canOpenURL(
+                        url
+                    );
+
+                if (!supported) {
+                    throw new Error(
+                        "O WhatsApp não está disponível neste dispositivo."
+                    );
+                }
+
+                await Linking.openURL(
+                    url
+                );
+            } catch (error) {
+                console.warn(
+                    "Erro ao abrir WhatsApp:",
+                    error
+                );
+
+                Alert.alert(
+                    "WhatsApp",
+                    error?.message ||
+                    "Não foi possível abrir o WhatsApp."
+                );
+            }
+        }, [
+            normalizedWhatsappPhone,
+            whatsappConfirmationMessage,
+            evento,
+            tutor,
+        ]);
 
     /* ---------------------------- Update status --------------------------- */
 
@@ -774,10 +1004,6 @@ export default function MiniEventRow({
                     return;
                 }
 
-                /*
-                 * Evita uma gravação desnecessária
-                 * caso o usuário toque no status atual.
-                 */
                 if (
                     newStatus ===
                     status
@@ -903,7 +1129,6 @@ export default function MiniEventRow({
             ]
         );
 
-
     /* ---------------------------- Delete event ---------------------------- */
 
     const confirmDelete =
@@ -923,59 +1148,64 @@ export default function MiniEventRow({
                 "Esta ação é irreversível. O evento será removido definitivamente da agenda.",
                 [
                     {
-                        text: "Cancelar",
-                        style: "cancel",
+                        text:
+                            "Cancelar",
+                        style:
+                            "cancel",
                     },
                     {
-                        text: "Excluir",
-                        style: "destructive",
+                        text:
+                            "Excluir",
+                        style:
+                            "destructive",
 
-                        onPress: async () => {
-                            setPendingDelete(
-                                true
-                            );
+                        onPress:
+                            async () => {
+                                setPendingDelete(
+                                    true
+                                );
 
-                            try {
-                                await Haptics
-                                    .notificationAsync(
-                                        Haptics
-                                            .NotificationFeedbackType
-                                            .Warning
+                                try {
+                                    await Haptics
+                                        .notificationAsync(
+                                            Haptics
+                                                .NotificationFeedbackType
+                                                .Warning
+                                        );
+
+                                    await dispatch(
+                                        deleteEvento(
+                                            eventId
+                                        )
+                                    ).unwrap();
+
+                                    await Haptics
+                                        .notificationAsync(
+                                            Haptics
+                                                .NotificationFeedbackType
+                                                .Success
+                                        )
+                                        .catch(() => { });
+                                } catch (error) {
+                                    console.log(
+                                        "Erro ao excluir evento:",
+                                        error
                                     );
 
-                                await dispatch(
-                                    deleteEvento(
-                                        eventId
-                                    )
-                                ).unwrap();
+                                    Alert.alert(
+                                        "Não foi possível excluir",
+                                        error?.message ||
+                                        "Ocorreu um erro ao excluir o evento. Tente novamente."
+                                    );
+                                } finally {
+                                    setPendingDelete(
+                                        false
+                                    );
 
-                                await Haptics
-                                    .notificationAsync(
-                                        Haptics
-                                            .NotificationFeedbackType
-                                            .Success
-                                    )
-                                    .catch(() => { });
-                            } catch (error) {
-                                console.log(
-                                    "Erro ao excluir evento:",
-                                    error
-                                );
-
-                                Alert.alert(
-                                    "Não foi possível excluir",
-                                    error?.message ||
-                                    "Ocorreu um erro ao excluir o evento. Tente novamente."
-                                );
-                            } finally {
-                                setPendingDelete(
-                                    false
-                                );
-
-                                swipeRef.current
-                                    ?.close?.();
-                            }
-                        },
+                                    swipeRef.current
+                                        ?.close?.();
+                                }
+                            },
                     },
                 ]
             );
@@ -1014,7 +1244,8 @@ export default function MiniEventRow({
                 isPendingAction,
             ]
         );
-    /* ---------------------------- Open event ---------------------------- */
+
+    /* ----------------------------- Open event ----------------------------- */
 
     const openEvent =
         useCallback(() => {
@@ -1032,10 +1263,13 @@ export default function MiniEventRow({
                     "/(home-modals)/agenda-new",
 
                 params: {
-                    id: eventId,
+                    id:
+                        eventId,
                 },
             });
-        }, [eventId]);
+        }, [
+            eventId,
+        ]);
 
     const openFinanceiro =
         useCallback(() => {
@@ -1049,14 +1283,19 @@ export default function MiniEventRow({
             }
 
             router.push({
-                pathname: "/(home-modals)/financeiro/[id]",
+                pathname:
+                    "/(home-modals)/financeiro/[id]",
+
                 params: {
-                    id: lancamentoId,
+                    id:
+                        lancamentoId,
                 },
             });
-        }, [lancamentoId]);
+        }, [
+            lancamentoId,
+        ]);
 
-    /* ---------------------------- Navigation ---------------------------- */
+    /* ----------------------------- Navigation ----------------------------- */
 
     const openGoogleMaps =
         useCallback(async () => {
@@ -1336,7 +1575,7 @@ export default function MiniEventRow({
             openBrowserMaps,
         ]);
 
-    /* ------------------------------- Render ------------------------------ */
+    /* ------------------------------- Render ------------------------------- */
 
     return (
         <View
@@ -1345,7 +1584,9 @@ export default function MiniEventRow({
             }
         >
             <Swipeable
-                ref={swipeRef}
+                ref={
+                    swipeRef
+                }
                 enabled={
                     Boolean(
                         eventId
@@ -1387,11 +1628,6 @@ export default function MiniEventRow({
                         ]}
                     />
 
-                    {/*
-                     * O conteúdo deixou de ser Pressable.
-                     * Agora o gesto horizontal pode começar
-                     * em qualquer ponto do corpo do evento.
-                     */}
                     <View
                         style={
                             styles.contentContainer
@@ -1411,13 +1647,9 @@ export default function MiniEventRow({
                                     style={
                                         styles.title
                                     }
-                                    numberOfLines={
-                                        1
-                                    }
+                                    numberOfLines={1}
                                 >
-                                    {
-                                        eventTitle
-                                    }
+                                    {eventTitle}
                                 </Text>
 
                                 {!!tutorName && (
@@ -1425,13 +1657,9 @@ export default function MiniEventRow({
                                         style={
                                             styles.tutorName
                                         }
-                                        numberOfLines={
-                                            1
-                                        }
+                                        numberOfLines={1}
                                     >
-                                        {
-                                            tutorName
-                                        }
+                                        {tutorName}
                                     </Text>
                                 )}
                             </View>
@@ -1453,9 +1681,7 @@ export default function MiniEventRow({
                                     style={
                                         styles.timeText
                                     }
-                                    numberOfLines={
-                                        1
-                                    }
+                                    numberOfLines={1}
                                 >
                                     {formatTimeRange(
                                         start,
@@ -1489,13 +1715,10 @@ export default function MiniEventRow({
                                     style={
                                         styles.locationText
                                     }
-                                    numberOfLines={
-                                        2
-                                    }
+                                    numberOfLines={1}
+                                    ellipsizeMode="tail"
                                 >
-                                    {
-                                        local
-                                    }
+                                    {local}
                                 </Text>
                             </View>
                         ) : (
@@ -1523,48 +1746,9 @@ export default function MiniEventRow({
                                     style={
                                         styles.emptyLocationText
                                     }
-                                    numberOfLines={
-                                        1
-                                    }
+                                    numberOfLines={1}
                                 >
                                     Local não informado
-                                </Text>
-                            </View>
-                        )}
-
-                        {hasFinanceiro && (
-                            <View
-                                style={[
-                                    styles.financeSummaryRow,
-                                    {
-                                        backgroundColor:
-                                            financeiroStatusBackground,
-
-                                        borderBottomColor:
-                                            financeiroStatusColor,
-                                    },
-                                ]}
-                            >
-                                <View
-                                    style={[
-                                        styles.financeStatusDot,
-                                        {
-                                            backgroundColor:
-                                                financeiroStatusColor,
-                                        },
-                                    ]}
-                                />
-
-                                <Text
-                                    style={[
-                                        styles.financeSummaryText,
-                                        {
-                                            color:
-                                                financeiroStatusColor,
-                                        },
-                                    ]}
-                                >
-                                    {financeiroStatusLabel}
                                 </Text>
                             </View>
                         )}
@@ -1586,7 +1770,7 @@ export default function MiniEventRow({
                                 styles.secondaryActions
                             }
                         >
-                            <SecondaryAction
+                            <EventAction
                                 textIcon="🐵"
                                 label="Ver"
                                 onPress={
@@ -1600,10 +1784,19 @@ export default function MiniEventRow({
                                 }
                             />
 
-                            <SecondaryAction
+                            <EventAction
                                 icon="wallet-outline"
                                 label={
-                                    financeiroLabel
+                                    showFinanceValues &&
+                                        hasFinanceiro
+                                        ? financeiroValueLabel
+                                        : ""
+                                }
+                                sublabel={
+                                    financeiroSublabel
+                                }
+                                sublabelColor={
+                                    financeConfig.color
                                 }
                                 onPress={
                                     openFinanceiro
@@ -1611,24 +1804,32 @@ export default function MiniEventRow({
                                 disabled={
                                     !hasFinanceiro
                                 }
-                                compact={
-                                    !showFinanceValues
-                                }
-                                value={
-                                    showFinanceValues &&
-                                    hasFinanceiro
-                                }
                             />
                         </View>
 
-                        <PrimaryRouteAction
-                            onPress={
-                                showNavigationOptions
+                        <View
+                            style={
+                                styles.primaryActions
                             }
-                            disabled={
-                                !hasGeo
-                            }
-                        />
+                        >
+                            <WhatsappAction
+                                onPress={
+                                    handleOpenWhatsapp
+                                }
+                                disabled={
+                                    !hasWhatsappPhone
+                                }
+                            />
+
+                            <PrimaryRouteAction
+                                onPress={
+                                    showNavigationOptions
+                                }
+                                disabled={
+                                    !hasGeo
+                                }
+                            />
+                        </View>
                     </View>
 
                     {isPendingAction && (
@@ -1723,7 +1924,8 @@ const styles =
         },
 
         title: {
-            color: COLORS.text,
+            color:
+                COLORS.text,
             fontSize: 15,
             lineHeight: 19,
             fontWeight: "700",
@@ -1766,7 +1968,7 @@ const styles =
 
         locationRow: {
             minWidth: 0,
-            marginTop: 11,
+            marginTop: 10,
             flexDirection: "row",
             alignItems: "center",
             gap: 8,
@@ -1776,8 +1978,11 @@ const styles =
             width: 25,
             height: 25,
             borderRadius: 8,
+            flexShrink: 0,
+
             backgroundColor:
                 COLORS.primarySoft,
+
             alignItems: "center",
             justifyContent:
                 "center",
@@ -1808,34 +2013,6 @@ const styles =
             fontWeight: "500",
         },
 
-        financeSummaryRow: {
-            marginTop: 9,
-            minHeight: 28,
-            width: "46%",
-            paddingHorizontal: 9,
-
-            borderRadius: 8,
-            // borderBottomWidth: 1,
-
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 7,
-        },
-
-        financeStatusDot: {
-            width: 7,
-            height: 7,
-            borderRadius: 4,
-        },
-
-        financeSummaryText: {
-            flex: 1,
-            minWidth: 0,
-            fontSize: 10.5,
-            lineHeight: 14,
-            fontWeight: "700",
-        },
-
         separator: {
             height:
                 StyleSheet.hairlineWidth,
@@ -1847,7 +2024,7 @@ const styles =
         },
 
         actionsBar: {
-            minHeight: 50,
+            minHeight: 56,
             paddingLeft: 8,
             paddingRight: 10,
             paddingTop: 6,
@@ -1868,12 +2045,29 @@ const styles =
             gap: 3,
         },
 
-        secondaryAction: {
-            minWidth: 58,
-            height: 38,
-            paddingHorizontal: 9,
+        eventAction: {
+            minWidth: 54,
+            minHeight: 42,
+            paddingHorizontal: 7,
+            paddingVertical: 3,
             borderRadius: 10,
 
+            alignItems: "center",
+            justifyContent:
+                "center",
+        },
+
+        eventActionPressed: {
+            backgroundColor:
+                COLORS.pressed,
+        },
+
+        eventActionDisabled: {
+            opacity: 0.48,
+        },
+
+        eventActionMain: {
+            minHeight: 21,
             flexDirection: "row",
             alignItems: "center",
             justifyContent:
@@ -1881,51 +2075,40 @@ const styles =
             gap: 5,
         },
 
-        secondaryActionCompact: {
-            minWidth: 44,
-            width: 44,
-            paddingHorizontal: 6,
-        },
-
-        secondaryActionValue: {
-            minWidth: 104,
-            paddingHorizontal: 9,
-
-            backgroundColor:
-                "rgba(111,174,134,0.10)",
-        },
-
-        secondaryActionPressed: {
-            backgroundColor:
-                COLORS.pressed,
-        },
-
-        secondaryActionText: {
+        eventActionLabel: {
+            maxWidth: 78,
             color:
                 COLORS.secondaryText,
-            fontSize: 12,
+            fontSize: 11.5,
             lineHeight: 15,
-            fontWeight: "600",
+            fontWeight: "650",
         },
 
-        secondaryActionValueText: {
-            color:
-                COLORS.primaryStrong,
-            fontSize: 11,
-            fontWeight: "800",
-        },
-
-        secondaryActionTextDisabled: {
+        eventActionLabelDisabled: {
             color:
                 COLORS.disabledText,
         },
 
-        secondaryActionEmoji: {
+        eventActionSublabel: {
+            maxWidth: 112,
+            marginTop: -1,
+            fontSize: 8.7,
+            lineHeight: 11,
+            fontWeight: "750",
+            textAlign: "center",
+        },
+
+        eventActionSublabelDisabled: {
+            color:
+                COLORS.disabledText,
+        },
+
+        eventActionEmoji: {
             fontSize: 17,
             lineHeight: 21,
         },
 
-        secondaryActionEmojiDisabled: {
+        eventActionEmojiDisabled: {
             opacity: 0.35,
         },
 
@@ -1933,17 +2116,67 @@ const styles =
             width:
                 StyleSheet.hairlineWidth,
 
-            height: 20,
-            marginHorizontal: 2,
+            height: 22,
+            marginHorizontal: 1,
 
             backgroundColor:
                 COLORS.separator,
         },
 
-        primaryAction: {
-            minWidth: 72,
+        primaryActions: {
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 7,
+        },
+
+        whatsappAction: {
+            width: 40,
             height: 38,
-            paddingHorizontal: 15,
+            borderRadius: 11,
+
+            backgroundColor:
+                COLORS.whatsapp,
+
+            alignItems: "center",
+            justifyContent:
+                "center",
+
+            shadowColor:
+                COLORS.whatsappPressed,
+
+            shadowOpacity: 0.16,
+            shadowRadius: 5,
+
+            shadowOffset: {
+                width: 0,
+                height: 2,
+            },
+
+            elevation: 2,
+        },
+
+        whatsappActionPressed: {
+            opacity: 0.82,
+
+            transform: [
+                {
+                    scale: 0.97,
+                },
+            ],
+        },
+
+        whatsappActionDisabled: {
+            backgroundColor:
+                COLORS.disabledBackground,
+
+            shadowOpacity: 0,
+            elevation: 0,
+        },
+
+        primaryAction: {
+            minWidth: 66,
+            height: 38,
+            paddingHorizontal: 13,
             borderRadius: 11,
 
             backgroundColor:
@@ -1953,7 +2186,7 @@ const styles =
             alignItems: "center",
             justifyContent:
                 "center",
-            gap: 6,
+            gap: 5,
 
             shadowColor:
                 COLORS.primaryStrong,
@@ -1988,7 +2221,8 @@ const styles =
         },
 
         primaryActionText: {
-            color: "#FFFFFF",
+            color:
+                "#FFFFFF",
             fontSize: 13,
             lineHeight: 16,
             fontWeight: "700",
@@ -2006,37 +2240,41 @@ const styles =
             paddingHorizontal: 8,
         },
 
+        deleteActionContainer: {
+            flexDirection: "row",
+            alignItems: "stretch",
+            paddingLeft: 8,
+            paddingRight: 2,
+        },
+
         swipeActionWrap: {
             overflow: "hidden",
 
-            borderTopLeftRadius:
-                14,
-
-            borderBottomLeftRadius:
-                14,
+            borderTopLeftRadius: 14,
+            borderBottomLeftRadius: 14,
 
             marginVertical: 4,
         },
 
         swipeActionWrapLast: {
-            borderTopRightRadius:
-                14,
-
-            borderBottomRightRadius:
-                14,
+            borderTopRightRadius: 14,
+            borderBottomRightRadius: 14,
         },
 
         swipeAction: {
             minWidth: 92,
             height: "100%",
             paddingHorizontal: 14,
+
             alignItems: "center",
             justifyContent:
                 "center",
+            gap: 6,
         },
 
         swipeActionText: {
-            color: "#FFFFFF",
+            color:
+                "#FFFFFF",
             fontSize: 12,
             fontWeight: "850",
         },
@@ -2063,22 +2301,6 @@ const styles =
             height: 1,
 
             backgroundColor:
-                "rgba(60,60,67,0.22)",
-        },
-        deleteActionContainer: {
-            flexDirection: "row",
-            alignItems: "stretch",
-            paddingLeft: 8,
-            paddingRight: 2,
-        },
-
-        swipeAction: {
-            minWidth: 92,
-            height: "100%",
-            paddingHorizontal: 14,
-
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
+                COLORS.strongSeparator,
         },
     });

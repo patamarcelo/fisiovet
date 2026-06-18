@@ -39,7 +39,11 @@ import { selectPetsState } from '@/src/store/slices/petsSlice';
 import { storage } from '@/src/services/firebaseClient';
 import { getCachedAvatar } from '../utils/avatarCache';
 import FinanceiroPendentesCard from '@/components/financeiro/FinanceiroPendentesCard';
-import { updateSystem, selectNavPreference } from '@/src/store/slices/systemSlice';
+import {
+    updateSystem,
+    selectNavPreference,
+    selectWhatsappConfirmationMessage,
+} from '@/src/store/slices/systemSlice';
 import { processSyncQueue } from '@/src/services/syncProcessor';
 
 import MiniEventRow from '@/components/agenda/MiniEventRow';
@@ -263,7 +267,8 @@ function UpcomingEventsList({
     canCreateEvent,
     tutoresById,
     navPreference,
-    showFinanceValues
+    showFinanceValues,
+    whatsappConfirmationMessage,
 }) {
     const sections = useMemo(
         () => toSections(upcoming),
@@ -275,7 +280,7 @@ function UpcomingEventsList({
             ? 'Cadastre um tutor para depois adicionar pets e eventos.'
             : !hasPet
                 ? 'Cadastre um pet para liberar a criação de eventos.'
-                : 'Toque abaixo para agendar um novo atendimento';
+                : 'Sua agenda não possui atendimentos próximos neste período.';
 
         return (
             <View style={styles.emptyEventsBox}>
@@ -286,7 +291,7 @@ function UpcomingEventsList({
                 />
 
                 <Text style={styles.emptyEventsTitle}>
-                    Nenhum evento futuro encontrado
+                    Nenhum evento nos próximos 7 dias
                 </Text>
 
                 <Text style={styles.emptyEventsSub}>
@@ -374,6 +379,9 @@ function UpcomingEventsList({
                                         showFinanceValues={
                                             showFinanceValues
                                         }
+                                        whatsappConfirmationMessage={
+                                            whatsappConfirmationMessage
+                                        }
                                         isLast={isLast}
                                     />
                                 );
@@ -458,6 +466,11 @@ export default function Home() {
 
     const canCreatePet = hasTutor;
     const canCreateEvent = hasTutor && hasPet;
+
+    const whatsappConfirmationMessage =
+        useSelector(
+            selectWhatsappConfirmationMessage
+        );
 
     useEffect(() => {
         navigation.setOptions({
@@ -654,20 +667,49 @@ export default function Home() {
     const upcoming = useMemo(() => {
         const now = new Date();
 
+        /*
+         * Janela de 7 dias:
+         * hoje + próximos 6 dias.
+         */
+        const endDate = new Date(now);
+
+        endDate.setDate(
+            endDate.getDate() + 6
+        );
+
+        endDate.setHours(
+            23,
+            59,
+            59,
+            999
+        );
+
         return (eventos || [])
             .filter((event) => {
-                const start = new Date(event.start);
+                const start = new Date(
+                    event?.start
+                );
+
+                if (
+                    Number.isNaN(
+                        start.getTime()
+                    )
+                ) {
+                    return false;
+                }
 
                 return (
-                    !Number.isNaN(start.getTime()) &&
-                    start >= now
+                    start >= now &&
+                    start <= endDate
                 );
             })
-            .sort(
-                (a, b) =>
-                    new Date(a.start) - new Date(b.start)
-            )
-            .slice(0, 12);
+            .sort((a, b) => {
+                return (
+                    new Date(a.start).getTime() -
+                    new Date(b.start).getTime()
+                );
+            })
+            .slice(0, 10);
     }, [eventos]);
 
     const avatarUri = localAvatar || photoURL;
@@ -941,8 +983,9 @@ export default function Home() {
                             canCreateEvent={canCreateEvent}
                             tutoresById={tutoresById}
                             navPreference={navPreference}
-                            showFinanceValues={
-                                showFinanceValues
+                            showFinanceValues={showFinanceValues}
+                            whatsappConfirmationMessage={
+                                whatsappConfirmationMessage
                             }
                         />
                     </View>

@@ -836,6 +836,22 @@ export default function ConfigIndex() {
               subtleColor={subtle}
               textColor={text}
             />
+            <Divider />
+
+            <Cell
+              title="Mensagem de confirmação"
+              subtitle="Personalizar mensagem enviada pelo WhatsApp"
+              leftImageSource={require(
+                '@/assets/images/whatsapp.png'
+              )}
+              onPress={() =>
+                router.push(
+                  '/configuracoes/whatsapp'
+                )
+              }
+              subtleColor={subtle}
+              textColor={text}
+            />
           </Group>
 
           <SectionLabel>
@@ -1118,12 +1134,12 @@ export default function ConfigIndex() {
               }
             ]}
           >
-              <BlurView
-                tint={blurTint}
-                intensity={100}
-                experimentalBlurMethod="dimezisBlurView"
-                style={StyleSheet.absoluteFill}
-              />
+            <BlurView
+              tint={blurTint}
+              intensity={100}
+              experimentalBlurMethod="dimezisBlurView"
+              style={StyleSheet.absoluteFill}
+            />
             <View style={styles.backButtonWrapper}>
 
               <View
@@ -1470,96 +1486,96 @@ const styles = StyleSheet.create({
     transform: [{ scale: 0.96 }]
   },
   safeArea: {
-  flex: 1
-},
-
-screen: {
-  flex: 1,
-  position: "relative"
-},
-
-scrollView: {
-  flex: 1
-},
-
-scrollContent: {
-  paddingBottom: 24
-},
-
-floatingHeader: {
-  position: "absolute",
-  top: 0,
-  left: 0,
-  right: 0,
-  zIndex: 20,
-  elevation: 20
-},
-
-headerRow: {
-  flex: 1,
-  flexDirection: "row",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  paddingHorizontal: 14
-},
-
-backButtonWrapper: {
-  width: 42,
-  height: 42,
-  marginTop: 6,
-  borderRadius: 21,
-  overflow: "hidden",
-
-  shadowColor: "#000000",
-  shadowOpacity: 0.14,
-  shadowRadius: 10,
-  shadowOffset: {
-    width: 0,
-    height: 4
+    flex: 1
   },
-  elevation: 6
-},
 
-backButtonGlass: {
-  borderRadius: 21,
-  borderWidth: StyleSheet.hairlineWidth
-},
+  screen: {
+    flex: 1,
+    position: "relative"
+  },
 
-backButton: {
-  width: 42,
-  height: 42,
-  alignItems: "center",
-  justifyContent: "center"
-},
+  scrollView: {
+    flex: 1
+  },
 
-backButtonPressed: {
-  opacity: 0.55,
-  transform: [{ scale: 0.96 }]
-},
+  scrollContent: {
+    paddingBottom: 24
+  },
 
-headerRightPlaceholder: {
-  width: 42,
-  height: 42,
-  marginTop: 6
-},
+  floatingHeader: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 20,
+    elevation: 20
+  },
 
-brandBox: {
-  flex: 1,
-  alignItems: "center",
-  justifyContent: "flex-start",
-  marginHorizontal: 6
-},
+  headerRow: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    paddingHorizontal: 14
+  },
 
-homeLogo: {
-  width: 92,
-  height: 54
-},
+  backButtonWrapper: {
+    width: 42,
+    height: 42,
+    marginTop: 6,
+    borderRadius: 21,
+    overflow: "hidden",
 
-pageTitle: {
-  marginTop: -2,
-  fontSize: 14,
-  lineHeight: 20,
-  fontWeight: "800",
-  letterSpacing: -0.25
-},
+    shadowColor: "#000000",
+    shadowOpacity: 0.14,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 4
+    },
+    elevation: 6
+  },
+
+  backButtonGlass: {
+    borderRadius: 21,
+    borderWidth: StyleSheet.hairlineWidth
+  },
+
+  backButton: {
+    width: 42,
+    height: 42,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+
+  backButtonPressed: {
+    opacity: 0.55,
+    transform: [{ scale: 0.96 }]
+  },
+
+  headerRightPlaceholder: {
+    width: 42,
+    height: 42,
+    marginTop: 6
+  },
+
+  brandBox: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    marginHorizontal: 6
+  },
+
+  homeLogo: {
+    width: 92,
+    height: 54
+  },
+
+  pageTitle: {
+    marginTop: -2,
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: "800",
+    letterSpacing: -0.25
+  },
 });

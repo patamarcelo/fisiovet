@@ -1,4 +1,4 @@
-// app/(auth)/signup.jsx
+// app/(auth)/register.js
 // @ts-nocheck
 import React, { useMemo, useState } from 'react';
 import {
@@ -11,6 +11,7 @@ import { useDispatch } from 'react-redux';
 import { setUser } from '@/src/store/slices/userSlice';
 import { mapFirebaseUserToDTO } from '@/firebase/authUserDTO';
 import { router } from 'expo-router';
+import { Image } from 'expo-image';
 import ResponsiveHero from './_resposiveHero';
 import {
     createUserWithEmailAndPassword,
@@ -18,10 +19,6 @@ import {
 } from "firebase/auth";
 import { auth } from "@/src/services/firebaseClient";
 
-
-
-
-import { postLoginBootstrap } from '@/src/store/bootstrapSlice';
 
 const colors = {
 	teal: '#159E9C',
@@ -45,8 +42,6 @@ export default function SignUp() {
 
 	const [error, setError] = useState('');
 	const [submitting, setSubmitting] = useState(false);
-	const [booting, setBooting] = useState(false);
-
 	const currentYear = new Date().getFullYear();
 
 	// validações simples
@@ -90,46 +85,75 @@ export default function SignUp() {
 	async function handleRegister() {
 		try {
 			await Haptics.selectionAsync();
-			setError('');
+
+			setError("");
 			setSubmitting(true);
 
-			const { user } = await createUserWithEmailAndPassword(auth, email, password);
-			const cred = user
-			// cria usuário
+			const cleanName =
+				name.trim();
 
-			// define displayName
-			if (name.trim()) {
-				await updateProfile(cred.user, { displayName: name.trim() });
-				await cred.user.reload();
+			const cleanEmail =
+				email.trim();
+
+			const {
+				user,
+			} =
+				await createUserWithEmailAndPassword(
+					auth,
+					cleanEmail,
+					password
+				);
+
+			if (cleanName) {
+				await updateProfile(
+					user,
+					{
+						displayName:
+							cleanName,
+					}
+				);
+
+				await user.reload();
 			}
 
-			// usuário final
-			const finalUser = authInstance.currentUser || cred.user;
+			const finalUser =
+				auth.currentUser ||
+				user;
 
-			dispatch(setUser(mapFirebaseUserToDTO(finalUser)));
+			dispatch(
+				setUser(
+					mapFirebaseUserToDTO(
+						finalUser
+					)
+				)
+			);
 
-			try {
-				setBooting(true);
-				await dispatch(
-					postLoginBootstrap({ uid: finalUser.uid, clinicId: finalUser.clinicId })
-				).unwrap();
-			} catch (e) {
-				console.warn('Bootstrap pós-cadastro falhou:', e);
-			} finally {
-				setBooting(false);
-			}
+			/*
+			 * O bootstrap não é executado aqui.
+			 *
+			 * O onAuthStateChanged global do _layout.jsx
+			 * inicia o refresh de tutores, pets e agenda
+			 * em background, sem bloquear o cadastro.
+			 */
+			router.replace("/");
+		} catch (error) {
+			const message =
+				normalizeFirebaseError(
+					error?.code,
+					error?.message
+				);
 
-			router.replace('/');
-		} catch (e) {
-			const msg = normalizeFirebaseError(e?.code, e?.message);
-			setError(msg);
-			console.log('error: ', e)
-			console.log('error msg: ', msg)
-			console.log('code:', e?.code);
-			console.log('message:', e?.message);
-			console.log('native:', e?.nativeErrorMessage || e?.userInfo || e?.toString?.());
+			setError(message);
 
-			Alert.alert('Cadastro', msg);
+			console.log(
+				"[REGISTER] error:",
+				error
+			);
+
+			Alert.alert(
+				"Cadastro",
+				message
+			);
 		} finally {
 			setSubmitting(false);
 		}
@@ -154,14 +178,14 @@ export default function SignUp() {
 					keyboardShouldPersistTaps="handled"
 				>
 					<View style={styles.card}>
-						{/* Cabeçalho */}
+						{/* Logo */}
 						<View style={styles.brandRow}>
-							<View style={styles.brandIcon}>
-								<Ionicons name="paw" size={18} color={'whitesmoke'} />
-							</View>
-							<Text style={styles.brandText}>
-								<Text style={{ fontWeight: '800' }}>FisioVet</Text>
-							</Text>
+							<Image
+								source={require("@/assets/images/splash-fisiovet.png")}
+								style={styles.brandLogo}
+								contentFit="contain"
+								transition={0}
+							/>
 						</View>
 
 						<Text style={styles.subtitle}>Criar sua conta</Text>
@@ -299,15 +323,6 @@ export default function SignUp() {
 							</View>
 						)}
 
-						{/* Overlay boot pós-cadastro */}
-						{booting && (
-							<View style={styles.overlay}>
-								<ActivityIndicator size="large" color={colors.teal} />
-								<Text style={{ marginTop: 8, color: '#111', fontWeight: 'bold' }}>
-									Preparando seus dados…
-								</Text>
-							</View>
-						)}
 
 						{/* Rodapé */}
 						<Text style={styles.footer}>FisioVet • {currentYear}</Text>
@@ -332,14 +347,17 @@ const styles = StyleSheet.create({
 		shadowOffset: { width: 0, height: 8 },
 		elevation: 4,
 	},
-	brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
-	brandIcon: {
-		width: 42, height: 42, borderRadius: 21,
-		backgroundColor: '#0EA5A4',
-		alignItems: 'center', justifyContent: 'center',
+	brandRow: {
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 8,
 	},
-	brandText: { fontSize: 28, color: colors.text },
+	brandLogo: {
+		width: 180,
+		height: 88,
+	},
 	subtitle: {
+		textAlign: 'center',
 		color: colors.text, opacity: 0.8,
 		fontSize: 18, marginTop: 4, marginBottom: 16, fontWeight: '600'
 	},
@@ -386,9 +404,4 @@ const styles = StyleSheet.create({
 	meterBar: { flex: 1, height: 6, borderRadius: 3, backgroundColor: '#E5E7EB' },
 	mOk: { backgroundColor: '#10B981' },
 
-	overlay: {
-		position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
-		backgroundColor: 'rgba(255,255,255,0.7)', alignItems: 'center', justifyContent: 'center',
-		borderRadius: 16
-	},
 });

@@ -14,13 +14,11 @@ import {
   Pressable,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   Switch,
   ActivityIndicator,
   Linking,
   Keyboard,
-  TouchableWithoutFeedback,
 } from "react-native";
 import { Stack, useLocalSearchParams, router } from "expo-router";
 import { useDispatch, useSelector } from "react-redux";
@@ -32,8 +30,12 @@ import {
   selectPetById,
 } from "@/src/store/slices/petsSlice";
 import { useThemeColor } from "@/hooks/useThemeColor";
-import { ScrollView } from "react-native";
 import { useSafeAreaInsets, SafeAreaView } from "react-native-safe-area-context";
+
+import {
+  KeyboardAwareScrollView,
+  KeyboardToolbar,
+} from "react-native-keyboard-controller";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
@@ -182,6 +184,8 @@ function TutorSearchBox({
   border,
   tint,
   openMaps,
+  inputRef,
+  nextInputRef,
 }) {
   const hasSelected = !!tutor?.id;
 
@@ -194,6 +198,7 @@ function TutorSearchBox({
         <Ionicons name="person-circle-outline" size={19} color="#8E8E93" />
 
         <TextInput
+          ref={inputRef}
           placeholder="Buscar e selecionar tutor"
           placeholderTextColor={subtle}
           value={hasSelected ? tutor?.nome || tutor?.name || "" : tutorQuery}
@@ -204,6 +209,9 @@ function TutorSearchBox({
           style={[styles.input, styles.searchInput, { color: text }]}
           autoCapitalize="words"
           autoCorrect={false}
+          returnKeyType="next"
+          blurOnSubmit={false}
+          onSubmitEditing={() => nextInputRef?.current?.focus()}
         />
 
         {hasSelected ? (
@@ -222,10 +230,11 @@ function TutorSearchBox({
       {!hasSelected ? (
         <View style={[styles.tutorResults, { borderColor: border }]}>
           {tutoresBuscados.length > 0 ? (
-            tutoresBuscados.slice(0, 8).map((item, idx) => (
+            tutoresBuscados.slice(0, 6).map((item, idx) => (
               <Pressable
                 key={String(item.id)}
                 onPress={() => {
+                  Keyboard.dismiss();
                   setTutor(item);
                   setTutorQuery("");
                 }}
@@ -234,7 +243,7 @@ function TutorSearchBox({
                   {
                     backgroundColor: pressed ? "#F3F4F6" : "#FFFFFF",
                     borderBottomWidth:
-                      idx === Math.min(tutoresBuscados.length, 8) - 1
+                      idx === Math.min(tutoresBuscados.length, 6) - 1
                         ? 0
                         : StyleSheet.hairlineWidth,
                   },
@@ -332,6 +341,7 @@ export default function PetNewModal() {
   const [observacoes, setObservacoes] = useState("");
 
   const scrollRef = useRef(null);
+  const tutorQueryRef = useRef(null);
   const nomeRef = useRef(null);
   const racaRef = useRef(null);
   const corRef = useRef(null);
@@ -339,22 +349,6 @@ export default function PetNewModal() {
   const pesoRef = useRef(null);
   const observacoesRef = useRef(null);
 
-  const revealObservacoes = useCallback(() => {
-    setTimeout(() => {
-      const input = observacoesRef.current;
-      const responder = scrollRef.current?.getScrollResponder?.();
-
-      if (!input || !responder?.scrollResponderScrollNativeHandleToKeyboard) {
-        return;
-      }
-
-      responder.scrollResponderScrollNativeHandleToKeyboard(
-        input,
-        76,
-        true
-      );
-    }, 220);
-  }, []);
 
   const [tutorQuery, setTutorQuery] = useState("");
   const [tutor, setTutor] = useState(() => {
@@ -780,6 +774,8 @@ export default function PetNewModal() {
           headerLeft: () => (
             <Pressable
               onPress={() => {
+                Keyboard.dismiss();
+
                 if (
                   router.canGoBack()
                 ) {
@@ -838,17 +834,9 @@ export default function PetNewModal() {
         }}
       />
 
-      <KeyboardAvoidingView
-        style={styles.keyboard}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
-      >
+      <View style={styles.keyboard}>
         <View style={styles.shell}>
-          <TouchableWithoutFeedback
-            onPress={Keyboard.dismiss}
-            accessible={false}
-          >
-          <ScrollView
+          <KeyboardAwareScrollView
             ref={scrollRef}
             style={styles.scroll}
             contentContainerStyle={[
@@ -857,8 +845,11 @@ export default function PetNewModal() {
                 paddingBottom: 148 + insets.bottom,
               },
             ]}
-            keyboardShouldPersistTaps="always"
-            keyboardDismissMode="none"
+            bottomOffset={18}
+            extraKeyboardSpace={48}
+            disableScrollOnKeyboardHide
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             contentInsetAdjustmentBehavior="automatic"
             showsVerticalScrollIndicator={false}
           >
@@ -895,6 +886,8 @@ export default function PetNewModal() {
                 border={border}
                 tint={tint}
                 openMaps={openMaps}
+                inputRef={tutorQueryRef}
+                nextInputRef={nomeRef}
               />
             )}
 
@@ -1027,6 +1020,9 @@ export default function PetNewModal() {
                       keyboardType="number-pad"
                       inputMode="numeric"
                       maxLength={3}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() => pesoRef.current?.focus()}
                     />
                   </Field>
                 </View>
@@ -1046,6 +1042,11 @@ export default function PetNewModal() {
                       placeholder="Ex.: 12,4"
                       placeholderTextColor="#9CA3AF"
                       style={[styles.input, { color: text }]}
+                      returnKeyType="next"
+                      blurOnSubmit={false}
+                      onSubmitEditing={() =>
+                        observacoesRef.current?.focus()
+                      }
                     />
                   </Field>
                 </View>
@@ -1059,15 +1060,13 @@ export default function PetNewModal() {
               <TextInput
                 ref={observacoesRef}
                 value={observacoes}
-                onFocus={revealObservacoes}
                 onChangeText={setObservacoes}
                 placeholder="Anotações gerais sobre o paciente..."
                 placeholderTextColor="#9CA3AF"
                 style={[styles.input, styles.textArea, { color: text }]}
                 multiline
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={Keyboard.dismiss}
+                returnKeyType="default"
+                blurOnSubmit={false}
                 textAlignVertical="top"
               />
             </FormSection>
@@ -1075,8 +1074,7 @@ export default function PetNewModal() {
             {!!firstError && (
               <Text style={styles.bottomError}>{firstError}</Text>
             )}
-          </ScrollView>
-          </TouchableWithoutFeedback>
+          </KeyboardAwareScrollView>
 
           <View
             style={[
@@ -1116,8 +1114,20 @@ export default function PetNewModal() {
               {firstError || "Você pode completar o cadastro do pet depois."}
             </Text>
           </View>
+
+          {Platform.OS === "ios" && (
+            <KeyboardToolbar style={styles.keyboardToolbar}>
+              <KeyboardToolbar.Content>
+                <Text style={styles.keyboardToolbarLabel}>
+                  Preenchimento do pet
+                </Text>
+              </KeyboardToolbar.Content>
+
+              <KeyboardToolbar.Done text="Fechar" />
+            </KeyboardToolbar>
+          )}
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -1548,4 +1558,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "750",
   },
+  keyboardToolbar: {
+    minHeight: 46,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: "rgba(60,60,67,0.20)",
+    backgroundColor: "rgba(248,248,248,0.98)",
+  },
+
+  keyboardToolbarLabel: {
+    color: "#6B7280",
+    fontSize: 12,
+    fontWeight: "650",
+  },
+
 });

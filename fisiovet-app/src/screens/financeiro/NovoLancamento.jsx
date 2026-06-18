@@ -14,10 +14,8 @@ import {
     ActivityIndicator,
     Alert,
     Keyboard,
-    KeyboardAvoidingView,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
@@ -47,6 +45,11 @@ import {
     SafeAreaView,
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
+
+import {
+    KeyboardAwareScrollView,
+    KeyboardToolbar,
+} from "react-native-keyboard-controller";
 
 import {
     useThemeColor,
@@ -268,14 +271,19 @@ function InputShell({
     );
 }
 
-function AppTextInput({
+const AppTextInput = React.forwardRef(function AppTextInput({
     value,
     onChangeText,
     placeholder,
     keyboardType,
     multiline = false,
     icon,
-}) {
+    returnKeyType,
+    blurOnSubmit,
+    onSubmitEditing,
+    autoCapitalize = "sentences",
+    autoCorrect = true,
+}, ref) {
     return (
         <InputShell multiline={multiline}>
             {!!icon && (
@@ -288,12 +296,18 @@ function AppTextInput({
             )}
 
             <TextInput
+                ref={ref}
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
                 placeholderTextColor="#9CA3AF"
                 keyboardType={keyboardType}
                 multiline={multiline}
+                returnKeyType={returnKeyType}
+                blurOnSubmit={blurOnSubmit}
+                onSubmitEditing={onSubmitEditing}
+                autoCapitalize={autoCapitalize}
+                autoCorrect={autoCorrect}
                 textAlignVertical={
                     multiline ? "top" : "center"
                 }
@@ -305,7 +319,7 @@ function AppTextInput({
             />
         </InputShell>
     );
-}
+});
 
 function CategorySelector({
     value,
@@ -414,7 +428,7 @@ function TutorSuggestionList({
     return (
         <View style={styles.suggestionBox}>
             {items.length > 0 ? (
-                items.slice(0, 8).map(
+                items.slice(0, 6).map(
                     (item, index) => (
                         <Pressable
                             key={String(item.id)}
@@ -432,7 +446,7 @@ function TutorSuggestionList({
                                         "#F3F4F6",
                                 },
                                 index ===
-                                items.length - 1 && {
+                                Math.min(items.length, 6) - 1 && {
                                     borderBottomWidth: 0,
                                 },
                             ]}
@@ -650,6 +664,14 @@ export default function NovoLancamento() {
             makeSelectTutoresByQuery()
         );
 
+    const descricaoRef = useRef(null);
+    const tutorQueryRef = useRef(null);
+    const valorRef = useRef(null);
+    const descontoRef = useRef(null);
+    const acrescimoRef = useRef(null);
+    const valorRecebidoRef = useRef(null);
+    const observacoesRef = useRef(null);
+
     const [
         descricao,
         setDescricao,
@@ -837,9 +859,10 @@ export default function NovoLancamento() {
 
             headerLeft: () => (
                 <Pressable
-                    onPress={() =>
-                        router.back()
-                    }
+                    onPress={() => {
+                        Keyboard.dismiss();
+                        router.back();
+                    }}
                     hitSlop={10}
                     style={
                         styles.headerButton
@@ -875,6 +898,7 @@ export default function NovoLancamento() {
 
     const handleSelectTutor =
         useCallback((item) => {
+            Keyboard.dismiss();
             setTutor(item);
             setTutorQuery("");
             setSelectedPetIds([]);
@@ -1018,20 +1042,8 @@ export default function NovoLancamento() {
             ]}
             edges={[]}
         >
-            <KeyboardAvoidingView
-                style={styles.flex}
-                behavior={
-                    Platform.OS === "ios"
-                        ? "padding"
-                        : undefined
-                }
-                keyboardVerticalOffset={
-                    Platform.OS === "ios"
-                        ? 90
-                        : 0
-                }
-            >
-                <ScrollView
+            <View style={styles.flex}>
+                <KeyboardAwareScrollView
                     style={styles.flex}
                     contentContainerStyle={[
                         styles.content,
@@ -1044,13 +1056,12 @@ export default function NovoLancamento() {
                                 ),
                         },
                     ]}
+                    bottomOffset={18}
+                    extraKeyboardSpace={48}
+                    disableScrollOnKeyboardHide
                     keyboardShouldPersistTaps="handled"
-                    onScrollBeginDrag={
-                        Keyboard.dismiss
-                    }
-                    showsVerticalScrollIndicator={
-                        false
-                    }
+                    keyboardDismissMode="interactive"
+                    showsVerticalScrollIndicator={false}
                 >
                     <SectionCard
                         title="Lançamento"
@@ -1061,11 +1072,17 @@ export default function NovoLancamento() {
                         </FieldLabel>
 
                         <AppTextInput
+                            ref={descricaoRef}
                             value={descricao}
                             onChangeText={
                                 setDescricao
                             }
                             placeholder="Ex.: Laudo fisioterapêutico"
+                            returnKeyType="next"
+                            blurOnSubmit={false}
+                            onSubmitEditing={() =>
+                                tutorQueryRef.current?.focus()
+                            }
                         />
 
                         <View
@@ -1097,6 +1114,7 @@ export default function NovoLancamento() {
                         {!tutor?.id ? (
                             <>
                                 <AppTextInput
+                                    ref={tutorQueryRef}
                                     value={
                                         tutorQuery
                                     }
@@ -1105,6 +1123,13 @@ export default function NovoLancamento() {
                                     }
                                     placeholder="Buscar tutor"
                                     icon="search-outline"
+                                    returnKeyType="next"
+                                    blurOnSubmit={false}
+                                    autoCapitalize="words"
+                                    autoCorrect={false}
+                                    onSubmitEditing={() =>
+                                        valorRef.current?.focus()
+                                    }
                                 />
 
                                 {!!tutorQuery && (
@@ -1372,6 +1397,7 @@ export default function NovoLancamento() {
                             </Text>
 
                             <TextInput
+                                ref={valorRef}
                                 value={
                                     valorText
                                 }
@@ -1387,6 +1413,11 @@ export default function NovoLancamento() {
                                 placeholder="0,00"
                                 placeholderTextColor="#9CA3AF"
                                 keyboardType="decimal-pad"
+                                returnKeyType="next"
+                                blurOnSubmit={false}
+                                onSubmitEditing={() =>
+                                    descontoRef.current?.focus()
+                                }
                                 style={
                                     styles.moneyInput
                                 }
@@ -1417,6 +1448,7 @@ export default function NovoLancamento() {
                                     </Text>
 
                                     <TextInput
+                                        ref={descontoRef}
                                         value={
                                             descontoText
                                         }
@@ -1432,6 +1464,11 @@ export default function NovoLancamento() {
                                         placeholder="0,00"
                                         placeholderTextColor="#9CA3AF"
                                         keyboardType="decimal-pad"
+                                        returnKeyType="next"
+                                        blurOnSubmit={false}
+                                        onSubmitEditing={() =>
+                                            acrescimoRef.current?.focus()
+                                        }
                                         style={
                                             styles.moneyInput
                                         }
@@ -1458,6 +1495,7 @@ export default function NovoLancamento() {
                                     </Text>
 
                                     <TextInput
+                                        ref={acrescimoRef}
                                         value={
                                             acrescimoText
                                         }
@@ -1473,6 +1511,15 @@ export default function NovoLancamento() {
                                         placeholder="0,00"
                                         placeholderTextColor="#9CA3AF"
                                         keyboardType="decimal-pad"
+                                        returnKeyType="next"
+                                        blurOnSubmit={false}
+                                        onSubmitEditing={() => {
+                                            if (registrarRecebimento) {
+                                                valorRecebidoRef.current?.focus();
+                                            } else {
+                                                observacoesRef.current?.focus();
+                                            }
+                                        }}
                                         style={
                                             styles.moneyInput
                                         }
@@ -1632,6 +1679,7 @@ export default function NovoLancamento() {
                                     </Text>
 
                                     <TextInput
+                                        ref={valorRecebidoRef}
                                         value={
                                             valorRecebidoText
                                         }
@@ -1647,6 +1695,11 @@ export default function NovoLancamento() {
                                         placeholder="0,00"
                                         placeholderTextColor="#9CA3AF"
                                         keyboardType="decimal-pad"
+                                        returnKeyType="next"
+                                        blurOnSubmit={false}
+                                        onSubmitEditing={() =>
+                                            observacoesRef.current?.focus()
+                                        }
                                         style={
                                             styles.moneyInput
                                         }
@@ -1693,6 +1746,7 @@ export default function NovoLancamento() {
                         icon="document-text-outline"
                     >
                         <AppTextInput
+                            ref={observacoesRef}
                             value={
                                 observacoes
                             }
@@ -1701,9 +1755,11 @@ export default function NovoLancamento() {
                             }
                             placeholder="Informações adicionais sobre o lançamento"
                             multiline
+                            returnKeyType="default"
+                            blurOnSubmit={false}
                         />
                     </SectionCard>
-                </ScrollView>
+                </KeyboardAwareScrollView>
 
                 <View
                     style={[
@@ -1766,7 +1822,19 @@ export default function NovoLancamento() {
                         )}
                     </Pressable>
                 </View>
-            </KeyboardAvoidingView>
+
+                {Platform.OS === "ios" && (
+                    <KeyboardToolbar style={styles.keyboardToolbar}>
+                        <KeyboardToolbar.Content>
+                            <Text style={styles.keyboardToolbarLabel}>
+                                Preenchimento do lançamento
+                            </Text>
+                        </KeyboardToolbar.Content>
+
+                        <KeyboardToolbar.Done text="Fechar" />
+                    </KeyboardToolbar>
+                )}
+            </View>
         </SafeAreaView>
     );
 }
@@ -2298,4 +2366,17 @@ const styles = StyleSheet.create({
         fontSize: 15,
         fontWeight: "750",
     },
+    keyboardToolbar: {
+        minHeight: 46,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(60,60,67,0.20)",
+        backgroundColor: "rgba(248,248,248,0.98)",
+    },
+
+    keyboardToolbarLabel: {
+        color: COLORS.subtle,
+        fontSize: 12,
+        fontWeight: "650",
+    },
+
 });

@@ -127,7 +127,7 @@ module.exports = {
 			infoPlist: {
 				UIUserInterfaceStyle: "Light",
 				ITSAppUsesNonExemptEncryption: false,
-				
+
 				"UISupportedInterfaceOrientations~ipad": [
 					"UIInterfaceOrientationPortrait",
 					"UIInterfaceOrientationLandscapeLeft",
@@ -156,9 +156,10 @@ module.exports = {
 
 		android: {
 			versionCode: androidVersionCode,
+			icon: "./assets/images/icon.png",
 			adaptiveIcon: {
 				foregroundImage: "./assets/images/adaptive-icon.png",
-				backgroundColor: "#ffffff",
+				backgroundColor: "#F5F5F5",
 			},
 			config: {
 				googleMaps: { apiKey: MAPS_KEY },
