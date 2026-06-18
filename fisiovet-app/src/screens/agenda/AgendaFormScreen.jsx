@@ -804,6 +804,178 @@ export default function AgendaNewScreen() {
     const loadingPets = useSelector(selectLoadingPetsByTutor(tutor?.id || ""));
 
 
+    const selectedPetMetadata =
+        useMemo(() => {
+            const petsById =
+                (
+                    petsDoTutor ||
+                    []
+                ).reduce(
+                    (
+                        accumulator,
+                        pet
+                    ) => {
+                        if (
+                            pet?.id != null
+                        ) {
+                            accumulator[
+                                String(
+                                    pet.id
+                                )
+                            ] = pet;
+                        }
+
+                        return accumulator;
+                    },
+                    {}
+                );
+
+            const previousIds =
+                Array.isArray(
+                    eventoExistente
+                        ?.petIds
+                )
+                    ? eventoExistente
+                        .petIds
+                        .map(String)
+                    : [];
+
+            const previousNames =
+                Array.isArray(
+                    eventoExistente
+                        ?.petNomes
+                )
+                    ? eventoExistente
+                        .petNomes
+                        .map(
+                            (name) =>
+                                String(
+                                    name ||
+                                    ""
+                                ).trim()
+                        )
+                    : [];
+
+            const previousNamesById =
+                previousIds.reduce(
+                    (
+                        accumulator,
+                        id,
+                        index
+                    ) => {
+                        const name =
+                            previousNames[
+                            index
+                            ];
+
+                        if (name) {
+                            accumulator[
+                                id
+                            ] =
+                                name;
+                        }
+
+                        return accumulator;
+                    },
+                    {}
+                );
+
+            const ids =
+                (
+                    selectedPetIds ||
+                    []
+                )
+                    .map(String)
+                    .filter(Boolean);
+
+            const entries =
+                ids.map(
+                    (id) => {
+                        const pet =
+                            petsById[
+                            id
+                            ];
+
+                        const name =
+                            String(
+                                pet?.nome ||
+                                pet?.name ||
+                                previousNamesById[
+                                id
+                                ] ||
+                                (
+                                    String(
+                                        eventoExistente
+                                            ?.petId ||
+                                        ""
+                                    ) ===
+                                        id
+                                        ? eventoExistente
+                                            ?.petNome ||
+                                        eventoExistente
+                                            ?.petName ||
+                                        ""
+                                        : ""
+                                )
+                            ).trim();
+
+                        return {
+                            id,
+                            name:
+                                name ||
+                                null,
+                        };
+                    }
+                );
+
+            return {
+                ids:
+                    entries.map(
+                        (
+                            entry
+                        ) =>
+                            entry.id
+                    ),
+
+                names:
+                    entries
+                        .map(
+                            (
+                                entry
+                            ) =>
+                                entry.name
+                        )
+                        .filter(
+                            Boolean
+                        ),
+
+                primaryId:
+                    entries[
+                        0
+                    ]?.id ||
+                    null,
+
+                primaryName:
+                    entries[
+                        0
+                    ]?.name ||
+                    null,
+            };
+        }, [
+            petsDoTutor,
+            selectedPetIds,
+            eventoExistente
+                ?.petIds,
+            eventoExistente
+                ?.petNomes,
+            eventoExistente
+                ?.petId,
+            eventoExistente
+                ?.petNome,
+            eventoExistente
+                ?.petName,
+        ]);
+
     const tutoresBuscados = useSelector((state) =>
         tutoresByQuerySelectorRef.current(state, tutorQuery)
     );
@@ -1165,7 +1337,16 @@ export default function AgendaNewScreen() {
                                 "",
 
                             petIds:
-                                selectedPetIds,
+                                selectedPetMetadata.ids,
+
+                            petNomes:
+                                selectedPetMetadata.names,
+
+                            petId:
+                                selectedPetMetadata.primaryId,
+
+                            petNome:
+                                selectedPetMetadata.primaryName,
 
                             local:
                                 (local || "").trim(),
@@ -1223,7 +1404,16 @@ export default function AgendaNewScreen() {
                     "",
 
                 petIds:
-                    selectedPetIds,
+                    selectedPetMetadata.ids,
+
+                petNomes:
+                    selectedPetMetadata.names,
+
+                petId:
+                    selectedPetMetadata.primaryId,
+
+                petNome:
+                    selectedPetMetadata.primaryName,
 
                 local:
                     (local || "").trim(),
@@ -1348,6 +1538,7 @@ export default function AgendaNewScreen() {
         duracao,
         tutor,
         selectedPetIds,
+        selectedPetMetadata,
         local,
         observacoes,
         precoText,

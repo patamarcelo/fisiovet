@@ -76,6 +76,35 @@ const ensureStringId =
             ? null
             : String(value);
 
+function normalizePetIds(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return Array.from(
+        new Set(
+            value
+                .map((item) =>
+                    item == null ? "" : String(item)
+                )
+                .filter(Boolean)
+        )
+    );
+}
+
+function normalizePetNames(value) {
+    if (!Array.isArray(value)) {
+        return [];
+    }
+
+    return value
+        .map((item) =>
+            String(item || "").trim()
+        )
+        .filter(Boolean);
+}
+
+
 const toDateLocal =
     (value) => {
         if (value?.toDate) {
@@ -316,19 +345,14 @@ function sanitizeEvento(
         },
 
         petIds:
-            Array.isArray(
-                incoming.petIds
-            )
-                ? [
-                    ...incoming.petIds,
-                ]
-                : Array.isArray(
-                    previous.petIds
-                )
-                    ? [
-                        ...previous.petIds,
-                    ]
-                    : [],
+            incoming.petIds !== undefined
+                ? normalizePetIds(incoming.petIds)
+                : normalizePetIds(previous.petIds),
+
+        petNomes:
+            incoming.petNomes !== undefined
+                ? normalizePetNames(incoming.petNomes)
+                : normalizePetNames(previous.petNomes),
     };
 
     next.id =
@@ -345,11 +369,113 @@ function sanitizeEvento(
         );
 
     next.petIds =
-        next.petIds.map(
-            (item) =>
-                String(item)
+        normalizePetIds(next.petIds);
+
+    next.petNomes =
+        normalizePetNames(next.petNomes);
+
+    const hasIncomingPetIds =
+        Object.prototype.hasOwnProperty.call(
+            incoming,
+            "petIds"
         );
 
+    const hasIncomingPetNomes =
+        Object.prototype.hasOwnProperty.call(
+            incoming,
+            "petNomes"
+        );
+
+    const hasIncomingPetId =
+        Object.prototype.hasOwnProperty.call(
+            incoming,
+            "petId"
+        );
+
+    const hasIncomingPetNome =
+        Object.prototype.hasOwnProperty.call(
+            incoming,
+            "petNome"
+        ) ||
+        Object.prototype.hasOwnProperty.call(
+            incoming,
+            "petName"
+        );
+
+    /*
+     * Quando petIds é enviado, ele representa
+     * a nova seleção completa.
+     *
+     * Isso impede que um pet removido seja
+     * recuperado a partir do evento anterior.
+     */
+    if (hasIncomingPetId) {
+        next.petId =
+            ensureStringId(
+                incoming.petId
+            );
+    } else if (hasIncomingPetIds) {
+        next.petId =
+            next.petIds[0] ||
+            null;
+    } else {
+        next.petId =
+            ensureStringId(
+                previous.petId
+            ) ||
+            next.petIds[0] ||
+            null;
+    }
+
+    /*
+     * A mesma regra vale para o nome.
+     * null ou string vazia devem realmente
+     * limpar o nome anterior.
+     */
+    if (hasIncomingPetNome) {
+        next.petNome =
+            String(
+                incoming.petNome ??
+                incoming.petName ??
+                ""
+            ).trim() ||
+            null;
+    } else if (hasIncomingPetNomes) {
+        next.petNome =
+            next.petNomes[0] ||
+            null;
+    } else {
+        next.petNome =
+            String(
+                previous.petNome ??
+                previous.petName ??
+                next.petNomes[0] ??
+                ""
+            ).trim() ||
+            null;
+    }
+
+    if (
+        next.petId &&
+        !next.petIds.includes(
+            next.petId
+        )
+    ) {
+        next.petIds.unshift(
+            next.petId
+        );
+    }
+
+    if (
+        next.petNome &&
+        !next.petNomes.includes(
+            next.petNome
+        )
+    ) {
+        next.petNomes.unshift(
+            next.petNome
+        );
+    }
     if (!next.status) {
         next.status =
             "pendente";
@@ -613,11 +739,22 @@ function normalizeNewEvent(
             "",
 
         petIds:
-            Array.isArray(
-                payload?.petIds
-            )
-                ? payload.petIds
-                : [],
+            normalizePetIds(payload?.petIds),
+
+        petNomes:
+            normalizePetNames(payload?.petNomes),
+
+        petId:
+            payload?.petId ??
+            payload?.petIds?.[0] ??
+            null,
+
+        petNome:
+            payload?.petNome ??
+            payload?.petName ??
+            payload?.petNomes?.[0] ??
+            null,
+
 
         duracao:
             payload?.duracao ||

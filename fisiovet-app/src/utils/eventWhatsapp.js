@@ -1,5 +1,5 @@
 // src/utils/eventWhatsapp.js
-
+//@ts-nocheck
 const removeAccents = (
     value
 ) => {
@@ -97,12 +97,24 @@ export function buildEventWhatsappMessage({
     template,
     event,
     tutor,
+    pet
 }) {
     const petName =
+        pet?.nome ||
         event?.petNome ||
+        event?.petName ||
+        event?.nomePet ||
         event?.pet?.nome ||
-        event?.animalNome ||
-        'pet';
+        (
+            Array.isArray(
+                event?.petNomes
+            )
+                ? event.petNomes
+                    .filter(Boolean)
+                    .join(", ")
+                : ""
+        ) ||
+        "pet";
 
     const tutorName =
         tutor?.nome ||
@@ -117,6 +129,7 @@ export function buildEventWhatsappMessage({
         formatEventTime(
             event?.start
         );
+
 
     return String(template || '')
         .replace(

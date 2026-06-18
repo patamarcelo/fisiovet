@@ -266,6 +266,7 @@ function UpcomingEventsList({
     hasPet,
     canCreateEvent,
     tutoresById,
+    petsById,
     navPreference,
     showFinanceValues,
     whatsappConfirmationMessage,
@@ -361,6 +362,27 @@ function UpcomingEventsList({
                                     index ===
                                     section.data.length - 1;
 
+                                const eventPetId =
+                                    item?.petId != null
+                                        ? String(
+                                            item.petId
+                                        )
+                                        : Array.isArray(
+                                            item?.petIds
+                                        ) &&
+                                            item.petIds.length > 0
+                                            ? String(
+                                                item.petIds[0]
+                                            )
+                                            : null;
+
+                                const eventPet =
+                                    eventPetId
+                                        ? petsById[
+                                        eventPetId
+                                        ] || null
+                                        : null;
+
                                 return (
                                     <MiniEventRow
                                         key={String(item.id)}
@@ -369,10 +391,11 @@ function UpcomingEventsList({
                                             tutoresById[
                                             String(
                                                 item?.tutorId ||
-                                                ''
+                                                ""
                                             )
                                             ] || null
                                         }
+                                        pet={eventPet}
                                         navPreference={
                                             navPreference
                                         }
@@ -415,6 +438,54 @@ export default function Home() {
     const eventos = useSelector(selectAllEventos);
     const tutores = useSelector(selectTutores);
     const petsState = useSelector(selectPetsState);
+
+    const pets =
+        useMemo(() => {
+            if (
+                Array.isArray(
+                    petsState?.items
+                )
+            ) {
+                return petsState.items;
+            }
+
+            if (
+                petsState?.byId &&
+                typeof petsState.byId ===
+                "object"
+            ) {
+                return Object.values(
+                    petsState.byId
+                );
+            }
+
+            return [];
+        }, [
+            petsState,
+        ]);
+
+    const petsById =
+        useMemo(() => {
+            return pets.reduce(
+                (
+                    accumulator,
+                    pet
+                ) => {
+                    if (
+                        pet?.id != null
+                    ) {
+                        accumulator[
+                            String(pet.id)
+                        ] = pet;
+                    }
+
+                    return accumulator;
+                },
+                {}
+            );
+        }, [
+            pets,
+        ]);
 
     const navPreference = useSelector(
         selectNavPreference
@@ -987,6 +1058,7 @@ export default function Home() {
                             whatsappConfirmationMessage={
                                 whatsappConfirmationMessage
                             }
+                            petsById={petsById}
                         />
                     </View>
 

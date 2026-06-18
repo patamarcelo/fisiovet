@@ -192,64 +192,421 @@ function stripUndefined(
   return output;
 }
 
+function normalizePetIds(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(
+      value
+        .map((item) =>
+          item == null
+            ? ""
+            : String(item)
+        )
+        .filter(Boolean)
+    )
+  );
+}
+
+function normalizePetNames(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((item) =>
+      String(item || "").trim()
+    )
+    .filter(Boolean);
+}
+
+function normalizeEventoPets(
+  evento = {},
+  options = {}
+) {
+  const {
+    preserveExplicitNull =
+      false,
+  } = options;
+
+  const hasPetIds =
+    Object.prototype
+      .hasOwnProperty.call(
+        evento,
+        "petIds"
+      );
+
+  const hasPetNomes =
+    Object.prototype
+      .hasOwnProperty.call(
+        evento,
+        "petNomes"
+      );
+
+  const hasPetId =
+    Object.prototype
+      .hasOwnProperty.call(
+        evento,
+        "petId"
+      );
+
+  const hasPetNome =
+    Object.prototype
+      .hasOwnProperty.call(
+        evento,
+        "petNome"
+      ) ||
+    Object.prototype
+      .hasOwnProperty.call(
+        evento,
+        "petName"
+      );
+
+  const petIds =
+    hasPetIds
+      ? normalizePetIds(
+          evento.petIds
+        )
+      : [];
+
+  const petNomes =
+    hasPetNomes
+      ? normalizePetNames(
+          evento.petNomes
+        )
+      : [];
+
+  let petId;
+
+  if (
+    preserveExplicitNull &&
+    hasPetId &&
+    evento.petId == null
+  ) {
+    petId = null;
+  } else if (
+    evento.petId != null
+  ) {
+    petId =
+      String(
+        evento.petId
+      );
+  } else {
+    petId =
+      petIds[0] ||
+      null;
+  }
+
+  let petNome;
+
+  if (
+    preserveExplicitNull &&
+    hasPetNome &&
+    (
+      evento.petNome == null ||
+      String(
+        evento.petNome ??
+        evento.petName ??
+        ""
+      ).trim() === ""
+    )
+  ) {
+    petNome = null;
+  } else {
+    petNome =
+      String(
+        evento.petNome ??
+        evento.petName ??
+        petNomes[0] ??
+        ""
+      ).trim() ||
+      null;
+  }
+
+  if (
+    petId &&
+    !petIds.includes(
+      petId
+    )
+  ) {
+    petIds.unshift(
+      petId
+    );
+  }
+
+  if (
+    petNome &&
+    !petNomes.includes(
+      petNome
+    )
+  ) {
+    petNomes.unshift(
+      petNome
+    );
+  }
+
+  return {
+    ...evento,
+    petIds,
+    petNomes,
+    petId,
+    petNome,
+  };
+}
+
 function mergeEvento(
   previous = {},
   incoming = {}
 ) {
-  return {
+  const hasIncomingPetIds =
+    Object.prototype
+      .hasOwnProperty.call(
+        incoming,
+        "petIds"
+      );
+
+  const hasIncomingPetNomes =
+    Object.prototype
+      .hasOwnProperty.call(
+        incoming,
+        "petNomes"
+      );
+
+  const hasIncomingPetId =
+    Object.prototype
+      .hasOwnProperty.call(
+        incoming,
+        "petId"
+      );
+
+  const hasIncomingPetNome =
+    Object.prototype
+      .hasOwnProperty.call(
+        incoming,
+        "petNome"
+      ) ||
+    Object.prototype
+      .hasOwnProperty.call(
+        incoming,
+        "petName"
+      );
+
+  const merged = {
     ...previous,
     ...incoming,
 
-    financeiro: incoming?.financeiro
-      ? {
-          ...(previous?.financeiro || {}),
-          ...incoming.financeiro,
-        }
-      : previous?.financeiro,
+    financeiro:
+      incoming?.financeiro
+        ? {
+            ...(
+              previous
+                ?.financeiro ||
+              {}
+            ),
 
-    googleAgenda: incoming?.googleAgenda
-      ? {
-          ...(previous?.googleAgenda || {}),
-          ...incoming.googleAgenda,
-        }
-      : previous?.googleAgenda,
+            ...incoming
+              .financeiro,
+          }
+        : previous
+            ?.financeiro,
+
+    googleAgenda:
+      incoming
+        ?.googleAgenda
+        ? {
+            ...(
+              previous
+                ?.googleAgenda ||
+              {}
+            ),
+
+            ...incoming
+              .googleAgenda,
+          }
+        : previous
+            ?.googleAgenda,
+
+    petIds:
+      hasIncomingPetIds
+        ? normalizePetIds(
+            incoming.petIds
+          )
+        : normalizePetIds(
+            previous.petIds
+          ),
+
+    petNomes:
+      hasIncomingPetNomes
+        ? normalizePetNames(
+            incoming.petNomes
+          )
+        : normalizePetNames(
+            previous.petNomes
+          ),
+  };
+
+  if (
+    hasIncomingPetId
+  ) {
+    merged.petId =
+      incoming.petId ==
+      null
+        ? null
+        : String(
+            incoming.petId
+          );
+  } else if (
+    hasIncomingPetIds
+  ) {
+    merged.petId =
+      merged.petIds[
+        0
+      ] ||
+      null;
+  } else {
+    merged.petId =
+      previous.petId ??
+      merged.petIds[
+        0
+      ] ??
+      null;
+  }
+
+  if (
+    hasIncomingPetNome
+  ) {
+    merged.petNome =
+      String(
+        incoming.petNome ??
+        incoming.petName ??
+        ""
+      ).trim() ||
+      null;
+  } else if (
+    hasIncomingPetNomes
+  ) {
+    merged.petNome =
+      merged.petNomes[
+        0
+      ] ||
+      null;
+  } else {
+    merged.petNome =
+      String(
+        previous.petNome ??
+        previous.petName ??
+        merged.petNomes[
+          0
+        ] ??
+        ""
+      ).trim() ||
+      null;
+  }
+
+  return normalizeEventoPets(
+    merged,
+    {
+      preserveExplicitNull:
+        true,
+    }
+  );
+}
+
+function normalizePetPatch(
+  patch,
+  previous = {}
+) {
+  const incoming =
+    patch || {};
+
+  const hasPetFields =
+    [
+      "petIds",
+      "petNomes",
+      "petId",
+      "petNome",
+      "petName",
+    ].some(
+      (key) =>
+        Object.prototype
+          .hasOwnProperty.call(
+            incoming,
+            key
+          )
+    );
+
+  if (!hasPetFields) {
+    return {
+      ...incoming,
+    };
+  }
+
+  const normalized =
+    mergeEvento(
+      previous,
+      incoming
+    );
+
+  return {
+    ...incoming,
+
+    petIds:
+      normalized.petIds,
+
+    petNomes:
+      normalized.petNomes,
+
+    petId:
+      normalized.petId,
+
+    petNome:
+      normalized.petNome,
   };
 }
 
 function sortEventos(
   list
 ) {
-  return [...(Array.isArray(list) ? list : [])]
-    .sort(
-      (a, b) => {
-        const timeA =
-          new Date(
-            a?.start || 0
-          ).getTime();
+  return [
+    ...(
+      Array.isArray(list)
+        ? list
+        : []
+    ),
+  ].sort(
+    (a, b) => {
+      const timeA =
+        new Date(
+          a?.start ||
+          0
+        ).getTime();
 
-        const timeB =
-          new Date(
-            b?.start || 0
-          ).getTime();
+      const timeB =
+        new Date(
+          b?.start ||
+          0
+        ).getTime();
 
-        return (
-          (
-            Number.isFinite(
-              timeA
-            )
-              ? timeA
-              : 0
-          ) -
-          (
-            Number.isFinite(
-              timeB
-            )
-              ? timeB
-              : 0
+      return (
+        (
+          Number.isFinite(
+            timeA
           )
-        );
-      }
-    );
+            ? timeA
+            : 0
+        ) -
+        (
+          Number.isFinite(
+            timeB
+          )
+            ? timeB
+            : 0
+        )
+      );
+    }
+  );
 }
 
 /* =======================
@@ -270,8 +627,12 @@ async function loadAllLocal() {
     const parsed =
       JSON.parse(raw);
 
-    return Array.isArray(parsed)
-      ? sortEventos(parsed)
+    return Array.isArray(
+      parsed
+    )
+      ? sortEventos(
+          parsed
+        )
       : [];
   } catch (error) {
     console.warn(
@@ -288,14 +649,18 @@ async function saveAllLocal(
 ) {
   const safeList =
     sortEventos(
-      Array.isArray(list)
+      Array.isArray(
+        list
+      )
         ? list
         : []
     );
 
   await AsyncStorage.setItem(
     STORAGE_KEY,
-    JSON.stringify(safeList)
+    JSON.stringify(
+      safeList
+    )
   );
 
   return safeList;
@@ -312,16 +677,22 @@ async function upsertLocalEvento(
     await loadAllLocal();
 
   const id =
-    String(evento.id);
+    String(
+      evento.id
+    );
 
   const index =
     all.findIndex(
       (item) =>
-        String(item?.id) === id
+        String(
+          item?.id
+        ) === id
     );
 
   if (index === -1) {
-    all.push(evento);
+    all.push(
+      evento
+    );
   } else {
     all[index] =
       mergeEvento(
@@ -337,8 +708,11 @@ async function upsertLocalEvento(
   return (
     all.find(
       (item) =>
-        String(item?.id) === id
-    ) || evento
+        String(
+          item?.id
+        ) === id
+    ) ||
+    evento
   );
 }
 
@@ -351,13 +725,19 @@ async function removeLocalEvento(
   const next =
     all.filter(
       (item) =>
-        String(item?.id) !==
+        String(
+          item?.id
+        ) !==
         String(id)
     );
 
-  await saveAllLocal(next);
+  await saveAllLocal(
+    next
+  );
 
-  return String(id);
+  return String(
+    id
+  );
 }
 
 /* =======================
@@ -369,33 +749,45 @@ function getCol(
   uid
 ) {
   return firestore
-    .collection("users")
-    .doc(String(uid))
-    .collection("agenda");
+    .collection(
+      "users"
+    )
+    .doc(
+      String(uid)
+    )
+    .collection(
+      "agenda"
+    );
 }
 
 function docToEvento(
   doc
 ) {
   const data =
-    doc.data() || {};
+    doc.data() ||
+    {};
 
   const createdAt =
-    data.createdAt?.toMillis?.() ??
+    data.createdAt
+      ?.toMillis?.() ??
     data.createdAtMs ??
     Date.now();
 
   const updatedAt =
-    data.updatedAt?.toMillis?.() ??
+    data.updatedAt
+      ?.toMillis?.() ??
     data.updatedAtMs ??
     createdAt;
 
-  return {
-    id: doc.id,
+  return normalizeEventoPets({
+    id:
+      doc.id,
+
     ...data,
+
     createdAt,
     updatedAt,
-  };
+  });
 }
 
 /* =======================
@@ -411,9 +803,14 @@ export async function listEventosRemote() {
     ensureFirebase();
 
   const uid =
-    fb?.auth?.currentUser?.uid;
+    fb?.auth
+      ?.currentUser
+      ?.uid;
 
-  if (!fb || !uid) {
+  if (
+    !fb ||
+    !uid
+  ) {
     throw new Error(
       "Usuário não autenticado para atualizar a agenda."
     );
@@ -440,7 +837,10 @@ export async function listEventosRemote() {
    * uma resposta remota vazia não substitui
    * um cache local já preenchido.
    */
-  if (rows.length > 0) {
+  if (
+    rows.length >
+    0
+  ) {
     await saveAllLocal(
       rows
     );
@@ -470,15 +870,20 @@ export async function listEventos() {
       await listEventosRemote();
 
     if (
-      remote.length === 0 &&
-      local.length > 0
+      remote.length ===
+        0 &&
+      local.length >
+        0
     ) {
       return local;
     }
 
     return remote;
   } catch (error) {
-    if (local.length > 0) {
+    if (
+      local.length >
+      0
+    ) {
       return local;
     }
 
@@ -496,26 +901,37 @@ export async function getEventoById(
     ensureFirebase();
 
   const uid =
-    fb?.auth?.currentUser?.uid;
+    fb?.auth
+      ?.currentUser
+      ?.uid;
 
-  if (fb && uid) {
+  if (
+    fb &&
+    uid
+  ) {
     try {
       const snapshot =
         await getCol(
           fb.firestore,
           uid
         )
-          .doc(safeId)
+          .doc(
+            safeId
+          )
           .get();
 
-      if (!snapshot.exists) {
+      if (
+        !snapshot.exists
+      ) {
         throw new Error(
           "Evento não encontrado."
         );
       }
 
       const evento =
-        docToEvento(snapshot);
+        docToEvento(
+          snapshot
+        );
 
       await upsertLocalEvento(
         evento
@@ -528,7 +944,9 @@ export async function getEventoById(
           await loadAllLocal()
         ).find(
           (item) =>
-            String(item?.id) ===
+            String(
+              item?.id
+            ) ===
             safeId
         );
 
@@ -547,7 +965,9 @@ export async function getEventoById(
       await loadAllLocal()
     ).find(
       (item) =>
-        String(item?.id) ===
+        String(
+          item?.id
+        ) ===
         safeId
     );
 
@@ -569,12 +989,17 @@ export async function createEvento(
     ensureFirebase();
 
   const uid =
-    fb?.auth?.currentUser?.uid;
+    fb?.auth
+      ?.currentUser
+      ?.uid;
 
   const nowMs =
     Date.now();
 
-  if (fb && uid) {
+  if (
+    fb &&
+    uid
+  ) {
     const collectionRef =
       getCol(
         fb.firestore,
@@ -589,16 +1014,27 @@ export async function createEvento(
         .FieldValue
         .serverTimestamp();
 
+    const normalizedPayload =
+      normalizeEventoPets(
+        payload
+      );
+
     const data =
       stripUndefined({
-        ...payload,
-        id: documentRef.id,
+        ...normalizedPayload,
+
+        id:
+          documentRef.id,
+
         createdAt:
           serverTimestamp,
+
         updatedAt:
           serverTimestamp,
+
         createdAtMs:
           nowMs,
+
         updatedAtMs:
           nowMs,
       });
@@ -607,14 +1043,19 @@ export async function createEvento(
       data
     );
 
-    const saved = {
-      ...payload,
-      id: documentRef.id,
-      createdAt:
-        nowMs,
-      updatedAt:
-        nowMs,
-    };
+    const saved =
+      normalizeEventoPets({
+        ...normalizedPayload,
+
+        id:
+          documentRef.id,
+
+        createdAt:
+          nowMs,
+
+        updatedAt:
+          nowMs,
+      });
 
     await upsertLocalEvento(
       saved
@@ -623,17 +1064,22 @@ export async function createEvento(
     return saved;
   }
 
-  const saved = {
-    ...payload,
-    id:
-      payload?.id ||
-      createLocalId(),
-    createdAt:
-      payload?.createdAt ??
-      nowMs,
-    updatedAt:
-      nowMs,
-  };
+  const saved =
+    normalizeEventoPets({
+      ...payload,
+
+      id:
+        payload?.id ||
+        createLocalId(),
+
+      createdAt:
+        payload
+          ?.createdAt ??
+        nowMs,
+
+      updatedAt:
+        nowMs,
+    });
 
   await upsertLocalEvento(
     saved
@@ -653,7 +1099,9 @@ export async function updateEvento(
     ensureFirebase();
 
   const uid =
-    fb?.auth?.currentUser?.uid;
+    fb?.auth
+      ?.currentUser
+      ?.uid;
 
   const nowMs =
     Date.now();
@@ -665,7 +1113,10 @@ export async function updateEvento(
 
   delete safePatch.id;
 
-  if (fb && uid) {
+  if (
+    fb &&
+    uid
+  ) {
     const collectionRef =
       getCol(
         fb.firestore,
@@ -680,7 +1131,9 @@ export async function updateEvento(
     let snapshot =
       await documentRef.get();
 
-    if (!snapshot.exists) {
+    if (
+      !snapshot.exists
+    ) {
       const querySnapshot =
         await collectionRef
           .where(
@@ -688,7 +1141,9 @@ export async function updateEvento(
             "==",
             safeId
           )
-          .limit(1)
+          .limit(
+            1
+          )
           .get();
 
       if (
@@ -700,17 +1155,27 @@ export async function updateEvento(
       }
 
       documentRef =
-        querySnapshot.docs[0].ref;
+        querySnapshot
+          .docs[0]
+          .ref;
 
       snapshot =
-        querySnapshot.docs[0];
+        querySnapshot
+          .docs[0];
     }
 
     const previousRemote =
-      snapshot.data() || {};
+      snapshot.data() ||
+      {};
 
     safePatch =
       normalizePatchDates(
+        safePatch,
+        previousRemote
+      );
+
+    safePatch =
+      normalizePetPatch(
         safePatch,
         previousRemote
       );
@@ -725,13 +1190,16 @@ export async function updateEvento(
     await documentRef.set(
       {
         ...safePatch,
+
         updatedAt:
           serverTimestamp,
+
         updatedAtMs:
           nowMs,
       },
       {
-        merge: true,
+        merge:
+          true,
       }
     );
 
@@ -740,14 +1208,19 @@ export async function updateEvento(
         await loadAllLocal()
       ).find(
         (item) =>
-          String(item?.id) ===
+          String(
+            item?.id
+          ) ===
             String(
               documentRef.id
             ) ||
-          String(item?.id) ===
+          String(
+            item?.id
+          ) ===
             safeId
       ) || {
-        id: documentRef.id,
+        id:
+          documentRef.id,
       };
 
     const saved =
@@ -755,8 +1228,10 @@ export async function updateEvento(
         previousLocal,
         {
           ...safePatch,
+
           id:
             documentRef.id,
+
           updatedAt:
             nowMs,
         }
@@ -775,11 +1250,16 @@ export async function updateEvento(
   const index =
     all.findIndex(
       (item) =>
-        String(item?.id) ===
+        String(
+          item?.id
+        ) ===
         safeId
     );
 
-  if (index === -1) {
+  if (
+    index ===
+    -1
+  ) {
     throw new Error(
       "Evento não encontrado no cache local."
     );
@@ -791,6 +1271,12 @@ export async function updateEvento(
       all[index]
     );
 
+  safePatch =
+    normalizePetPatch(
+      safePatch,
+      all[index]
+    );
+
   delete safePatch.date;
 
   const saved =
@@ -798,7 +1284,10 @@ export async function updateEvento(
       all[index],
       {
         ...safePatch,
-        id: safeId,
+
+        id:
+          safeId,
+
         updatedAt:
           nowMs,
       }
@@ -824,14 +1313,21 @@ export async function removeEvento(
     ensureFirebase();
 
   const uid =
-    fb?.auth?.currentUser?.uid;
+    fb?.auth
+      ?.currentUser
+      ?.uid;
 
-  if (fb && uid) {
+  if (
+    fb &&
+    uid
+  ) {
     await getCol(
       fb.firestore,
       uid
     )
-      .doc(safeId)
+      .doc(
+        safeId
+      )
       .delete();
   }
 
@@ -850,13 +1346,16 @@ export async function replaceLocalAgenda(
   list
 ) {
   await saveAllLocal(
-    Array.isArray(list)
+    Array.isArray(
+      list
+    )
       ? list
       : []
   );
 
   return {
-    ok: true,
+    ok:
+      true,
   };
 }
 
@@ -866,6 +1365,7 @@ export async function clearLocalAgenda() {
   );
 
   return {
-    ok: true,
+    ok:
+      true,
   };
 }

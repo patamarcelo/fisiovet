@@ -698,6 +698,7 @@ function PrimaryRouteAction({
 export default function MiniEventRow({
     item,
     tutor,
+    pet,
     navPreference = "ask",
     showFinanceValues = false,
     whatsappConfirmationMessage =
@@ -933,6 +934,8 @@ export default function MiniEventRow({
                         evento,
 
                     tutor,
+
+                    pet,
                 });
 
             if (!message) {
@@ -942,6 +945,96 @@ export default function MiniEventRow({
                 );
 
                 return;
+            }
+
+            /*
+             * Mantém os logs apenas em desenvolvimento,
+             * sem impedir a abertura do WhatsApp.
+             */
+            if (__DEV__) {
+                console.log(
+                    "\n================ WHATSAPP DEBUG ================"
+                );
+
+                console.log(
+                    "[WhatsApp] evento completo:",
+                    evento
+                );
+
+                console.log(
+                    "[WhatsApp] tutor completo:",
+                    tutor
+                );
+
+                console.log(
+                    "[WhatsApp] pet resolvido:",
+                    pet
+                );
+
+                console.log(
+                    "[WhatsApp] dados finais do pet:",
+                    {
+                        petId:
+                            pet?.id ??
+                            evento?.petId ??
+                            evento?.petIds?.[0] ??
+                            evento?.pet?.id ??
+                            item?.petId ??
+                            item?.petIds?.[0] ??
+                            item?.pet?.id ??
+                            null,
+
+                        petName:
+                            pet?.nome ??
+                            pet?.name ??
+                            evento?.petNome ??
+                            evento?.petName ??
+                            evento?.petNomes?.[0] ??
+                            evento?.nomePet ??
+                            evento?.pet?.nome ??
+                            item?.petNome ??
+                            item?.petName ??
+                            item?.petNomes?.[0] ??
+                            item?.nomePet ??
+                            item?.pet?.nome ??
+                            null,
+                    }
+                );
+
+                console.log(
+                    "[WhatsApp] template original:",
+                    whatsappConfirmationMessage ||
+                    DEFAULT_WHATSAPP_CONFIRMATION_MESSAGE
+                );
+
+                console.log(
+                    "[WhatsApp] mensagem processada:",
+                    message
+                );
+
+                console.log(
+                    "[WhatsApp] variável do pet ainda presente:",
+                    String(
+                        message ||
+                        ""
+                    ).includes(
+                        "[Nome do Pet]"
+                    )
+                );
+
+                console.log(
+                    "[WhatsApp] telefone original:",
+                    tutorPhone
+                );
+
+                console.log(
+                    "[WhatsApp] telefone normalizado:",
+                    normalizedWhatsappPhone
+                );
+
+                console.log(
+                    "=================================================\n"
+                );
             }
 
             const url =
@@ -987,7 +1080,10 @@ export default function MiniEventRow({
             normalizedWhatsappPhone,
             whatsappConfirmationMessage,
             evento,
+            item,
             tutor,
+            tutorPhone,
+            pet,
         ]);
 
     /* ---------------------------- Update status --------------------------- */
