@@ -96,8 +96,8 @@ function hasAnyAddressField(address) {
 function hasMinimumAddressForGeocode(address) {
 	return Boolean(
 		address?.logradouro ||
-			address?.cidade ||
-			address?.cep
+		address?.cidade ||
+		address?.cep
 	);
 }
 
@@ -370,14 +370,14 @@ export default function TutorForm() {
 			currentCep
 				? maskCep(currentCep)
 				: currentFormatted ||
-					[
-						tutor?.endereco?.logradouro,
-						tutor?.endereco?.numero,
-						tutor?.endereco?.cidade,
-						tutor?.endereco?.uf,
-					]
-						.filter(Boolean)
-						.join(", ");
+				[
+					tutor?.endereco?.logradouro,
+					tutor?.endereco?.numero,
+					tutor?.endereco?.cidade,
+					tutor?.endereco?.uf,
+				]
+					.filter(Boolean)
+					.join(", ");
 
 		setNome(tutor?.nome || "");
 		setTelefone(tutor?.telefone || "");
@@ -499,53 +499,79 @@ export default function TutorForm() {
 		loadingAddress ||
 		!validation.isValid;
 
-	const confirmDelete = useCallback(() => {
-		if (!id || submitting) return;
+	const confirmDelete =
+		useCallback(() => {
+			if (
+				!id ||
+				submitting
+			) {
+				return;
+			}
 
-		Alert.alert(
-			"Excluir tutor",
-			`Deseja realmente excluir ${tutor?.nome || "este tutor"}?`,
-			[
-				{
-					text: "Cancelar",
-					style: "cancel",
-				},
-				{
-					text: "Excluir",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							setSubmitting(true);
-
-							await dispatch(
-								deleteTutor(id)
-							).unwrap();
-
-							if (router.canGoBack()) {
-								router.back();
-								return;
-							}
-
-							router.replace("/(phone)/tutores");
-						} catch (error) {
-							Alert.alert(
-								"Erro",
-								error?.message ||
-									"Não foi possível excluir o tutor."
-							);
-						} finally {
-							setSubmitting(false);
-						}
+			Alert.alert(
+				"Excluir tutor",
+				`Deseja realmente excluir ${tutor?.nome ||
+				"este tutor"
+				}?`,
+				[
+					{
+						text:
+							"Cancelar",
+						style:
+							"cancel",
 					},
-				},
-			]
-		);
-	}, [
-		dispatch,
-		id,
-		submitting,
-		tutor?.nome,
-	]);
+					{
+						text:
+							"Excluir",
+						style:
+							"destructive",
+
+						onPress:
+							async () => {
+								try {
+									Keyboard.dismiss();
+
+									setSubmitting(
+										true
+									);
+
+									await dispatch(
+										deleteTutor(
+											id
+										)
+									).unwrap();
+
+									/*
+									 * Não usa router.back().
+									 *
+									 * A tela anterior pode ser
+									 * justamente o detalhe do tutor
+									 * que acabou de ser removido.
+									 */
+									router.replace(
+										"/(phone)/tutores"
+									);
+								} catch (error) {
+									setSubmitting(
+										false
+									);
+
+									Alert.alert(
+										"Erro",
+										error?.message ||
+										"Não foi possível excluir o tutor."
+									);
+								}
+							},
+					},
+				]
+			);
+		}, [
+			dispatch,
+			id,
+			submitting,
+			tutor?.nome,
+		]);
 
 	useEffect(() => {
 		navigation.setOptions({
@@ -576,7 +602,7 @@ export default function TutorForm() {
 					style={({ pressed }) => [
 						styles.headerActionButton,
 						pressed &&
-							styles.headerActionButtonPressed,
+						styles.headerActionButtonPressed,
 					]}
 				>
 					<Ionicons
@@ -599,7 +625,7 @@ export default function TutorForm() {
 							styles.headerActionButton,
 							styles.headerDeleteButton,
 							pressed &&
-								styles.headerActionButtonPressed,
+							styles.headerActionButtonPressed,
 							submitting && {
 								opacity: 0.4,
 							},
@@ -728,23 +754,23 @@ export default function TutorForm() {
 				[],
 			viewport: viewport
 				? {
-						northeast: {
-							lat:
-								viewport?.northeast?.lat ??
-								null,
-							lng:
-								viewport?.northeast?.lng ??
-								null,
-						},
-						southwest: {
-							lat:
-								viewport?.southwest?.lat ??
-								null,
-							lng:
-								viewport?.southwest?.lng ??
-								null,
-						},
-					}
+					northeast: {
+						lat:
+							viewport?.northeast?.lat ??
+							null,
+						lng:
+							viewport?.northeast?.lng ??
+							null,
+					},
+					southwest: {
+						lat:
+							viewport?.southwest?.lat ??
+							null,
+						lng:
+							viewport?.southwest?.lng ??
+							null,
+					},
+				}
 				: null,
 			navigationPoints:
 				navigationPoints ||
@@ -797,8 +823,8 @@ export default function TutorForm() {
 
 			const nextCep = onlyDigits(
 				normalized?.postal_code ||
-					options?.fallbackAddress?.cep ||
-					""
+				options?.fallbackAddress?.cep ||
+				""
 			);
 
 			setLogradouro(nextLogradouro);
@@ -810,9 +836,9 @@ export default function TutorForm() {
 
 			setAddressQuery(
 				geo?.formattedAddress ||
-					(nextCep
-						? maskCep(nextCep)
-						: options?.originalQuery || "")
+				(nextCep
+					? maskCep(nextCep)
+					: options?.originalQuery || "")
 			);
 
 			setSelectedGeo(
@@ -989,8 +1015,8 @@ export default function TutorForm() {
 
 				setAddressQuery(
 					place?.formattedAddress ||
-						suggestion.description ||
-						""
+					suggestion.description ||
+					""
 				);
 
 				setCep(nextCep);
@@ -998,8 +1024,8 @@ export default function TutorForm() {
 				setNumero(normalized?.street_number || "");
 				setBairro(
 					normalized?.neighborhood ||
-						normalized?.sublocality ||
-						""
+					normalized?.sublocality ||
+					""
 				);
 				setCidade(normalized?.locality || "");
 				setUf(normalized?.admin_area_level_1 || "");
@@ -1026,23 +1052,23 @@ export default function TutorForm() {
 						[],
 					viewport: place?.viewport
 						? {
-								northeast: {
-									lat:
-										place.viewport.high?.latitude ??
-										null,
-									lng:
-										place.viewport.high?.longitude ??
-										null,
-								},
-								southwest: {
-									lat:
-										place.viewport.low?.latitude ??
-										null,
-									lng:
-										place.viewport.low?.longitude ??
-										null,
-								},
-							}
+							northeast: {
+								lat:
+									place.viewport.high?.latitude ??
+									null,
+								lng:
+									place.viewport.high?.longitude ??
+									null,
+							},
+							southwest: {
+								lat:
+									place.viewport.low?.latitude ??
+									null,
+								lng:
+									place.viewport.low?.longitude ??
+									null,
+							},
+						}
 						: null,
 					provider: "google_places",
 					retrievedAt: Date.now(),
@@ -1071,7 +1097,7 @@ export default function TutorForm() {
 				Alert.alert(
 					"Endereço",
 					error?.message ||
-						"Não foi possível carregar o endereço selecionado."
+					"Não foi possível carregar o endereço selecionado."
 				);
 			} finally {
 				setLoadingAddress(false);
@@ -1194,7 +1220,7 @@ export default function TutorForm() {
 			Alert.alert(
 				"Endereço",
 				error?.message ||
-					"Não foi possível encontrar o endereço. Você pode preencher os campos manualmente."
+				"Não foi possível encontrar o endereço. Você pode preencher os campos manualmente."
 			);
 		} finally {
 			setLoadingAddress(false);
@@ -1345,7 +1371,7 @@ export default function TutorForm() {
 			Alert.alert(
 				"Erro",
 				error?.message ||
-					"Não foi possível salvar o tutor. Tente novamente ou verifique sua conexão."
+				"Não foi possível salvar o tutor. Tente novamente ou verifique sua conexão."
 			);
 		} finally {
 			setSubmitting(false);
@@ -1592,8 +1618,8 @@ export default function TutorForm() {
 														style={({ pressed }) => [
 															styles.suggestionRow,
 															index <
-																addressSuggestions.length - 1 &&
-																styles.suggestionDivider,
+															addressSuggestions.length - 1 &&
+															styles.suggestionDivider,
 															pressed && {
 																backgroundColor:
 																	"rgba(10,132,255,0.06)",

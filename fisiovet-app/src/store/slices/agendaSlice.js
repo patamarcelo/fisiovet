@@ -884,9 +884,10 @@ export const loadAgenda =
              * 1. Hidrata o AsyncStorage imediatamente.
              * 2. Dispara o Firestore em background.
              *
-             * Redux Persist pode já ter restaurado a agenda,
-             * e a hidratação local nunca apaga um estado
-             * preenchido quando o cache vier vazio.
+             * Redux Persist pode já ter restaurado a agenda.
+             * A hidratação local evita piscar a tela vazia,
+             * mas o refresh remoto sempre será soberano,
+             * inclusive quando retornar uma lista vazia.
              */
             await dispatch(
                 hydrateAgendaLocal()
@@ -1513,28 +1514,12 @@ const agendaSlice =
                                     : [];
 
                             /*
-                             * Proteção da Fase 0:
-                             * resposta remota vazia não apaga
-                             * uma agenda local já preenchida.
+                             * O Firestore é a fonte de verdade.
+                             *
+                             * Uma lista vazia é válida e precisa
+                             * limpar os eventos restaurados do
+                             * cache ou do Redux Persist.
                              */
-                            if (
-                                rows.length ===
-                                0 &&
-                                state.allIds.length >
-                                0
-                            ) {
-                                state.status =
-                                    "succeeded";
-
-                                state.error =
-                                    null;
-
-                                state.lastLoadedAt =
-                                    new Date()
-                                        .toISOString();
-
-                                return;
-                            }
 
                             replaceAgendaRows(
                                 state,

@@ -453,63 +453,83 @@ export default function PetNewModal() {
     setPesoKg(normalizeDecimalInput(value));
   }, []);
 
-  const handleDelete = useCallback(() => {
-    if (!isEdit || !_id || submitting) {
-      return;
-    }
+  const handleDelete =
+    useCallback(() => {
+      if (
+        !isEdit ||
+        !_id ||
+        submitting
+      ) {
+        return;
+      }
 
-    Alert.alert(
-      "Excluir pet",
-      `Deseja realmente excluir ${pet?.nome || "este pet"}?`,
-      [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
-        {
-          text: "Excluir",
-          style: "destructive",
-
-          onPress: async () => {
-            try {
-              setSubmitting(true);
-
-              await dispatch(
-                deletePet(
-                  String(_id)
-                )
-              ).unwrap();
-
-              if (
-                router.canGoBack()
-              ) {
-                router.back();
-                return;
-              }
-
-              router.replace(
-                "/(phone)/pets"
-              );
-            } catch (error) {
-              Alert.alert(
-                "Erro",
-                error?.message ||
-                "Não foi possível excluir o pet."
-              );
-            } finally {
-              setSubmitting(false);
-            }
+      Alert.alert(
+        "Excluir pet",
+        `Deseja realmente excluir ${pet?.nome ||
+        "este pet"
+        }?`,
+        [
+          {
+            text:
+              "Cancelar",
+            style:
+              "cancel",
           },
-        },
-      ]
-    );
-  }, [
-    isEdit,
-    _id,
-    pet?.nome,
-    submitting,
-    dispatch,
-  ]);
+          {
+            text:
+              "Excluir",
+            style:
+              "destructive",
+
+            onPress:
+              async () => {
+                try {
+                  Keyboard.dismiss();
+
+                  setSubmitting(
+                    true
+                  );
+
+                  await dispatch(
+                    deletePet(
+                      String(
+                        _id
+                      )
+                    )
+                  ).unwrap();
+
+                  /*
+                   * A listagem principal de pets
+                   * no FisioVet é Pacientes.
+                   *
+                   * Não volta para uma possível
+                   * tela de detalhes do pet apagado.
+                   */
+                  router.replace(
+                    "/(phone)/pacientes"
+                  );
+                } catch (error) {
+                  setSubmitting(
+                    false
+                  );
+
+                  Alert.alert(
+                    "Erro",
+                    error?.message ||
+                    "Não foi possível excluir o pet."
+                  );
+                }
+              },
+          },
+        ]
+      );
+    }, [
+      isEdit,
+      _id,
+      pet?.nome,
+      submitting,
+      dispatch,
+    ]);
 
   const openMaps = useCallback(() => {
     if (!tutor?.geo?.lat || !tutor?.geo?.lng) return;
@@ -780,7 +800,7 @@ export default function PetNewModal() {
                 }
 
                 router.replace(
-                  "/(phone)/pets"
+                  "/(phone)/pacientes"
                 );
               }}
               hitSlop={8}

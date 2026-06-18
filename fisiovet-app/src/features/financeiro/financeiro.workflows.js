@@ -15,6 +15,7 @@ import {
     addEvento,
     addEventosBatch,
     updateEvento,
+    deleteEvento,
     selectEventoById,
 } from '@/src/store/slices/agendaSlice';
 
@@ -22,6 +23,9 @@ import {
     createLancamentoFromEvento,
     ensureLancamentoForEvento,
     updateLancamento,
+    cancelLancamento,
+    deleteLancamento,
+    loadLancamentoById,
 } from '@/src/store/slices/financeiroSlice';
 
 import {
@@ -455,5 +459,158 @@ export const updateEventoComFinanceiro =
                 linked:
                     Boolean(ensured.linked),
             };
+        }
+    );
+
+/* =========================================================
+   Excluir evento + tratar lançamento vinculado
+========================================================= */
+
+export const deleteEventoComFinanceiro =
+    createAsyncThunk(
+        'financeiroWorkflow/deleteEventoComFinanceiro',
+
+        async (
+            eventoId,
+            {
+                dispatch,
+                getState,
+                rejectWithValue,
+            }
+        ) => {
+            const safeEventoId =
+                eventoId != null
+                    ? String(eventoId)
+                    : null;
+
+            if (!safeEventoId) {
+                return rejectWithValue(
+                    'ID do evento é obrigatório.'
+                );
+            }
+
+            try {
+                const state =
+                    getState();
+
+                const evento =
+                    getEventoFromState(
+                        state,
+                        safeEventoId
+                    );
+
+                if (!evento?.id) {
+                    throw new Error(
+                        `Evento ${safeEventoId} não encontrado no estado.`
+                    );
+                }
+
+                const lancamentoId =
+                    evento?.financeiro
+                        ?.lancamentoId != null
+                        ? String(
+                            evento.financeiro
+                                .lancamentoId
+                        )
+                        : null;
+
+                let lancamento =
+                    lancamentoId
+                        ? state?.financeiro
+                            ?.byId?.[
+                                lancamentoId
+                            ] || null
+                        : null;
+
+                /*
+                 * Caso o lançamento ainda não esteja carregado
+                 * no Redux, tenta buscá-lo antes de decidir entre
+                 * cancelar ou excluir.
+                 */
+                if (
+                    lancamentoId &&
+                    !lancamento
+                ) {
+                    try {
+                        lancamento =
+                            await dispatch(
+                                loadLancamentoById(
+                                    lancamentoId
+                                )
+                            ).unwrap();
+                    } catch (error) {
+                        /*
+                         * Um vínculo financeiro antigo pode apontar
+                         * para um lançamento que já foi removido.
+                         * Nesse caso, a exclusão do evento continua.
+                         */
+                        console.warn(
+                            'Lançamento vinculado não encontrado durante a exclusão do evento:',
+                            error
+                        );
+
+                        lancamento =
+                            null;
+                    }
+                }
+
+                let financeiroAction =
+                    null;
+
+                if (
+                    lancamentoId &&
+                    lancamento?.id
+                ) {
+                    const hasRecebimentos =
+                        Array.isArray(
+                            lancamento
+                                ?.recebimentos
+                        ) &&
+                        lancamento
+                            .recebimentos
+                            .length >
+                            0;
+
+                    if (hasRecebimentos) {
+                        await dispatch(
+                            cancelLancamento(
+                                lancamentoId
+                            )
+                        ).unwrap();
+
+                        financeiroAction =
+                            'cancelado';
+                    } else {
+                        await dispatch(
+                            deleteLancamento(
+                                lancamentoId
+                            )
+                        ).unwrap();
+
+                        financeiroAction =
+                            'excluido';
+                    }
+                }
+
+                await dispatch(
+                    deleteEvento(
+                        safeEventoId
+                    )
+                ).unwrap();
+
+                return {
+                    eventoId:
+                        safeEventoId,
+
+                    lancamentoId,
+
+                    financeiroAction,
+                };
+            } catch (error) {
+                return rejectWithValue(
+                    error?.message ||
+                    'Não foi possível excluir o evento e tratar o lançamento financeiro.'
+                );
+            }
         }
     );

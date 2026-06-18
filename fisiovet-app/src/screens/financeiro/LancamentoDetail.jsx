@@ -463,6 +463,7 @@ export default function LancamentoDetail() {
             ) => {
                 if (
                     !eventoId ||
+                    !evento?.id ||
                     !updatedLancamento
                         ?.id
                 ) {
@@ -493,6 +494,7 @@ export default function LancamentoDetail() {
             [
                 dispatch,
                 eventoId,
+                evento?.id,
                 evento?.financeiro,
             ]
         );
@@ -808,62 +810,126 @@ export default function LancamentoDetail() {
             syncEventoResumo,
         ]);
 
+
     const handleDelete =
         useCallback(() => {
             if (
+                !lancamento?.id ||
+                actionLoading
+            ) {
+                return;
+            }
+
+            const isEventoOrigin =
                 lancamento?.origem
-                    ?.tipo === "evento"
+                    ?.tipo ===
+                "evento";
+
+            const hasEventoRelacionado =
+                Boolean(
+                    evento?.id
+                );
+
+            /*
+             * Só bloqueia a exclusão quando
+             * o evento relacionado ainda existe.
+             *
+             * Se o evento já foi excluído,
+             * o lançamento está órfão e pode
+             * ser removido definitivamente.
+             */
+            if (
+                isEventoOrigin &&
+                hasEventoRelacionado
             ) {
                 Alert.alert(
                     "Lançamento vinculado",
-                    "Lançamentos gerados por eventos não devem ser excluídos. Cancele o lançamento para manter o histórico e o vínculo com a agenda."
+                    "Este lançamento ainda está vinculado a um evento existente. Exclua o evento pela agenda ou cancele o lançamento para preservar o histórico."
                 );
 
                 return;
             }
 
+            const isOrphanEvento =
+                isEventoOrigin &&
+                !hasEventoRelacionado;
+
             Alert.alert(
-                "Excluir lançamento",
-                "Esta ação removerá definitivamente o lançamento avulso.",
+                isOrphanEvento
+                    ? "Excluir lançamento órfão"
+                    : "Excluir lançamento",
+
+                isOrphanEvento
+                    ? "O evento relacionado já não existe. Este lançamento financeiro será removido definitivamente."
+                    : "Esta ação removerá definitivamente o lançamento avulso.",
+
                 [
                     {
-                        text: "Cancelar",
-                        style: "cancel",
+                        text:
+                            "Cancelar",
+                        style:
+                            "cancel",
                     },
                     {
-                        text: "Excluir",
-                        style: "destructive",
-                        onPress: async () => {
-                            try {
-                                setActionLoading(
-                                    true
-                                );
+                        text:
+                            "Excluir",
+                        style:
+                            "destructive",
 
-                                await dispatch(
-                                    deleteLancamento(
-                                        lancamento.id
-                                    )
-                                ).unwrap();
+                        onPress:
+                            async () => {
+                                try {
+                                    setActionLoading(
+                                        true
+                                    );
 
-                                router.back();
-                            } catch (error) {
-                                Alert.alert(
-                                    "Erro",
-                                    error?.message ||
-                                    "Não foi possível excluir o lançamento."
-                                );
-                            } finally {
-                                setActionLoading(
-                                    false
-                                );
-                            }
-                        },
+                                    await dispatch(
+                                        deleteLancamento(
+                                            lancamento.id
+                                        )
+                                    ).unwrap();
+
+                                    Haptics
+                                        .notificationAsync(
+                                            Haptics
+                                                .NotificationFeedbackType
+                                                .Success
+                                        )
+                                        .catch(
+                                            () => { }
+                                        );
+
+                                    /*
+                                     * Não usa router.back(),
+                                     * porque a tela anterior pode
+                                     * estar com o lançamento antigo
+                                     * em cache ou em detalhes.
+                                     */
+                                    router.replace(
+                                        "/(phone)/financeiro"
+                                    );
+                                } catch (error) {
+                                    setActionLoading(
+                                        false
+                                    );
+
+                                    Alert.alert(
+                                        "Erro",
+                                        error?.message ||
+                                        "Não foi possível excluir o lançamento."
+                                    );
+                                }
+                            },
                     },
                 ]
             );
         }, [
             dispatch,
-            lancamento,
+            lancamento?.id,
+            lancamento?.origem
+                ?.tipo,
+            evento?.id,
+            actionLoading,
         ]);
 
     if (
@@ -1134,7 +1200,7 @@ export default function LancamentoDetail() {
                         }
                     />
 
-                    {eventoId && (
+                    {eventoId && evento?.id && (
                         <Pressable
                             onPress={() =>
                                 router.push({
@@ -1164,6 +1230,29 @@ export default function LancamentoDetail() {
                                 Abrir evento relacionado
                             </Text>
                         </Pressable>
+                    )}
+                    {eventoId && !evento?.id && (
+                        <View
+                            style={
+                                styles.orphanWarning
+                            }
+                        >
+                            <Ionicons
+                                name="alert-circle-outline"
+                                size={17}
+                                color={
+                                    COLORS.orange
+                                }
+                            />
+
+                            <Text
+                                style={
+                                    styles.orphanWarningText
+                                }
+                            >
+                                O evento relacionado não existe mais.
+                            </Text>
+                        </View>
                     )}
                 </SectionCard>
 
@@ -1437,173 +1526,173 @@ export default function LancamentoDetail() {
                         showsVerticalScrollIndicator={false}
                     >
                         <View style={styles.modalBox}>
-                        <View
-                            style={
-                                styles.modalHeader
-                            }
-                        >
-                            <View>
-                                <Text
-                                    style={
-                                        styles.modalTitle
-                                    }
-                                >
-                                    Novo recebimento
-                                </Text>
-
-                                <Text
-                                    style={
-                                        styles.modalSubtitle
-                                    }
-                                >
-                                    Saldo atual:{" "}
-                                    {formatCurrency(
-                                        lancamento
-                                            .valores
-                                            ?.saldo
-                                    )}
-                                </Text>
-                            </View>
-
-                            <Pressable
-                                onPress={() => {
-                                    Keyboard.dismiss();
-                                    setPaymentModalVisible(false);
-                                }}
-                            >
-                                <Ionicons
-                                    name="close-circle"
-                                    size={24}
-                                    color={
-                                        COLORS.gray
-                                    }
-                                />
-                            </Pressable>
-                        </View>
-
-                        <Text
-                            style={
-                                styles.fieldLabel
-                            }
-                        >
-                            Valor recebido
-                        </Text>
-
-                        <View
-                            style={
-                                styles.moneyInputBox
-                            }
-                        >
-                            <Text
+                            <View
                                 style={
-                                    styles.moneyPrefix
+                                    styles.modalHeader
                                 }
                             >
-                                R$
+                                <View>
+                                    <Text
+                                        style={
+                                            styles.modalTitle
+                                        }
+                                    >
+                                        Novo recebimento
+                                    </Text>
+
+                                    <Text
+                                        style={
+                                            styles.modalSubtitle
+                                        }
+                                    >
+                                        Saldo atual:{" "}
+                                        {formatCurrency(
+                                            lancamento
+                                                .valores
+                                                ?.saldo
+                                        )}
+                                    </Text>
+                                </View>
+
+                                <Pressable
+                                    onPress={() => {
+                                        Keyboard.dismiss();
+                                        setPaymentModalVisible(false);
+                                    }}
+                                >
+                                    <Ionicons
+                                        name="close-circle"
+                                        size={24}
+                                        color={
+                                            COLORS.gray
+                                        }
+                                    />
+                                </Pressable>
+                            </View>
+
+                            <Text
+                                style={
+                                    styles.fieldLabel
+                                }
+                            >
+                                Valor recebido
+                            </Text>
+
+                            <View
+                                style={
+                                    styles.moneyInputBox
+                                }
+                            >
+                                <Text
+                                    style={
+                                        styles.moneyPrefix
+                                    }
+                                >
+                                    R$
+                                </Text>
+
+                                <TextInput
+                                    ref={paymentValueRef}
+                                    value={
+                                        paymentValue
+                                    }
+                                    onChangeText={(
+                                        value
+                                    ) =>
+                                        setPaymentValue(
+                                            normalizeMoneyInput(
+                                                value
+                                            )
+                                        )
+                                    }
+                                    keyboardType="decimal-pad"
+                                    returnKeyType="next"
+                                    blurOnSubmit={false}
+                                    onSubmitEditing={() =>
+                                        paymentObservationRef.current?.focus()
+                                    }
+                                    placeholder="0,00"
+                                    placeholderTextColor="#9CA3AF"
+                                    style={
+                                        styles.moneyInput
+                                    }
+                                />
+                            </View>
+
+                            <Text
+                                style={[
+                                    styles.fieldLabel,
+                                    {
+                                        marginTop: 14,
+                                    },
+                                ]}
+                            >
+                                Forma de pagamento
+                            </Text>
+
+                            <PaymentSelector
+                                value={
+                                    paymentMethod
+                                }
+                                onChange={
+                                    setPaymentMethod
+                                }
+                            />
+
+                            <Text
+                                style={[
+                                    styles.fieldLabel,
+                                    {
+                                        marginTop: 14,
+                                    },
+                                ]}
+                            >
+                                Observação
                             </Text>
 
                             <TextInput
-                                ref={paymentValueRef}
+                                ref={paymentObservationRef}
                                 value={
-                                    paymentValue
+                                    paymentObservation
                                 }
-                                onChangeText={(
-                                    value
-                                ) =>
-                                    setPaymentValue(
-                                        normalizeMoneyInput(
-                                            value
-                                        )
-                                    )
+                                onChangeText={
+                                    setPaymentObservation
                                 }
-                                keyboardType="decimal-pad"
-                                returnKeyType="next"
-                                blurOnSubmit={false}
-                                onSubmitEditing={() =>
-                                    paymentObservationRef.current?.focus()
-                                }
-                                placeholder="0,00"
+                                placeholder="Opcional"
                                 placeholderTextColor="#9CA3AF"
+                                multiline
+                                returnKeyType="default"
+                                blurOnSubmit={false}
+                                textAlignVertical="top"
                                 style={
-                                    styles.moneyInput
+                                    styles.observationInput
                                 }
                             />
-                        </View>
 
-                        <Text
-                            style={[
-                                styles.fieldLabel,
-                                {
-                                    marginTop: 14,
-                                },
-                            ]}
-                        >
-                            Forma de pagamento
-                        </Text>
-
-                        <PaymentSelector
-                            value={
-                                paymentMethod
-                            }
-                            onChange={
-                                setPaymentMethod
-                            }
-                        />
-
-                        <Text
-                            style={[
-                                styles.fieldLabel,
-                                {
-                                    marginTop: 14,
-                                },
-                            ]}
-                        >
-                            Observação
-                        </Text>
-
-                        <TextInput
-                            ref={paymentObservationRef}
-                            value={
-                                paymentObservation
-                            }
-                            onChangeText={
-                                setPaymentObservation
-                            }
-                            placeholder="Opcional"
-                            placeholderTextColor="#9CA3AF"
-                            multiline
-                            returnKeyType="default"
-                            blurOnSubmit={false}
-                            textAlignVertical="top"
-                            style={
-                                styles.observationInput
-                            }
-                        />
-
-                        <Pressable
-                            disabled={actionLoading}
-                            onPress={handleRegisterPayment}
-                            style={({ pressed }) => [
-                                styles.modalSaveButton,
-                                actionLoading && { opacity: 0.65 },
-                                pressed && !actionLoading && { opacity: 0.88 },
-                            ]}
-                        >
-                            {actionLoading ? (
-                                <ActivityIndicator
-                                    size="small"
-                                    color="#FFFFFF"
-                                />
-                            ) : (
-                                <Text
-                                    style={
-                                        styles.modalSaveText
-                                    }
-                                >
-                                    Registrar recebimento
-                                </Text>
-                            )}
-                        </Pressable>
+                            <Pressable
+                                disabled={actionLoading}
+                                onPress={handleRegisterPayment}
+                                style={({ pressed }) => [
+                                    styles.modalSaveButton,
+                                    actionLoading && { opacity: 0.65 },
+                                    pressed && !actionLoading && { opacity: 0.88 },
+                                ]}
+                            >
+                                {actionLoading ? (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color="#FFFFFF"
+                                    />
+                                ) : (
+                                    <Text
+                                        style={
+                                            styles.modalSaveText
+                                        }
+                                    >
+                                        Registrar recebimento
+                                    </Text>
+                                )}
+                            </Pressable>
                         </View>
                     </KeyboardAwareScrollView>
 
@@ -2095,6 +2184,26 @@ const styles = StyleSheet.create({
         color: COLORS.subtle,
         fontSize: 12,
         fontWeight: "650",
+    },
+    orphanWarning: {
+        marginTop: 10,
+        minHeight: 42,
+        borderRadius: 14,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor:
+            "rgba(245,158,11,0.10)",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 7,
+    },
+
+    orphanWarningText: {
+        flex: 1,
+        color: COLORS.orange,
+        fontSize: 12,
+        lineHeight: 17,
+        fontWeight: "750",
     },
 
 });

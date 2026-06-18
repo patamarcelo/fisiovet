@@ -106,7 +106,7 @@ function groupToFlat(items = []) {
 function navigateToPet(petId) {
 	if (!petId) return;
 
-	Haptics.selectionAsync().catch(() => {});
+	Haptics.selectionAsync().catch(() => { });
 
 	router.push({
 		pathname: "/(modals)/pets/[id]",
@@ -115,7 +115,7 @@ function navigateToPet(petId) {
 }
 
 function navigateToNewPet() {
-	Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+	Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => { });
 
 	router.push("/(modals)/pet-new");
 }
@@ -136,7 +136,7 @@ function FilterPills({ value, onChange, border, accent, totals, text }) {
 					<Pressable
 						key={filter}
 						onPress={() => {
-							Haptics.selectionAsync().catch(() => {});
+							Haptics.selectionAsync().catch(() => { });
 							onChange(filter);
 						}}
 						style={({ pressed }) => [
@@ -505,7 +505,7 @@ export default function PetsList() {
 					animated: true,
 					viewPosition: 0,
 				});
-			} catch {}
+			} catch { }
 		},
 		[flat]
 	);
@@ -808,10 +808,9 @@ const styles = StyleSheet.create({
 	},
 
 	emptyWrap: {
-		flex: 1,
-		padding: 24,
+		marginTop: 42,
+		marginHorizontal: 2,
 		alignItems: "center",
-		justifyContent: "center",
 	},
 
 	emptyCard: {

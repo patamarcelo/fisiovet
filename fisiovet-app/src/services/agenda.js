@@ -5,8 +5,9 @@
 // - cache local é carregado primeiro;
 // - Firestore atualiza a agenda em segundo plano;
 // - caminhos online mantêm o AsyncStorage atualizado;
-// - falha remota nunca apaga uma agenda local já preenchida;
-// - resposta remota vazia não sobrescreve um cache local preenchido.
+// - falha remota mantém os dados locais já existentes;
+// - resposta remota vazia é válida e limpa o cache local;
+// - exclusões feitas em outro aparelho são refletidas após o refresh remoto.
 //
 // Coleção: users/{uid}/agenda
 
@@ -833,18 +834,15 @@ export async function listEventosRemote() {
     );
 
   /*
-   * Proteção da Fase 0:
-   * uma resposta remota vazia não substitui
-   * um cache local já preenchido.
+   * A consulta remota terminou com sucesso.
+   *
+   * Mesmo uma lista vazia é um resultado válido:
+   * ela pode significar que os eventos foram
+   * excluídos em outro aparelho.
    */
-  if (
-    rows.length >
-    0
-  ) {
-    await saveAllLocal(
-      rows
-    );
-  }
+  await saveAllLocal(
+    rows
+  );
 
   return sortEventos(
     rows
@@ -866,20 +864,17 @@ export async function listEventos() {
     await listEventosLocal();
 
   try {
-    const remote =
-      await listEventosRemote();
-
-    if (
-      remote.length ===
-        0 &&
-      local.length >
-        0
-    ) {
-      return local;
-    }
-
-    return remote;
+    /*
+     * Quando o Firestore responde com sucesso,
+     * o remoto é a fonte de verdade, inclusive
+     * quando retorna uma lista vazia.
+     */
+    return await listEventosRemote();
   } catch (error) {
+    /*
+     * Somente uma falha real de rede/autenticação
+     * permite usar o cache local como fallback.
+     */
     if (
       local.length >
       0
@@ -910,22 +905,69 @@ export async function getEventoById(
     uid
   ) {
     try {
-      const snapshot =
-        await getCol(
+      const collectionRef =
+        getCol(
           fb.firestore,
           uid
-        )
+        );
+
+      let snapshot =
+        await collectionRef
           .doc(
             safeId
           )
           .get();
 
+      /*
+       * Compatibilidade com documentos antigos
+       * cujo ID do Firestore não corresponde ao
+       * campo interno "id".
+       */
       if (
         !snapshot.exists
       ) {
-        throw new Error(
-          "Evento não encontrado."
+        const querySnapshot =
+          await collectionRef
+            .where(
+              "id",
+              "==",
+              safeId
+            )
+            .limit(
+              1
+            )
+            .get();
+
+        if (
+          !querySnapshot.empty
+        ) {
+          snapshot =
+            querySnapshot.docs[0];
+        }
+      }
+
+      if (
+        !snapshot.exists
+      ) {
+        /*
+         * O remoto respondeu com sucesso e confirmou
+         * que o evento não existe. Removemos qualquer
+         * cópia local antiga para impedir que o evento
+         * reapareça no aparelho.
+         */
+        await removeLocalEvento(
+          safeId
         );
+
+        const notFoundError =
+          new Error(
+            "Evento não encontrado."
+          );
+
+        notFoundError.code =
+          "EVENTO_NOT_FOUND";
+
+        throw notFoundError;
       }
 
       const evento =
@@ -939,6 +981,21 @@ export async function getEventoById(
 
       return evento;
     } catch (error) {
+      /*
+       * Não usa cache quando o Firestore confirmou
+       * que o registro foi excluído.
+       */
+      if (
+        error?.code ===
+        "EVENTO_NOT_FOUND"
+      ) {
+        throw error;
+      }
+
+      /*
+       * Em falha real de rede, o cache local continua
+       * disponível para uso offline.
+       */
       const local =
         (
           await loadAllLocal()
@@ -1321,14 +1378,46 @@ export async function removeEvento(
     fb &&
     uid
   ) {
-    await getCol(
-      fb.firestore,
-      uid
-    )
-      .doc(
+    const collectionRef =
+      getCol(
+        fb.firestore,
+        uid
+      );
+
+    const directRef =
+      collectionRef.doc(
         safeId
-      )
-      .delete();
+      );
+
+    const directSnapshot =
+      await directRef.get();
+
+    if (
+      directSnapshot.exists
+    ) {
+      await directRef.delete();
+    } else {
+      /*
+       * Compatibilidade com registros antigos:
+       * procura documentos cujo campo interno "id"
+       * corresponda ao ID solicitado.
+       */
+      const querySnapshot =
+        await collectionRef
+          .where(
+            "id",
+            "==",
+            safeId
+          )
+          .get();
+
+      for (
+        const document
+        of querySnapshot.docs
+      ) {
+        await document.ref.delete();
+      }
+    }
   }
 
   await removeLocalEvento(
