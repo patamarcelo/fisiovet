@@ -1,295 +1,759 @@
 // src/screens/config/ConfigProfile.jsx
 // @ts-nocheck
-import React from 'react';
-import { View, Text, TextInput, Pressable, Alert, ActivityIndicator } from 'react-native';
-import { useDispatch, useSelector } from 'react-redux';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
-import { Image } from 'expo-image';
 
-import { ensureFirebase } from '@/firebase/firebase';
-import { setUser } from '@/src/store/slices/userSlice';
+import React from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 
-// Mapeia objeto do Firebase Auth -> shape usado no Redux userSlice
-function mapAuthUser(u) {
-  if (!u) return null;
+import { useDispatch, useSelector } from "react-redux";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
+import { Image } from "expo-image";
+
+import { updateProfile } from "firebase/auth";
+
+import { ensureFirebase } from "@/firebase/firebase";
+
+import {
+  setUser,
+  setUserProfile,
+  selectUser,
+  selectUserProfile,
+} from "@/src/store/slices/userSlice";
+
+/**
+ * Mapeia Firebase Auth User para o formato serializável
+ * armazenado no Redux.
+ */
+function mapAuthUser(user) {
+  if (!user) {
+    return null;
+  }
+
   return {
-    uid: u.uid,
-    email: u.email,
-    emailVerified: !!u.emailVerified,
-    displayName: u.displayName ?? null,
-    photoURL: u.photoURL ?? null,
-    isAnonymous: !!u.isAnonymous,
-    providers: (u.providerData || []).map(p => p?.providerId).filter(Boolean),
-    creationTime: u.metadata?.creationTime || null,
-    lastSignInTime: u.metadata?.lastSignInTime || null,
+    uid: user.uid,
+    email: user.email,
+    emailVerified: Boolean(user.emailVerified),
+    displayName: user.displayName ?? null,
+    photoURL: user.photoURL ?? null,
+    isAnonymous: Boolean(user.isAnonymous),
+
+    providers: (user.providerData || [])
+      .map((provider) => provider?.providerId)
+      .filter(Boolean),
+
+    creationTime:
+      user.metadata?.creationTime ?? null,
+
+    lastSignInTime:
+      user.metadata?.lastSignInTime ?? null,
   };
 }
 
 export default function ConfigProfile() {
   const dispatch = useDispatch();
 
-  // Firebase helpers
-  const fb = ensureFirebase();
-  const auth = fb?.auth || null;
-  const firestore = fb?.firestore || null;
-  const storage = fb?.storageInstance || null;
+  const currentUser = useSelector(selectUser);
+  const currentProfile = useSelector(selectUserProfile);
 
-  const currentUser = useSelector((s) => s.user.user);
+  const firebase = React.useMemo(
+    () => ensureFirebase(),
+    []
+  );
 
-  const [displayName, setDisplayName] = React.useState(currentUser?.displayName ?? '');
-  const [photoURL, setPhotoURL] = React.useState(currentUser?.photoURL ?? '');
-  const [localImage, setLocalImage] = React.useState(null); // URI local escolhida
-  const [saving, setSaving] = React.useState(false);
+  const auth = firebase?.auth ?? null;
+  const firestore = firebase?.firestore ?? null;
+  const storage = firebase?.storageInstance ?? null;
 
-  // novos estados
-  const [loadingAvatar, setLoadingAvatar] = React.useState(false);
+  const initialDisplayName =
+    currentProfile?.displayName ??
+    currentProfile?.name ??
+    currentUser?.displayName ??
+    "";
 
-  // derive a source única para a <Image />
+  const initialPhotoURL =
+    currentProfile?.photoURL ??
+    currentUser?.photoURL ??
+    "";
+
+  const [displayName, setDisplayName] =
+    React.useState(initialDisplayName);
+
+  const [photoURL, setPhotoURL] =
+    React.useState(initialPhotoURL);
+
+  const [localImage, setLocalImage] =
+    React.useState(null);
+
+  const [saving, setSaving] =
+    React.useState(false);
+
+  const [loadingAvatar, setLoadingAvatar] =
+    React.useState(false);
+
+  /**
+   * Atualiza os campos caso os dados do Redux sejam carregados
+   * depois que a tela já foi montada.
+   */
+  React.useEffect(() => {
+    if (!localImage) {
+      const reduxPhotoURL =
+        currentProfile?.photoURL ??
+        currentUser?.photoURL ??
+        "";
+
+      setPhotoURL(reduxPhotoURL);
+    }
+  }, [
+    currentProfile?.photoURL,
+    currentUser?.photoURL,
+    localImage,
+  ]);
+
+  React.useEffect(() => {
+    const reduxDisplayName =
+      currentProfile?.displayName ??
+      currentProfile?.name ??
+      currentUser?.displayName ??
+      "";
+
+    setDisplayName(reduxDisplayName);
+  }, [
+    currentProfile?.displayName,
+    currentProfile?.name,
+    currentUser?.displayName,
+  ]);
+
+  /**
+   * Prioridade da imagem:
+   * 1. Arquivo selecionado no aparelho
+   * 2. URL digitada
+   * 3. Foto do profile no Firestore
+   * 4. Foto do Firebase Auth
+   */
   const imageSource = React.useMemo(() => {
-    // prioridade: imagem escolhida localmente > photoURL digitada > photoURL do usuário
-    if (localImage) return { uri: localImage };
-    if (photoURL?.trim()) return { uri: photoURL.trim() };
-    if (currentUser?.photoURL) return { uri: currentUser.photoURL };
-    return null; // sem imagem -> mostra ícone
-  }, [localImage, photoURL, currentUser?.photoURL]);
+    if (localImage) {
+      return {
+        uri: localImage,
+      };
+    }
 
-  // sempre que a source mudar, ligue o loading; desliga via eventos ou timeout
+    const typedPhotoURL =
+      photoURL?.trim();
+
+    if (typedPhotoURL) {
+      return {
+        uri: typedPhotoURL,
+      };
+    }
+
+    const savedPhotoURL =
+      currentProfile?.photoURL ??
+      currentUser?.photoURL;
+
+    if (savedPhotoURL) {
+      return {
+        uri: savedPhotoURL,
+      };
+    }
+
+    return null;
+  }, [
+    localImage,
+    photoURL,
+    currentProfile?.photoURL,
+    currentUser?.photoURL,
+  ]);
+
+  /**
+   * Controla o indicador de carregamento da imagem.
+   */
   React.useEffect(() => {
     if (!imageSource?.uri) {
       setLoadingAvatar(false);
-      return;
+      return undefined;
     }
+
     setLoadingAvatar(true);
-    const failSafe = setTimeout(() => setLoadingAvatar(false), 8000); // 8s de segurança
-    return () => clearTimeout(failSafe);
+
+    const timeout = setTimeout(() => {
+      setLoadingAvatar(false);
+    }, 8000);
+
+    return () => {
+      clearTimeout(timeout);
+    };
   }, [imageSource?.uri]);
 
-  // Escolher imagem do rolo da câmera
   async function pickPhotoFromDevice() {
     try {
       await Haptics.selectionAsync();
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permissão', 'Permita acesso às fotos para escolher uma imagem.');
+
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Permissão necessária",
+          "Permita o acesso às fotos para escolher uma imagem."
+        );
+
         return;
       }
-      const res = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.9,
-      });
-      if (!res.canceled && res.assets?.[0]?.uri) {
-        setLocalImage(res.assets[0].uri);
+
+      const result =
+        await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ["images"],
+          allowsEditing: true,
+          aspect: [1, 1],
+          quality: 0.85,
+        });
+
+      if (
+        !result.canceled &&
+        result.assets?.[0]?.uri
+      ) {
+        setLocalImage(
+          result.assets[0].uri
+        );
       }
-    } catch (e) {
-      console.warn('Erro ao escolher imagem:', e);
-      Alert.alert('Erro', 'Não foi possível abrir a galeria.');
+    } catch (error) {
+      console.warn(
+        "[ConfigProfile] Erro ao escolher imagem:",
+        error
+      );
+
+      Alert.alert(
+        "Erro",
+        error?.message ||
+          "Não foi possível abrir a galeria."
+      );
     }
   }
 
-  // Sobe a imagem local para o Firebase Storage e retorna a URL pública
+  /**
+   * Envia a imagem selecionada para o Firebase Storage.
+   */
   async function uploadAvatarIfNeeded() {
-    if (!localImage || !storage || !auth?.currentUser) return null;
-    const uid = auth.currentUser.uid;
-    const ref = storage.ref(`users/${uid}/avatar.jpg`);
-    await ref.putFile(localImage, { contentType: 'image/jpeg' });
-    const url = await ref.getDownloadURL();
-    return url;
+    if (!localImage) {
+      return null;
+    }
+
+    if (!storage) {
+      throw new Error(
+        "Firebase Storage não foi inicializado."
+      );
+    }
+
+    if (!auth?.currentUser?.uid) {
+      throw new Error(
+        "Usuário não autenticado."
+      );
+    }
+
+    const uid =
+      auth.currentUser.uid;
+
+    const avatarRef = storage.ref(
+      `users/${uid}/avatar.jpg`
+    );
+
+    await avatarRef.putFile(
+      localImage,
+      {
+        contentType: "image/jpeg",
+        customMetadata: {
+          userId: uid,
+          type: "profile-avatar",
+        },
+      }
+    );
+
+    return avatarRef.getDownloadURL();
   }
 
   async function handleSave() {
-    try {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (saving) {
+      return;
+    }
 
-      if (!auth?.currentUser) {
-        Alert.alert('Sessão', 'Usuário não autenticado.');
+    try {
+      await Haptics.impactAsync(
+        Haptics.ImpactFeedbackStyle.Medium
+      );
+
+      const firebaseUser =
+        auth?.currentUser;
+
+      if (!firebaseUser?.uid) {
+        Alert.alert(
+          "Sessão",
+          "Usuário não autenticado."
+        );
+
         return;
       }
+
       setSaving(true);
 
-      // Se escolheu uma imagem local nova, faz upload e usa como photoURL
-      let finalPhotoURL = photoURL?.trim() || null;
-      const uploaded = await uploadAvatarIfNeeded();
-      if (uploaded) {
-        finalPhotoURL = uploaded;
+      const normalizedDisplayName =
+        displayName?.trim() || null;
+
+      let finalPhotoURL =
+        photoURL?.trim() || null;
+
+      /**
+       * Se uma nova imagem foi selecionada,
+       * faz upload e substitui a URL anterior.
+       */
+      const uploadedPhotoURL =
+        await uploadAvatarIfNeeded();
+
+      if (uploadedPhotoURL) {
+        finalPhotoURL =
+          uploadedPhotoURL;
       }
 
-      // 1) Atualiza no Auth (nome/foto)
-      await auth.currentUser.updateProfile({
-        displayName: displayName?.trim() || null,
-        photoURL: finalPhotoURL,
-      });
+      /**
+       * Firebase modular:
+       *
+       * Não usar:
+       * auth.currentUser.updateProfile(...)
+       *
+       * Usar:
+       * updateProfile(auth.currentUser, ...)
+       */
+      await updateProfile(
+        firebaseUser,
+        {
+          displayName:
+            normalizedDisplayName,
 
-      // 2) Persiste/espelha no Firestore (profiles/{uid})
-      if (firestore && auth.currentUser?.uid) {
-        const uid = auth.currentUser.uid;
-        const col = typeof firestore.collection === 'function' ? firestore.collection('profiles') : null;
-        if (col) {
-          await col.doc(uid).set(
-            {
-              displayName: displayName?.trim() || null,
-              photoURL: finalPhotoURL,
-              email: auth.currentUser.email || null,
-              updatedAt: new Date().toISOString(),
-            },
-            { merge: true }
-          );
+          photoURL:
+            finalPhotoURL,
         }
+      );
+
+      const profilePatch = {
+        uid: firebaseUser.uid,
+
+        displayName:
+          normalizedDisplayName,
+
+        photoURL:
+          finalPhotoURL,
+
+        email:
+          firebaseUser.email ?? null,
+
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      /**
+       * O restante do app usa users/{uid}.
+       * Antes esta tela estava gravando em profiles/{uid}.
+       */
+      if (firestore) {
+        await firestore
+          .collection("users")
+          .doc(firebaseUser.uid)
+          .set(
+            profilePatch,
+            {
+              merge: true,
+            }
+          );
       }
 
-      // 3) Atualiza Redux com os dados atuais do Auth
-      const refreshed = mapAuthUser(auth.currentUser);
-      dispatch(setUser(refreshed));
+      /**
+       * Atualiza imediatamente o Firebase Auth no Redux.
+       */
+      dispatch(
+        setUser(
+          mapAuthUser(firebaseUser)
+        )
+      );
 
-      // Limpa o preview local se subiu
-      if (uploaded) setLocalImage(null);
+      /**
+       * Atualiza imediatamente o profile do Firestore no Redux,
+       * preservando subscription e demais campos existentes.
+       */
+      dispatch(
+        setUserProfile({
+          ...(currentProfile || {}),
+          ...profilePatch,
+        })
+      );
 
-      Alert.alert('Pronto', 'Perfil atualizado com sucesso!');
-    } catch (e) {
-      console.warn('Erro ao salvar perfil:', e);
-      Alert.alert('Erro', e?.message || 'Não foi possível atualizar seu perfil.');
+      setPhotoURL(
+        finalPhotoURL || ""
+      );
+
+      setLocalImage(null);
+
+      await Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success
+      );
+
+      Alert.alert(
+        "Pronto",
+        "Perfil atualizado com sucesso!"
+      );
+    } catch (error) {
+      console.warn(
+        "[ConfigProfile] Erro ao salvar perfil:",
+        error
+      );
+
+      await Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Error
+      ).catch(() => {});
+
+      Alert.alert(
+        "Erro",
+        error?.message ||
+          "Não foi possível atualizar seu perfil."
+      );
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <View style={{ padding: 16, gap: 16 }}>
-      {/* Avatar + Nome */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, alignSelf: 'center' }}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={
+        Platform.OS === "ios"
+          ? "padding"
+          : undefined
+      }
+    >
+      <ScrollView
+        contentContainerStyle={{
+          padding: 16,
+          paddingBottom: 40,
+          gap: 18,
+        }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Avatar */}
         <View
           style={{
-            width: 120,
-            height: 120,
-            borderRadius: 72,
-            overflow: 'hidden',
-            backgroundColor: '#E5E7EB',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
+            alignItems: "center",
           }}
         >
-          {imageSource ? (
-            <>
-              <Image
-                source={imageSource}
-                cachePolicy='memory-disk'
-                style={{ width: '100%', height: '100%' }}
-                onLoad={() => setLoadingAvatar(false)}
-                onLoadEnd={() => setLoadingAvatar(false)}
-                onError={() => setLoadingAvatar(false)}
-              />
-              {loadingAvatar && (
-                <View
-                  pointerEvents="none"
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    backgroundColor: 'rgba(255,255,255,0.35)',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ActivityIndicator size="small" />
-                </View>
+          <Pressable
+            onPress={pickPhotoFromDevice}
+            disabled={saving}
+            style={({ pressed }) => ({
+              opacity:
+                pressed || saving
+                  ? 0.8
+                  : 1,
+            })}
+          >
+            <View
+              style={{
+                width: 120,
+                height: 120,
+                borderRadius: 60,
+                overflow: "hidden",
+                backgroundColor: "#E5E7EB",
+                alignItems: "center",
+                justifyContent: "center",
+                position: "relative",
+              }}
+            >
+              {imageSource ? (
+                <>
+                  <Image
+                    source={imageSource}
+                    cachePolicy="memory-disk"
+                    contentFit="cover"
+                    transition={150}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                    }}
+                    onLoad={() => {
+                      setLoadingAvatar(false);
+                    }}
+                    onLoadEnd={() => {
+                      setLoadingAvatar(false);
+                    }}
+                    onError={(event) => {
+                      console.warn(
+                        "[ConfigProfile] Erro ao carregar avatar:",
+                        event
+                      );
+
+                      setLoadingAvatar(false);
+                    }}
+                  />
+
+                  {loadingAvatar && (
+                    <View
+                      pointerEvents="none"
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                        left: 0,
+                        backgroundColor:
+                          "rgba(255,255,255,0.45)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <ActivityIndicator
+                        size="small"
+                        color="#0A84FF"
+                      />
+                    </View>
+                  )}
+                </>
+              ) : (
+                <Ionicons
+                  name="person"
+                  size={48}
+                  color="#9CA3AF"
+                />
               )}
-            </>
-          ) : (
-            <Ionicons name="person" size={28} color="#9CA3AF" />
-          )}
+
+              <View
+                pointerEvents="none"
+                style={{
+                  position: "absolute",
+                  right: 4,
+                  bottom: 4,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  backgroundColor: "#0A84FF",
+                  borderWidth: 3,
+                  borderColor: "#FFFFFF",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons
+                  name="camera"
+                  size={17}
+                  color="#FFFFFF"
+                />
+              </View>
+            </View>
+          </Pressable>
+
+          <Text
+            style={{
+              marginTop: 10,
+              color: "#6B7280",
+              fontSize: 13,
+            }}
+          >
+            Toque na foto para alterar
+          </Text>
         </View>
-      </View>
 
-      <View>
-        <Text style={{ fontWeight: '700', marginBottom: 6 }}>Nome</Text>
-        <TextInput
-          value={displayName}
-          onChangeText={setDisplayName}
-          placeholder="Seu nome"
+        {/* Nome */}
+        <View
           style={{
-            borderWidth: 1,
-            borderColor: '#E5E7EB',
-            borderRadius: 8,
-            padding: 10,
+            gap: 6,
           }}
-        />
-      </View>
+        >
+          <Text
+            style={{
+              fontWeight: "700",
+              color: "#111827",
+            }}
+          >
+            Nome
+          </Text>
 
-      {/* E-mail (somente leitura) */}
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: '700' }}>E-mail</Text>
-        <TextInput
-          editable={false}
-          value={currentUser?.email ?? ''}
-          style={{
-            borderWidth: 1,
-            borderColor: '#E5E7EB',
-            borderRadius: 8,
-            padding: 10,
-            color: '#6B7280',
-            backgroundColor: '#F9FAFB',
-          }}
-        />
-      </View>
+          <TextInput
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Seu nome"
+            editable={!saving}
+            returnKeyType="done"
+            style={{
+              minHeight: 48,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              color: "#111827",
+              backgroundColor: "#FFFFFF",
+            }}
+          />
+        </View>
 
-      {/* URL manual da foto + botão escolher do dispositivo */}
-      <View style={{ gap: 6 }}>
-        <Text style={{ fontWeight: '700' }}>Foto (URL, opcional)</Text>
-        <TextInput
-          value={photoURL}
-          onChangeText={setPhotoURL}
-          placeholder="https://…"
-          autoCapitalize="none"
-          autoCorrect={false}
+        {/* E-mail */}
+        <View
           style={{
-            borderWidth: 1,
-            borderColor: '#E5E7EB',
-            borderRadius: 8,
-            padding: 10,
+            gap: 6,
           }}
-        />
+        >
+          <Text
+            style={{
+              fontWeight: "700",
+              color: "#111827",
+            }}
+          >
+            E-mail
+          </Text>
+
+          <TextInput
+            editable={false}
+            value={
+              currentUser?.email ??
+              auth?.currentUser?.email ??
+              ""
+            }
+            style={{
+              minHeight: 48,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              color: "#6B7280",
+              backgroundColor: "#F9FAFB",
+            }}
+          />
+        </View>
+
+        {/* URL opcional */}
+        <View
+          style={{
+            gap: 6,
+          }}
+        >
+          <Text
+            style={{
+              fontWeight: "700",
+              color: "#111827",
+            }}
+          >
+            URL da foto
+          </Text>
+
+          <TextInput
+            value={photoURL}
+            onChangeText={(value) => {
+              setPhotoURL(value);
+
+              if (localImage) {
+                setLocalImage(null);
+              }
+            }}
+            placeholder="https://..."
+            editable={!saving}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            returnKeyType="done"
+            style={{
+              minHeight: 48,
+              borderWidth: 1,
+              borderColor: "#E5E7EB",
+              borderRadius: 12,
+              paddingHorizontal: 14,
+              color: "#111827",
+              backgroundColor: "#FFFFFF",
+            }}
+          />
+        </View>
+
+        {/* Escolher imagem */}
         <Pressable
           onPress={pickPhotoFromDevice}
+          disabled={saving}
           style={({ pressed }) => ({
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
+            minHeight: 48,
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
             gap: 8,
-            padding: 12,
-            borderRadius: 8,
+            paddingHorizontal: 14,
+            borderRadius: 12,
             borderWidth: 1,
-            borderColor: '#3B82F6', // azul amigável
-            backgroundColor: pressed ? '#DBEAFE' : '#EFF6FF', // azul bem claro
+            borderColor: "#0A84FF",
+            backgroundColor: pressed
+              ? "#DBEAFE"
+              : "#EFF6FF",
+            opacity: saving ? 0.6 : 1,
           })}
         >
-          <Text style={{ color: '#1D4ED8', fontWeight: '600' }}>Escolher do dispositivo</Text>
-          <Ionicons name="cloud-upload-outline" size={20} color="#2563EB" />
-        </Pressable>
-      </View>
+          <Ionicons
+            name="images-outline"
+            size={20}
+            color="#0A84FF"
+          />
 
-      {/* Salvar */}
-      <Pressable
-        onPress={handleSave}
-        disabled={saving}
-        style={({ pressed }) => ({
-          padding: 14,
-          borderRadius: 10,
-          alignItems: 'center',
-          backgroundColor: saving ? '#9CA3AF' : '#0A84FF',
-          opacity: pressed ? 0.9 : 1,
-          flexDirection: 'row',
-          justifyContent: 'center',
-          gap: 8,
-        })}
-      >
-        {saving && <ActivityIndicator color="#FFF" />}
-        <Text style={{ color: '#FFF', fontWeight: '700' }}>
-          {saving ? 'Salvando…' : 'Salvar'}
-        </Text>
-      </Pressable>
-    </View>
+          <Text
+            style={{
+              color: "#0A84FF",
+              fontWeight: "700",
+            }}
+          >
+            Escolher do dispositivo
+          </Text>
+        </Pressable>
+
+        {/* Salvar */}
+        <Pressable
+          onPress={handleSave}
+          disabled={saving}
+          style={({ pressed }) => ({
+            minHeight: 52,
+            paddingHorizontal: 16,
+            borderRadius: 14,
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "row",
+            gap: 8,
+            backgroundColor: saving
+              ? "#9CA3AF"
+              : "#0A84FF",
+            opacity:
+              pressed && !saving
+                ? 0.88
+                : 1,
+          })}
+        >
+          {saving && (
+            <ActivityIndicator
+              size="small"
+              color="#FFFFFF"
+            />
+          )}
+
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontWeight: "700",
+              fontSize: 16,
+            }}
+          >
+            {saving
+              ? "Salvando..."
+              : "Salvar"}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
